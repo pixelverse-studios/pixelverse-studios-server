@@ -1,7 +1,9 @@
-import { Query as UserQueries, Mutation as UserMutations } from './users'
+import { UserQueries, UserMutations } from './users'
+import { ClientQueries } from './clients'
 
 const Query = {
-    ...UserQueries
+    ...UserQueries,
+    ...ClientQueries
 }
 const Mutation = {
     ...UserMutations

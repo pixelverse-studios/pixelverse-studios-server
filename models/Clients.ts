@@ -11,7 +11,12 @@ const clientsSchema = new Schema({
         url: String,
         created: { type: Date, default: Date.now },
         scheduledFor: Date,
-        prepInfo: null
+        prepInfo: [
+            {
+                question: String,
+                answer: String
+            }
+        ]
     },
     followupMeetings: [
         {
@@ -19,7 +24,12 @@ const clientsSchema = new Schema({
             url: String,
             created: { type: Date, default: Date.now },
             scheduledFor: Date,
-            prepInfo: null
+            prepInfo: [
+                {
+                    question: String,
+                    answer: String
+                }
+            ]
         }
     ],
     finance: {
@@ -27,7 +37,7 @@ const clientsSchema = new Schema({
         totalEstimate: Number
     },
     project: {
-        name: String,
+        title: String,
         domain: String,
         externalDependencies: [String],
         hoursTracked: Number,
