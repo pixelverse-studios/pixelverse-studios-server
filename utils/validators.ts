@@ -49,7 +49,7 @@ export const validateRequiredFields = (
         general: ''
     }
 
-    const missingValues = []
+    const missingValues: string[] = []
 
     for (const [key, value] of Object.entries(data)) {
         if (!value) {

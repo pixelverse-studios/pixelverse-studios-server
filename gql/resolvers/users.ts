@@ -12,8 +12,7 @@ export const UserMutations = {
     ) {
         try {
             const { valid, errors } = validateAuthUser(email, password)
-            // if (!valid) {
-            if (false) {
+            if (!valid) {
                 throw new UserInputError('Registration Errors', { errors })
             }
 

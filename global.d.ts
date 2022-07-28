@@ -5,6 +5,7 @@ declare global {
             MONGODB: string
             TOKEN_SECRET: string
             TOKEN_EXPIRE: string
+            CALENDLY_ACCESS_TOKEN: string
             // EMAIL_USER: string
             // EMAIL_PASSWORD: string
             // GOOGLE_OAUTH_ID: string

@@ -14,7 +14,6 @@ const typeDefs = gql`
 
     type MeetingPrepInfo {
         answer: String
-        position: Float
         question: String
     }
 
@@ -41,7 +40,6 @@ const typeDefs = gql`
     type Client {
         id: ID!
         email: String!
-        password: String!
         firstName: String!
         lastName: String!
         status: String!
@@ -69,6 +67,9 @@ const typeDefs = gql`
         updatePassword(email: String!, newPassword: String!): User!
         deleteUser(id: String!): [User]
         sendPasswordResetEmail(email: String!): [User]
+
+        # CLIENTS
+        addNewClient(eventUri: String!, inviteeUri: String!): Client!
     }
 `
 
