@@ -8,9 +8,9 @@ declare global {
             CALENDLY_ACCESS_TOKEN: string
             // EMAIL_USER: string
             // EMAIL_PASSWORD: string
-            // GOOGLE_OAUTH_ID: string
-            // GOOGLE_OAUTH_SECRET: string
-            // GOOGLE_REFRESH_TOKEN: string
+            GOOGLE_OAUTH_ID: string
+            GOOGLE_OAUTH_SECRET: string
+            GOOGLE_REFRESH_TOKEN: string
         }
     }
 }

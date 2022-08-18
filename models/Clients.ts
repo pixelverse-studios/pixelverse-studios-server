@@ -2,7 +2,6 @@ import { model, Schema } from 'mongoose'
 
 const clientsSchema = new Schema({
     email: { type: String, unqiue: true },
-    password: String,
     firstName: String,
     lastName: String,
     status: String,
@@ -44,7 +43,7 @@ const clientsSchema = new Schema({
         notes: String
     },
     createdAt: { type: Date, default: Date.now },
-    updatedAt: Date
+    updatedAt: { type: Date, default: Date.now }
 })
 
 export default model('Clients', clientsSchema)
