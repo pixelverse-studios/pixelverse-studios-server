@@ -9,7 +9,7 @@ import { Query, Mutation } from './gql/resolvers'
 
 dotenv.config()
 
-const dateScalar = new GraphQLScalarType({
+export const dateScalar = new GraphQLScalarType({
     name: 'Date',
     description: 'Date custom scalar type',
     serialize(value: any) {

@@ -12,11 +12,51 @@ const typeDefs = gql`
         token: String
     }
 
+    type MeetingPrepInfo {
+        answer: String
+        question: String
+    }
+
+    type Meeting {
+        location: String
+        url: String
+        scheduledFor: Date
+        prepInfo: [MeetingPrepInfo]
+    }
+
+    type Finances {
+        hourly: String
+        totalEstimate: Float
+    }
+
+    type ClientProject {
+        title: String
+        domain: String
+        externalDependencies: [String]
+        hoursTracked: Float
+        notes: String
+    }
+
+    type Client {
+        id: ID!
+        email: String!
+        firstName: String!
+        lastName: String!
+        status: String!
+        introMeeting: Meeting
+        followupMeetings: [Meeting]
+        finance: Finances
+        project: ClientProject
+    }
+
     type Query {
         # USERS
         getUser(email: String!): User
         getAllUsers: [User]
         getLoggedInUser: User!
+
+        # CLIENTS
+        getAllClients: [Client]
     }
 
     type Mutation {
@@ -27,6 +67,9 @@ const typeDefs = gql`
         updatePassword(email: String!, newPassword: String!): User!
         deleteUser(id: String!): [User]
         sendPasswordResetEmail(email: String!): [User]
+
+        # CLIENTS
+        addNewClient(eventUri: String!, inviteeUri: String!): Client!
     }
 `
 

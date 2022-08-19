@@ -1,19 +1,18 @@
 import { UserInputError } from 'apollo-server'
 import bcrypt from 'bcryptjs'
+
+import User from '../../models/User'
 import { validateAuthUser } from '../../utils/validators'
 import { generateToken } from '../../utils/token'
 
-import User from '../../models/User'
-
-export const Mutation = {
+export const UserMutations = {
     async register(
         _: any,
         { email, password }: { email: string; password: string }
     ) {
         try {
             const { valid, errors } = validateAuthUser(email, password)
-            // if (!valid) {
-            if (false) {
+            if (!valid) {
                 throw new UserInputError('Registration Errors', { errors })
             }
 
@@ -41,7 +40,7 @@ export const Mutation = {
     }
 }
 
-export const Query = {
+export const UserQueries = {
     async getUser(_: any, { email }: { email: string }) {
         try {
             const user = await User.findOne({ email })
