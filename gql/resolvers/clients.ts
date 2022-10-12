@@ -7,13 +7,14 @@ import { dateScalar } from '../..'
 import { validateNewClientFields } from '../../utils/validators/validate-clients'
 import { sendIntroMeetingResponse } from '../../utils/mailer/clients/introMeetingResponse'
 
-const REQUESTED_INTRO = 'REQUESTED_INTRO'
-const CONTACTED = 'CONTACTED'
-const CONTACT_ESTABLISHED = 'CONTACT_ESTABLISHED'
-const ACCEPTED = 'ACCEPTED'
-const IN_DEVELOPMENT = 'IN_DEVELOPMENT'
-const PROJECT_MAINTENANCE = 'PROJECT_MAINTENANCE'
-const TERMINATED = 'TERMINATED'
+const phases = {
+    PHASE_1: 'Phase 1: Information Gathering',
+    PHASE_2: 'Phase 2: Structure & Design',
+    PHASE_3: 'Phase 3: Initial Development',
+    PHASE_4: 'Phase 4: Testing/QA',
+    PHASE_5: 'Phase 5: Post Launch Maintenance',
+    PHASE_6: 'Phase 6: New Version Development'
+}
 
 export const ClientMutations = {
     async addNewClient(
@@ -39,25 +40,34 @@ export const ClientMutations = {
             const existingClient = await Clients.findOne({ email })
 
             if (existingClient) {
-                throw new UserInputError('Client Exists', {
-                    errors: {
-                        email: 'Client already exists. Direct them to the ongoing scheduling page.'
+                existingClient.meetings = [
+                    ...existingClient.meetings,
+                    {
+                        location: location.type,
+                        url: location.join_url,
+                        created: new Date(created_at),
+                        scheduledFor: new Date(start_time),
+                        prepInfo: questions_and_answers
                     }
-                })
+                ]
+                const updatedClient: any = await existingClient.save()
+                return { ...updatedClient._doc, id: updatedClient._id }
             }
 
             const newClient = new Clients({
                 email,
                 firstName: first_name,
                 lastName: last_name,
-                introMeeting: {
-                    location: location.type,
-                    url: location.join_url,
-                    created: new Date(created_at),
-                    scheduledFor: new Date(start_time),
-                    prepInfo: questions_and_answers
-                },
-                status: REQUESTED_INTRO
+                meetings: [
+                    {
+                        location: location.type,
+                        url: location.join_url,
+                        created: new Date(created_at),
+                        scheduledFor: new Date(start_time),
+                        prepInfo: questions_and_answers
+                    }
+                ],
+                status: phases.PHASE_1
             })
             // trigger an email sent to the new client welcoming them and letting them know we got and confirmed their meeting request
             const savedClient: any = await newClient.save()
