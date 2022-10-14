@@ -33,8 +33,10 @@ const typeDefs = gql`
         title: String
         domain: String
         externalDependencies: [String]
-        hoursTracked: Float
+        hoursLogged: Float
         notes: String
+        originalLaunchDate: Date
+        updatedLaunchDate: Date
     }
 
     type Client {
@@ -43,9 +45,9 @@ const typeDefs = gql`
         firstName: String!
         lastName: String!
         status: String!
-        introMeeting: Meeting
-        followupMeetings: [Meeting]
-        finance: Finances
+        meetings: [Meeting]
+        originalCostEstimate: Float
+        updatedCostEstimate: Float
         project: ClientProject
     }
 
