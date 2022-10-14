@@ -1,6 +1,6 @@
 import SMTPTransport from 'nodemailer/lib/smtp-transport'
 
-import { createTransporter } from '../'
+import { createTransporter } from '..'
 
 export const sendIntroMeetingResponse = async (
     sendToEmail: string,
