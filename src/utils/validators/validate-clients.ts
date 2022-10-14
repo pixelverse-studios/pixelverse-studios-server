@@ -1,5 +1,5 @@
 import { VALID_EMAIL } from '../regex'
-import { dateScalar } from '../../'
+import { dateScalar } from '../../..'
 
 // create validations for create new client
 // figure out how to add array of errors to a GQL user input error

@@ -4,8 +4,9 @@ import mongoose from 'mongoose'
 import { GraphQLScalarType, Kind } from 'graphql'
 import jwt_decode from 'jwt-decode'
 
-import typeDefs from './gql/typeDefs'
-import { Query, Mutation } from './gql/resolvers'
+import typeDefs from './src/gql/typeDefs'
+// import { Query, Mutation } from '../gql/resolvers'
+import { Query, Mutation } from './src/gql/resolvers'
 
 dotenv.config()
 

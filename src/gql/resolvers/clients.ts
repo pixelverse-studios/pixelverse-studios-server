@@ -3,8 +3,8 @@ import axios from 'axios'
 import { format } from 'date-fns'
 
 import Clients from '../../models/Clients'
-import { dateScalar } from '../..'
-import { validateNewClientFields } from '../../utils/validators/validate-clients'
+// import { dateScalar } from '../../..'
+// import { validateNewClientFields } from '../../utils/validators/validate-clients'
 import { sendIntroMeetingResponse } from '../../utils/mailer/clients/introMeetingResponse'
 
 const phases = {
