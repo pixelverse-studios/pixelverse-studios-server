@@ -5,19 +5,7 @@ const clientsSchema = new Schema({
     firstName: String,
     lastName: String,
     status: String,
-    introMeeting: {
-        location: String,
-        url: String,
-        created: { type: Date, default: Date.now },
-        scheduledFor: Date,
-        prepInfo: [
-            {
-                question: String,
-                answer: String
-            }
-        ]
-    },
-    followupMeetings: [
+    meetings: [
         {
             location: String,
             url: String,
@@ -31,16 +19,16 @@ const clientsSchema = new Schema({
             ]
         }
     ],
-    finance: {
-        hourly: String,
-        totalEstimate: Number
-    },
+    originalCostEstimate: Number,
+    updatedCostEstimate: Number,
     project: {
         title: String,
         domain: String,
         externalDependencies: [String],
-        hoursTracked: Number,
-        notes: String
+        hoursLogged: Number,
+        notes: String,
+        originalLaunchDate: Date,
+        updatedLaunchDate: Date
     },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
