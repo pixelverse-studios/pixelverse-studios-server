@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer'
-import SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { google } from 'googleapis'
 
 export const createTransporter = async () => {
@@ -33,7 +32,7 @@ export const createTransporter = async () => {
             clientSecret: process.env.GOOGLE_OAUTH_SECRET,
             refreshToken: process.env.GOOGLE_REFRESH_TOKEN
         }
-    } as SMTPTransport.Options)
+    })
 
     return transporter
 }
