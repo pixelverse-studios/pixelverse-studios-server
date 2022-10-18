@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 
-export const generateToken = (user: any) => {
+export const generateToken = user => {
     const userData = {
         id: user._id,
         email: user.email
@@ -11,7 +11,7 @@ export const generateToken = (user: any) => {
     })
 }
 
-export const generateResetPwToken = (user: any) => {
+export const generateResetPwToken = user => {
     const userData = {
         id: user._id,
         email: user.email
@@ -22,13 +22,13 @@ export const generateResetPwToken = (user: any) => {
     })
 }
 
-const isTokenExpired = (expiration: number): boolean => {
+const isTokenExpired = expiration => {
     if (expiration * 1000 < Date.now()) return false
 
     return true
 }
 
-export const validateToken = (context: any): { valid: boolean; user: any } => {
+export const validateToken = context => {
     const { user } = context
     if (!user) {
         return {

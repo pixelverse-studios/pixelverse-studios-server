@@ -1,37 +1,35 @@
 {
     "name": "ezpz-server",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "description": "",
-    "main": "index.js",
+    "main": "server.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "start": "node index.ts",
-        "serve": "nodemon index.ts"
+        "start": "node index.js",
+        "serve": "nodemon index.js"
     },
-    "type": "module",
     "author": "",
+    "type": "module",
     "license": "ISC",
     "dependencies": {
-        "apollo-server": "^3.7.0",
-        "apollo-server-types": "^3.6.2",
+        "@babel/node": "^7.19.1",
+        "@babel/plugin-transform-runtime": "^7.19.1",
+        "@babel/preset-env": "^7.19.4",
+        "@babel/runtime": "^7.19.4",
         "axios": "^0.27.2",
         "bcryptjs": "^2.4.3",
+        "body-parser": "^1.20.1",
+        "cors": "^2.8.5",
         "date-fns": "^2.28.0",
         "dotenv": "^16.0.1",
+        "express": "^4.18.2",
+        "express-validator": "^6.14.2",
         "googleapis": "^100.0.0",
-        "graphql": "^16.5.0",
         "jsonwebtoken": "^8.5.1",
         "jwt-decode": "^3.1.2",
         "mongoose": "^6.3.3",
         "node-fetch": "^3.2.9",
         "nodemailer": "^6.7.7",
-        "nodemon": "^2.0.16",
-        "ts-node": "^10.7.0"
-    },
-    "devDependencies": {
-        "@types/bcryptjs": "^2.4.2",
-        "@types/jsonwebtoken": "^8.5.8",
-        "@types/nodemailer": "^6.4.4",
-        "typescript": "^4.7.4"
+        "nodemon": "^2.0.16"
     }
 }

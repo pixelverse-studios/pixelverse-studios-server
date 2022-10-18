@@ -3,24 +3,13 @@ import { dateScalar } from '../../..'
 
 // create validations for create new client
 // figure out how to add array of errors to a GQL user input error
-type NewClientFieldsType = {
-    email: string | null
-    firstName: string | null
-    lastName: string | null
-    introMeeting: {
-        location: string | null
-        url: string | null
-        scheduledFor: typeof dateScalar | null
-        prepInfo: any | null
-    }
-}
 export const validateNewClientFields = ({
     email,
     firstName,
     lastName,
     introMeeting
-}: NewClientFieldsType) => {
-    const errors: { field: string; error: string }[] = []
+}) => {
+    const errors = []
 
     if (!email) {
         errors.push({ field: 'Email', error: 'Email is required' })

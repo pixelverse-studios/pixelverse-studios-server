@@ -1,16 +1,6 @@
 import { VALID_EMAIL, VALID_PASSWORD } from './regex'
 
-interface validationReturnProps {
-    valid: boolean
-    errors: {
-        password: string | null
-        email: string | null
-    }
-}
-export const validateAuthUser = (
-    email: string,
-    password: string
-): validationReturnProps => {
+export const validateAuthUser = (email, password) => {
     const errors = {
         email: '',
         password: ''
@@ -35,21 +25,12 @@ export const validateAuthUser = (
     }
 }
 
-type requiredFieldsReturnProps = {
-    valid: boolean
-    errors: {
-        general: string
-    }
-}
-
-export const validateRequiredFields = (
-    data: any
-): requiredFieldsReturnProps => {
+export const validateRequiredFields = data => {
     const errors = {
         general: ''
     }
 
-    const missingValues: string[] = []
+    const missingValues = []
 
     for (const [key, value] of Object.entries(data)) {
         if (!value) {

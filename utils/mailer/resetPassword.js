@@ -1,10 +1,9 @@
 import nodemailer from 'nodemailer'
 import { google } from 'googleapis'
-import SMTPTransport from 'nodemailer/lib/smtp-transport'
 
 // bring in logo
 
-export default async function (email: string, token: string) {
+export default async function (email, token) {
     const createTransporter = async () => {
         const OAuth2 = google.auth.OAuth2
         const oauth2Client = new OAuth2(
@@ -36,7 +35,7 @@ export default async function (email: string, token: string) {
                 clientSecret: process.env.GOOGLE_OAUTH_SECRET,
                 refreshToken: process.env.GOOGLE_REFRESH_TOKEN
             }
-        } as SMTPTransport.Options)
+        })
 
         return transporter
     }
@@ -62,9 +61,9 @@ export default async function (email: string, token: string) {
                 html,
                 to: email,
                 from: process.env.EMAIL_USER
-            } as SMTPTransport.Options)
+            })
             return true
-        } catch (error: any) {
+        } catch (error) {
             throw new Error(error)
         }
     }

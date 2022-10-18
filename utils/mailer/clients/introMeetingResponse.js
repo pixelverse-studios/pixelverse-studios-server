@@ -1,11 +1,6 @@
-import SMTPTransport from 'nodemailer/lib/smtp-transport'
-
 import { createTransporter } from '..'
 
-export const sendIntroMeetingResponse = async (
-    sendToEmail: string,
-    meetingDetails: { location: string; dateTime: string }
-) => {
+export const sendIntroMeetingResponse = async (sendToEmail, meetingDetails) => {
     const transporter = await createTransporter()
 
     const header = `<header>EZPZ Coding LLC</header>`
@@ -24,9 +19,9 @@ export const sendIntroMeetingResponse = async (
             html,
             to: sendToEmail,
             from: process.env.EMAIL_USER
-        } as SMTPTransport.Options)
+        })
         return true
-    } catch (error: any) {
+    } catch (error) {
         throw new Error(error)
     }
 }
