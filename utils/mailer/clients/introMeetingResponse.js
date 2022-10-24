@@ -1,6 +1,9 @@
-import { createTransporter } from '..'
+const { createTransporter } = require('../')
 
-export const sendIntroMeetingResponse = async (sendToEmail, meetingDetails) => {
+module.exports.sendIntroMeetingResponse = async (
+    sendToEmail,
+    meetingDetails
+) => {
     const transporter = await createTransporter()
 
     const header = `<header>EZPZ Coding LLC</header>`

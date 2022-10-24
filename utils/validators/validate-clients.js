@@ -1,9 +1,6 @@
-import { VALID_EMAIL } from '../regex'
-import { dateScalar } from '../../..'
+const { VALID_EMAIL } = require('../regex')
 
-// create validations for create new client
-// figure out how to add array of errors to a GQL user input error
-export const validateNewClientFields = ({
+module.exports.validateNewClientFields = ({
     email,
     firstName,
     lastName,

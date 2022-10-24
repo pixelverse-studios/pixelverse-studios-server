@@ -1,7 +1,7 @@
-import nodemailer from 'nodemailer'
-import { google } from 'googleapis'
+const nodemailer = require('nodemailer')
+const { google } = require('googleapis')
 
-export const createTransporter = async () => {
+module.exports.createTransporter = async () => {
     const OAuth2 = google.auth.OAuth2
     const oauth2Client = new OAuth2(
         process.env.GOOGLE_OAUTH_ID,
