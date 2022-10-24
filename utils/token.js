@@ -1,6 +1,6 @@
-import jwt from 'jsonwebtoken'
+const jwt = require('jsonwebtoken')
 
-export const generateToken = user => {
+module.exports.generateToken = user => {
     const userData = {
         id: user._id,
         email: user.email
@@ -11,7 +11,7 @@ export const generateToken = user => {
     })
 }
 
-export const generateResetPwToken = user => {
+module.exports.generateResetPwToken = user => {
     const userData = {
         id: user._id,
         email: user.email
@@ -22,13 +22,13 @@ export const generateResetPwToken = user => {
     })
 }
 
-const isTokenExpired = expiration => {
+module.exports.isTokenExpired = expiration => {
     if (expiration * 1000 < Date.now()) return false
 
     return true
 }
 
-export const validateToken = context => {
+module.exports.validateToken = context => {
     const { user } = context
     if (!user) {
         return {
