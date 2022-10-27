@@ -1,6 +1,6 @@
 {
     "name": "ezpz-server",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "",
     "main": "server.js",
     "scripts": {
@@ -12,10 +12,13 @@
     "license": "ISC",
     "dependencies": {
         "apollo-server": "^3.10.3",
+        "apollo-server-core": "^3.10.3",
+        "apollo-server-express": "^3.10.3",
         "axios": "^0.27.2",
         "bcryptjs": "^2.4.3",
         "date-fns": "^2.29.3",
         "dotenv": "^16.0.1",
+        "express": "^4.18.2",
         "googleapis": "^100.0.0",
         "graphql": "^16.6.0",
         "jsonwebtoken": "^8.5.1",
