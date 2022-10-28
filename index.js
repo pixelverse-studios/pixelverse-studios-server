@@ -1,4 +1,7 @@
-const { ApolloServer } = require('apollo-server')
+const express = require('express')
+const http = require('http')
+const { ApolloServer } = require('apollo-server-express')
+const { ApolloServerPluginDrainHttpServer } = require('apollo-server-core')
 const mongoose = require('mongoose')
 const { GraphQLScalarType, Kind } = require('graphql')
 const jwt_decode = require('jwt-decode')
@@ -29,32 +32,36 @@ module.exports.dateScalar = dateScalar
 
 const PORT = process.env.PORT || 5001
 const MONGO_URI = process.env.MONGODB ?? ''
-const server = new ApolloServer({
-    typeDefs,
-    resolvers: { Query, Mutation, Date: dateScalar },
-    cors: true,
-    introspection: true,
-    context: ({ req }) => {
-        const encodedToken = req.headers?.authorization
-        if (encodedToken) {
-            const tokenString = encodedToken
-                ? encodedToken.split('Bearer')[1]
-                : ''
-            const user = jwt_decode(tokenString)
-            return { req, user }
-        }
-
-        return { req, user: null }
-    }
-})
 
 mongoose
     .connect(MONGO_URI)
-    .then(() => {
-        console.log('MongoDB Connected')
-        return server.listen({ port: PORT })
+    .then(() => console.log('MongoDB connected.'))
+    .catch(() => () => console.error('Error connecting to MongoDB'))
+
+async function startApolloServer() {
+    const app = express()
+    const httpServer = http.createServer(app)
+    const server = new ApolloServer({
+        typeDefs,
+        resolvers: { Query, Mutation, Date: dateScalar },
+        context: async ({ req }) => {
+            const encodedToken = req.headers?.authorization
+            if (encodedToken) {
+                const tokenString = encodedToken
+                    ? encodedToken.split('Bearer')[1]
+                    : ''
+                const user = jwt_decode(tokenString)
+                return { req, user }
+            }
+        },
+        plugins: [ApolloServerPluginDrainHttpServer({ httpServer })]
     })
-    .then(res => {
-        console.log(`Server running on ${res.url}`)
-    })
-    .catch(err => console.error(err))
+    await server.start()
+    server.applyMiddleware({ app })
+    await new Promise(resolve => httpServer.listen({ port: PORT }, resolve))
+    console.log(
+        `🚀 Server ready at http://localhost:${PORT}${server.graphqlPath}`
+    )
+}
+
+startApolloServer()
