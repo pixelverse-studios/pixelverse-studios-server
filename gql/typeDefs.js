@@ -10,6 +10,7 @@ const typeDefs = gql`
         firstName: String
         lastName: String
         token: String
+        passwordResetToken: String
     }
 
     type MeetingPrepInfo {
