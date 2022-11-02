@@ -1,17 +1,29 @@
 const { UserInputError } = require('apollo-server')
+const { GraphQLError } = require('graphql')
 const bcrypt = require('bcryptjs')
 
 const User = require('../../models/User')
-// import { validateAuthUser } from '../../utils/validators'
+const {
+    validateRegisterUser
+} = require('../../utils/validators/validate-users')
 const { generateToken } = require('../../utils/token')
 
 module.exports.UserMutations = {
-    async register(_, { email, password }) {
+    async register(_, { email, password, firstName, lastName }) {
         try {
-            // const { valid, errors } = validateAuthUser(email, password)
-            // if (!valid) {
-            //     throw new UserInputError('Registration Errors', { errors })
-            // }
+            const { valid, errors } = validateRegisterUser({
+                email,
+                password,
+                firstName,
+                lastName
+            })
+            if (!valid) {
+                return {
+                    __typename: 'UserError',
+                    isError: true,
+                    errors
+                }
+            }
 
             const user = await User.findOne({ email })
             if (user) {

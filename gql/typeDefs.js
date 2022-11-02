@@ -10,7 +10,20 @@ const typeDefs = gql`
         firstName: String
         lastName: String
         token: String
+        passwordResetToken: String
     }
+
+    type UserErrorField {
+        field: String!
+        message: String!
+    }
+
+    type UserError {
+        isError: Boolean
+        errors: [UserErrorField]
+    }
+
+    union UserResponse = User | UserError
 
     type MeetingPrepInfo {
         answer: String
@@ -63,7 +76,12 @@ const typeDefs = gql`
 
     type Mutation {
         # USERS
-        register(email: String!, password: String!): User!
+        register(
+            email: String!
+            password: String!
+            firstName: String!
+            lastName: String!
+        ): UserResponse
         login(email: String!, password: String!): User!
         updateUser(firstName: String, lastName: String, email: String!): User!
         updatePassword(email: String!, newPassword: String!): User!
