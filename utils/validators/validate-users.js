@@ -3,7 +3,6 @@ const {
     isValidEmail,
     isValidPassword
 } = require('./validations')
-const { buildUserError } = require('./builders')
 
 module.exports.validateRegisterUser = ({
     email,
