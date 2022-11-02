@@ -42,7 +42,6 @@ module.exports.UserMutations = {
             const savedUser = await newUser.save()
             const token = generateToken(savedUser)
 
-            console.log(3)
             return { ...savedUser._doc, id: savedUser._id, token }
         } catch (error) {
             return new Error(error)
