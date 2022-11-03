@@ -1,4 +1,3 @@
-const { UserInputError } = require('apollo-server')
 const bcrypt = require('bcryptjs')
 
 const User = require('../../models/User')
@@ -18,12 +17,12 @@ module.exports.UserMutations = {
                 lastName
             })
             if (!valid) {
-                return buildResponse.form.formInputError(errors)
+                return buildResponse.form.errors.badInput(errors)
             }
 
             const user = await User.findOne({ email })
             if (user) {
-                return buildResponse.user.emailInUse()
+                return buildResponse.user.errors.emailInUse()
             }
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)
@@ -34,7 +33,13 @@ module.exports.UserMutations = {
             const savedUser = await newUser.save()
             const token = generateToken(savedUser)
 
-            return { ...savedUser._doc, id: savedUser._id, token }
+            const registeredUser = {
+                ...savedUser._doc,
+                id: savedUser._id,
+                token
+            }
+
+            return buildResponse.user.success.registered(registeredUser)
         } catch (error) {
             return new Error(error)
         }
@@ -46,10 +51,10 @@ module.exports.UserQueries = {
         try {
             const user = await User.findOne({ email })
             if (user) {
-                return user
+                return buildResponse.user.success.fetchedUser(user)
             }
 
-            return buildResponse.user.userNotFound()
+            return buildResponse.user.errors.userNotFound()
         } catch (error) {
             throw new Error(error)
         }
@@ -59,12 +64,11 @@ module.exports.UserQueries = {
             // const token = validateToken(context)
             const token = { valid: false, user: { email: null } }
             if (!token.valid) {
-                throw new Error('Invalid User Token')
+                return buildResponse.user.errors.invalidToken()
             }
 
             const user = await User.findOne({ email: token.user.email })
-
-            return user
+            return buildResponse.user.success.loggedIn(user)
         } catch (error) {
             throw new Error(error)
         }
@@ -73,13 +77,9 @@ module.exports.UserQueries = {
         try {
             const users = await User.find()
             if (users?.length) {
-                return users
+                return buildResponse.user.success.allUsersFetched(users)
             }
-            throw new UserInputError('No Users ', {
-                errors: {
-                    user: 'No users found'
-                }
-            })
+            return buildResponse.user.errors.noUsersFound()
         } catch (error) {
             throw new Error(error)
         }

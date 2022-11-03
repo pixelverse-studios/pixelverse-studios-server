@@ -3,25 +3,37 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    enum ErrorTypes {
+    enum UserSuccessTypes {
+        registered
+        loggedIn
+        fetchedUser
+        allUsersFetched
+    }
+
+    enum UserErrorTypes {
         userNotFound
         emailInUse
+        invalidToken
+        noUsersFound
+    }
+
+    enum GeneralSuccessTypes {
+        fetched
+    }
+
+    enum GeneralErrorTypes {
         badInput
     }
 
-    enum SuccessTypes {
-        registered
-    }
-
     type UserSuccess {
-        id: ID!
+        _id: ID!
         email: String!
         password: String!
         firstName: String
         lastName: String
         token: String
         passwordResetToken: String
-        successType: SuccessTypes!
+        successType: UserSuccessTypes!
     }
 
     type InputFieldError {
@@ -30,16 +42,25 @@ const typeDefs = gql`
     }
 
     type FormInputError {
-        errorType: ErrorTypes!
+        formErrorType: GeneralErrorTypes!
         errors: [InputFieldError]
     }
 
-    type UserError {
-        errorType: ErrorTypes!
+    type GeneralErrors {
+        generalErrorType: GeneralErrorTypes!
         message: String!
     }
 
-    union UserResponse = UserSuccess | FormInputError | UserError
+    type UserErrors {
+        userErrorType: UserErrorTypes!
+        message: String!
+    }
+
+    union UserResponse =
+          UserSuccess
+        | FormInputError
+        | UserErrors
+        | GeneralErrors
 
     type MeetingPrepInfo {
         answer: String
@@ -68,7 +89,17 @@ const typeDefs = gql`
         updatedLaunchDate: Date
     }
 
-    type Client {
+    # enum ClientSuccessTypes {
+    #     clientAdded
+    #     clientUpdated
+    #     fetchedSuccessfully
+    # }
+
+    # enum ClientErrorTypes {
+    #     clientNotFound
+    # }
+
+    type ClientSuccess {
         id: ID!
         email: String!
         firstName: String!
@@ -78,7 +109,10 @@ const typeDefs = gql`
         originalCostEstimate: Float
         updatedCostEstimate: Float
         project: ClientProject
+        # successType: ClientSuccessTypes!
     }
+
+    union ClientResponse = ClientSuccess | FormInputError | GeneralErrors
 
     type Query {
         # USERS
@@ -87,7 +121,7 @@ const typeDefs = gql`
         getLoggedInUser: UserResponse!
 
         # CLIENTS
-        getAllClients: [Client]
+        getAllClients: [ClientResponse]
     }
 
     type Mutation {
@@ -109,7 +143,7 @@ const typeDefs = gql`
         sendPasswordResetEmail(email: String!): [UserResponse]
 
         # CLIENTS
-        addNewClient(eventUri: String!, inviteeUri: String!): Client!
+        addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
     }
 `
 
