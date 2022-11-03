@@ -6,10 +6,7 @@ const {
     validateRegisterUser
 } = require('../../utils/validators/validate-users')
 const { generateToken } = require('../../utils/token')
-const { maps, types } = require('../../utils/typesMap')
-
-const { inputErrors, userErrors } = maps
-const { BAD_INPUT, USER_EXISTS } = types
+const buildResponse = require('../../utils/responseHandlers')
 
 module.exports.UserMutations = {
     async register(_, { email, password, firstName, lastName }) {
@@ -21,21 +18,12 @@ module.exports.UserMutations = {
                 lastName
             })
             if (!valid) {
-                return {
-                    __typename: 'UserInputError',
-                    errorType: inputErrors.get(BAD_INPUT).type,
-                    errors
-                }
+                return buildResponse.form.formInputError(errors)
             }
 
             const user = await User.findOne({ email })
             if (user) {
-                const error = userErrors.get(USER_EXISTS)
-                return {
-                    __typename: 'UserInvalidError',
-                    errorType: error.type,
-                    message: error.message
-                }
+                return buildResponse.user.userExistsError()
             }
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)

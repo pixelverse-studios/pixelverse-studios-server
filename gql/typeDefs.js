@@ -28,17 +28,17 @@ const typeDefs = gql`
         message: String!
     }
 
-    type UserInputError {
+    type FormInputError {
         errorType: ErrorTypes!
         errors: [InputFieldError]
     }
 
-    type UserInvalidError {
+    type UserError {
         errorType: ErrorTypes!
         message: String!
     }
 
-    union UserResponse = UserSuccess | UserInputError | UserInvalidError
+    union UserResponse = UserSuccess | FormInputError | UserError
 
     type MeetingPrepInfo {
         answer: String
