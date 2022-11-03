@@ -23,7 +23,7 @@ module.exports.UserMutations = {
 
             const user = await User.findOne({ email })
             if (user) {
-                return buildResponse.user.userExistsError()
+                return buildResponse.user.emailInUse()
             }
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)
@@ -48,11 +48,8 @@ module.exports.UserQueries = {
             if (user) {
                 return user
             }
-            throw new UserInputError("User Doesn't Exist ", {
-                errors: {
-                    user: 'No user found with those credentials'
-                }
-            })
+
+            return buildResponse.user.userNotFound()
         } catch (error) {
             throw new Error(error)
         }

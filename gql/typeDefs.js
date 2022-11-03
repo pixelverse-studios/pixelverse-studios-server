@@ -4,8 +4,9 @@ const typeDefs = gql`
     scalar Date
 
     enum ErrorTypes {
+        userNotFound
+        emailInUse
         badInput
-        userExists
     }
 
     enum SuccessTypes {
@@ -81,7 +82,7 @@ const typeDefs = gql`
 
     type Query {
         # USERS
-        getUser(email: String!): UserResponse
+        getUser(email: String!): UserResponse!
         getAllUsers: [UserResponse]
         getLoggedInUser: UserResponse!
 

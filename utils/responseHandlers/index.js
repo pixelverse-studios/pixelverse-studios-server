@@ -1,13 +1,9 @@
-const { userExistsError } = require('./userErrors')
-const { formInputError } = require('./formInputErrors')
+const userErrors = require('./userErrors')
+const formErrors = require('./formInputErrors')
 
 const buildResponse = {
-    user: {
-        userExistsError
-    },
-    form: {
-        formInputError
-    }
+    user: userErrors,
+    form: formErrors
 }
 
 module.exports = buildResponse
