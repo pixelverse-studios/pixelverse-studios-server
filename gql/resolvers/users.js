@@ -1,5 +1,4 @@
 const { UserInputError } = require('apollo-server')
-const { GraphQLError } = require('graphql')
 const bcrypt = require('bcryptjs')
 
 const User = require('../../models/User')
@@ -7,6 +6,10 @@ const {
     validateRegisterUser
 } = require('../../utils/validators/validate-users')
 const { generateToken } = require('../../utils/token')
+const { maps, types } = require('../../utils/typesMap')
+
+const { inputErrors, userErrors } = maps
+const { BAD_INPUT, USER_EXISTS } = types
 
 module.exports.UserMutations = {
     async register(_, { email, password, firstName, lastName }) {
@@ -19,19 +22,20 @@ module.exports.UserMutations = {
             })
             if (!valid) {
                 return {
-                    __typename: 'UserError',
-                    isError: true,
+                    __typename: 'UserInputError',
+                    errorType: inputErrors.get(BAD_INPUT).type,
                     errors
                 }
             }
 
             const user = await User.findOne({ email })
             if (user) {
-                throw new UserInputError('User Exists', {
-                    errors: {
-                        email: 'User already exists with these credentials'
-                    }
-                })
+                const error = userErrors.get(USER_EXISTS)
+                return {
+                    __typename: 'UserInvalidError',
+                    errorType: error.type,
+                    message: error.message
+                }
             }
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)

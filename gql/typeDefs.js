@@ -3,7 +3,16 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    type User {
+    enum ErrorTypes {
+        badInput
+        userExists
+    }
+
+    enum SuccessTypes {
+        registered
+    }
+
+    type UserSuccess {
         id: ID!
         email: String!
         password: String!
@@ -11,19 +20,25 @@ const typeDefs = gql`
         lastName: String
         token: String
         passwordResetToken: String
+        successType: SuccessTypes!
     }
 
-    type UserErrorField {
+    type InputFieldError {
         field: String!
         message: String!
     }
 
-    type UserError {
-        isError: Boolean
-        errors: [UserErrorField]
+    type UserInputError {
+        errorType: ErrorTypes!
+        errors: [InputFieldError]
     }
 
-    union UserResponse = User | UserError
+    type UserInvalidError {
+        errorType: ErrorTypes!
+        message: String!
+    }
+
+    union UserResponse = UserSuccess | UserInputError | UserInvalidError
 
     type MeetingPrepInfo {
         answer: String
@@ -66,9 +81,9 @@ const typeDefs = gql`
 
     type Query {
         # USERS
-        getUser(email: String!): User
-        getAllUsers: [User]
-        getLoggedInUser: User!
+        getUser(email: String!): UserResponse
+        getAllUsers: [UserResponse]
+        getLoggedInUser: UserResponse!
 
         # CLIENTS
         getAllClients: [Client]
@@ -82,11 +97,15 @@ const typeDefs = gql`
             firstName: String!
             lastName: String!
         ): UserResponse
-        login(email: String!, password: String!): User!
-        updateUser(firstName: String, lastName: String, email: String!): User!
-        updatePassword(email: String!, newPassword: String!): User!
-        deleteUser(id: String!): [User]
-        sendPasswordResetEmail(email: String!): [User]
+        login(email: String!, password: String!): UserResponse
+        updateUser(
+            firstName: String
+            lastName: String
+            email: String!
+        ): UserResponse
+        updatePassword(email: String!, newPassword: String!): UserResponse
+        deleteUser(id: String!): [UserResponse]
+        sendPasswordResetEmail(email: String!): [UserResponse]
 
         # CLIENTS
         addNewClient(eventUri: String!, inviteeUri: String!): Client!
