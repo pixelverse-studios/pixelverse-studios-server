@@ -33,13 +33,7 @@ module.exports.UserMutations = {
             const savedUser = await newUser.save()
             const token = generateToken(savedUser)
 
-            const registeredUser = {
-                ...savedUser._doc,
-                id: savedUser._id,
-                token
-            }
-
-            return buildResponse.user.success.registered(registeredUser)
+            return buildResponse.user.success.registered(savedUser, token)
         } catch (error) {
             return new Error(error)
         }
