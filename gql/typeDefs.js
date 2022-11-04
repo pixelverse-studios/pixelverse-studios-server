@@ -92,15 +92,16 @@ const typeDefs = gql`
     enum ClientSuccessTypes {
         clientAdded
         clientUpdated
-        fetchedSuccessfully
+        allClientsFetched
     }
 
     enum ClientErrorTypes {
         clientNotFound
+        noClientsFound
     }
 
     type ClientSuccess {
-        id: ID!
+        _id: ID!
         email: String!
         firstName: String!
         lastName: String!
@@ -112,7 +113,16 @@ const typeDefs = gql`
         successType: ClientSuccessTypes!
     }
 
-    union ClientResponse = ClientSuccess | FormInputError | GeneralErrors
+    type ClientErrors {
+        clientErrorType: ClientErrorTypes!
+        message: String!
+    }
+
+    union ClientResponse =
+          ClientSuccess
+        | FormInputError
+        | GeneralErrors
+        | ClientErrors
 
     type Query {
         # USERS

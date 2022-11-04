@@ -3,11 +3,9 @@ const { format } = require('date-fns')
 
 const Clients = require('../../models/Clients')
 const {
-    validateNewClientFields
-} = require('../../utils/validators/validate-clients')
-const {
     sendIntroMeetingResponse
 } = require('../../utils/mailer/clients/introMeetingResponse')
+const buildResponse = require('../../utils/responseHandlers')
 
 const phases = {
     PHASE_1: 'Phase 1: Information Gathering',
@@ -50,7 +48,7 @@ module.exports.ClientMutations = {
                     }
                 ]
                 const updatedClient = await existingClient.save()
-                return { ...updatedClient._doc, id: updatedClient._id }
+                return buildResponse.client.success.clientUpdated(updatedClient)
             }
 
             const newClient = new Clients({
@@ -75,9 +73,8 @@ module.exports.ClientMutations = {
                 location: location.type,
                 dateTime: format(new Date(start_time), 'MM/dd h:m aaa')
             })
-            return { ...savedClient._doc, id: savedClient._id }
+            return buildResponse.client.success.clientAdded(savedClient)
         } catch (error) {
-            console.log(error)
             return new Error(error)
         }
     }
@@ -87,7 +84,11 @@ module.exports.ClientQueries = {
     async getAllClients(_, {}, context) {
         try {
             const clients = await Clients.find()
-            return clients
+            if (clients?.length) {
+                return buildResponse.client.success.allClientsFetched(clients)
+            }
+
+            return buildResponse.client.errors.noClientsFound()
         } catch (error) {
             console.log(error)
             throw new Error(error)
