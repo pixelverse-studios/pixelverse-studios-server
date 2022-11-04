@@ -89,15 +89,15 @@ const typeDefs = gql`
         updatedLaunchDate: Date
     }
 
-    # enum ClientSuccessTypes {
-    #     clientAdded
-    #     clientUpdated
-    #     fetchedSuccessfully
-    # }
+    enum ClientSuccessTypes {
+        clientAdded
+        clientUpdated
+        fetchedSuccessfully
+    }
 
-    # enum ClientErrorTypes {
-    #     clientNotFound
-    # }
+    enum ClientErrorTypes {
+        clientNotFound
+    }
 
     type ClientSuccess {
         id: ID!
@@ -109,7 +109,7 @@ const typeDefs = gql`
         originalCostEstimate: Float
         updatedCostEstimate: Float
         project: ClientProject
-        # successType: ClientSuccessTypes!
+        successType: ClientSuccessTypes!
     }
 
     union ClientResponse = ClientSuccess | FormInputError | GeneralErrors

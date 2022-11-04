@@ -1,7 +1,7 @@
-const userErrors = require('./userErrors')
-const userSuccess = require('./userSuccess')
-const formErrors = require('./formInputErrors')
-const generalSuccess = require('./generalSuccess')
+const userErrors = require('./user/errors')
+const userSuccess = require('./user/success')
+const formErrors = require('./formInput/errors')
+const generalSuccess = require('./general/success')
 
 const buildResponse = {
     user: { errors: userErrors, success: userSuccess },
