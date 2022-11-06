@@ -1,6 +1,12 @@
 const USER_ERROR = 'UserErrors'
 
 module.exports = {
+    invalidCredentials: () => ({
+        __typename: USER_ERROR,
+        userErrorType: 'invalidCredentials',
+        message:
+            'Invalid email or password. Please try again or hit Forgot Password'
+    }),
     userNotFound: () => ({
         __typename: USER_ERROR,
         userErrorType: 'userNotFound',

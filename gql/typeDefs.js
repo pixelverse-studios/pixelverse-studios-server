@@ -15,6 +15,7 @@ const typeDefs = gql`
         emailInUse
         invalidToken
         noUsersFound
+        invalidCredentials
     }
 
     enum GeneralSuccessTypes {

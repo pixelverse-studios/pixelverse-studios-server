@@ -1,3 +1,4 @@
+const { isValid } = require('date-fns')
 const {
     isValidString,
     isValidEmail,
@@ -38,6 +39,29 @@ module.exports.validateRegisterUser = ({
             field: 'Password',
             message:
                 'Password is required, and should include at least 1 lowercase & uppercase letter, 1 special character, 1 number, and be minimum 8 characters long.'
+        })
+    }
+
+    return {
+        valid: errors?.length <= 0,
+        errors
+    }
+}
+
+module.exports.validateLogin = ({ email, password }) => {
+    const errors = []
+
+    if (!isValidEmail(email) || !isValidString(email)) {
+        errors.push({
+            field: 'Email',
+            message: 'Please enter a valid email.'
+        })
+    }
+
+    if (!isValidPassword(password) || !isValidString(password)) {
+        errors.push({
+            field: 'Password',
+            message: 'Password is required.'
         })
     }
 
