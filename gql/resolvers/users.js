@@ -2,7 +2,8 @@ const bcrypt = require('bcryptjs')
 
 const User = require('../../models/User')
 const {
-    validateRegisterUser
+    validateRegisterUser,
+    validateLogin
 } = require('../../utils/validators/validate-users')
 const { generateToken } = require('../../utils/token')
 const buildResponse = require('../../utils/responseHandlers')
@@ -17,6 +18,7 @@ module.exports.UserMutations = {
                 lastName
             })
             if (!valid) {
+                console.log(buildResponse.form.errors.badInput(errors))
                 return buildResponse.form.errors.badInput(errors)
             }
 
@@ -34,6 +36,32 @@ module.exports.UserMutations = {
             const token = generateToken(savedUser)
 
             return buildResponse.user.success.registered(savedUser, token)
+        } catch (error) {
+            return new Error(error)
+        }
+    },
+    async login(_, { email, password }) {
+        const { errors, valid } = validateLogin({ email, password })
+        if (!valid) {
+            return buildResponse.form.errors.badInput(errors)
+        }
+        const sanitizedEmail = email.toLowerCase()
+        try {
+            const user = await User.findOne({ email: sanitizedEmail })
+            if (!user) {
+                return buildResponse.form.user.errors.userNotFound()
+            }
+
+            const match = bcrypt.compare(password, user.password)
+            if (!match) {
+                return buildResponse.user.errors.invalidCredentials()
+            }
+
+            const token = generateToken(user)
+            console.log(`User (${sanitizedEmail}) logged in with token: ${token}
+            `)
+            console.log('-------')
+            return buildResponse.user.success.loggedIn(user, token)
         } catch (error) {
             return new Error(error)
         }
