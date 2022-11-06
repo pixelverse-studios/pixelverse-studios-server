@@ -5,8 +5,11 @@ const {
     validateRegisterUser,
     validateLogin
 } = require('../../utils/validators/validate-users')
-const { generateToken } = require('../../utils/token')
+const { generateToken, generateResetPwToken } = require('../../utils/token')
 const buildResponse = require('../../utils/responseHandlers')
+const {
+    resetPasswordEmail
+} = require('../../utils/mailer/user/resetPasswordEmail')
 
 module.exports.UserMutations = {
     async register(_, { email, password, firstName, lastName }) {
@@ -64,6 +67,25 @@ module.exports.UserMutations = {
             return buildResponse.user.success.loggedIn(user, token)
         } catch (error) {
             return new Error(error)
+        }
+    },
+    async sendPasswordResetEmail(_, { email }) {
+        try {
+            if (!email) {
+                return buildResponse.user.errors.invalidCredentials()
+            }
+            const user = await User.findOne({ email })
+
+            if (!user) {
+                return buildResponse.user.errors.userNotFound()
+            }
+
+            const token = generateResetPwToken(user)
+            await resetPasswordEmail(email, token)
+
+            return buildResponse.user.success.loggedIn(user, token)
+        } catch (error) {
+            throw new Error(error)
         }
     }
 }
