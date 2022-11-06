@@ -3,27 +3,64 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    type User {
-        id: ID!
+    enum UserSuccessTypes {
+        registered
+        loggedIn
+        fetchedUser
+        allUsersFetched
+    }
+
+    enum UserErrorTypes {
+        userNotFound
+        emailInUse
+        invalidToken
+        noUsersFound
+    }
+
+    enum GeneralSuccessTypes {
+        fetched
+    }
+
+    enum GeneralErrorTypes {
+        badInput
+    }
+
+    type UserSuccess {
+        _id: ID!
         email: String!
         password: String!
         firstName: String
         lastName: String
         token: String
         passwordResetToken: String
+        successType: UserSuccessTypes!
     }
 
-    type UserErrorField {
+    type InputFieldError {
         field: String!
         message: String!
     }
 
-    type UserError {
-        isError: Boolean
-        errors: [UserErrorField]
+    type FormInputError {
+        formErrorType: GeneralErrorTypes!
+        errors: [InputFieldError]
     }
 
-    union UserResponse = User | UserError
+    type GeneralErrors {
+        generalErrorType: GeneralErrorTypes!
+        message: String!
+    }
+
+    type UserErrors {
+        userErrorType: UserErrorTypes!
+        message: String!
+    }
+
+    union UserResponse =
+          UserSuccess
+        | FormInputError
+        | UserErrors
+        | GeneralErrors
 
     type MeetingPrepInfo {
         answer: String
@@ -52,8 +89,19 @@ const typeDefs = gql`
         updatedLaunchDate: Date
     }
 
-    type Client {
-        id: ID!
+    enum ClientSuccessTypes {
+        clientAdded
+        clientUpdated
+        allClientsFetched
+    }
+
+    enum ClientErrorTypes {
+        clientNotFound
+        noClientsFound
+    }
+
+    type ClientSuccess {
+        _id: ID!
         email: String!
         firstName: String!
         lastName: String!
@@ -62,16 +110,28 @@ const typeDefs = gql`
         originalCostEstimate: Float
         updatedCostEstimate: Float
         project: ClientProject
+        successType: ClientSuccessTypes!
     }
+
+    type ClientErrors {
+        clientErrorType: ClientErrorTypes!
+        message: String!
+    }
+
+    union ClientResponse =
+          ClientSuccess
+        | FormInputError
+        | GeneralErrors
+        | ClientErrors
 
     type Query {
         # USERS
-        getUser(email: String!): User
-        getAllUsers: [User]
-        getLoggedInUser: User!
+        getUser(email: String!): UserResponse!
+        getAllUsers: [UserResponse]
+        getLoggedInUser: UserResponse!
 
         # CLIENTS
-        getAllClients: [Client]
+        getAllClients: [ClientResponse]
     }
 
     type Mutation {
@@ -82,14 +142,18 @@ const typeDefs = gql`
             firstName: String!
             lastName: String!
         ): UserResponse
-        login(email: String!, password: String!): User!
-        updateUser(firstName: String, lastName: String, email: String!): User!
-        updatePassword(email: String!, newPassword: String!): User!
-        deleteUser(id: String!): [User]
-        sendPasswordResetEmail(email: String!): [User]
+        login(email: String!, password: String!): UserResponse
+        updateUser(
+            firstName: String
+            lastName: String
+            email: String!
+        ): UserResponse
+        updatePassword(email: String!, newPassword: String!): UserResponse
+        deleteUser(id: String!): [UserResponse]
+        sendPasswordResetEmail(email: String!): [UserResponse]
 
         # CLIENTS
-        addNewClient(eventUri: String!, inviteeUri: String!): Client!
+        addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
     }
 `
 

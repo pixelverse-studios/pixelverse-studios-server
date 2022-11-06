@@ -1,5 +1,3 @@
-const { UserInputError } = require('apollo-server')
-const { GraphQLError } = require('graphql')
 const bcrypt = require('bcryptjs')
 
 const User = require('../../models/User')
@@ -7,6 +5,7 @@ const {
     validateRegisterUser
 } = require('../../utils/validators/validate-users')
 const { generateToken } = require('../../utils/token')
+const buildResponse = require('../../utils/responseHandlers')
 
 module.exports.UserMutations = {
     async register(_, { email, password, firstName, lastName }) {
@@ -18,20 +17,12 @@ module.exports.UserMutations = {
                 lastName
             })
             if (!valid) {
-                return {
-                    __typename: 'UserError',
-                    isError: true,
-                    errors
-                }
+                return buildResponse.form.errors.badInput(errors)
             }
 
             const user = await User.findOne({ email })
             if (user) {
-                throw new UserInputError('User Exists', {
-                    errors: {
-                        email: 'User already exists with these credentials'
-                    }
-                })
+                return buildResponse.user.errors.emailInUse()
             }
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)
@@ -42,7 +33,7 @@ module.exports.UserMutations = {
             const savedUser = await newUser.save()
             const token = generateToken(savedUser)
 
-            return { ...savedUser._doc, id: savedUser._id, token }
+            return buildResponse.user.success.registered(savedUser, token)
         } catch (error) {
             return new Error(error)
         }
@@ -54,13 +45,10 @@ module.exports.UserQueries = {
         try {
             const user = await User.findOne({ email })
             if (user) {
-                return user
+                return buildResponse.user.success.fetchedUser(user)
             }
-            throw new UserInputError("User Doesn't Exist ", {
-                errors: {
-                    user: 'No user found with those credentials'
-                }
-            })
+
+            return buildResponse.user.errors.userNotFound()
         } catch (error) {
             throw new Error(error)
         }
@@ -70,12 +58,11 @@ module.exports.UserQueries = {
             // const token = validateToken(context)
             const token = { valid: false, user: { email: null } }
             if (!token.valid) {
-                throw new Error('Invalid User Token')
+                return buildResponse.user.errors.invalidToken()
             }
 
             const user = await User.findOne({ email: token.user.email })
-
-            return user
+            return buildResponse.user.success.loggedIn(user)
         } catch (error) {
             throw new Error(error)
         }
@@ -84,13 +71,9 @@ module.exports.UserQueries = {
         try {
             const users = await User.find()
             if (users?.length) {
-                return users
+                return buildResponse.user.success.allUsersFetched(users)
             }
-            throw new UserInputError('No Users ', {
-                errors: {
-                    user: 'No users found'
-                }
-            })
+            return buildResponse.user.errors.noUsersFound()
         } catch (error) {
             throw new Error(error)
         }
