@@ -151,7 +151,7 @@ const typeDefs = gql`
         ): UserResponse
         updatePassword(email: String!, newPassword: String!): UserResponse
         deleteUser(id: String!): [UserResponse]
-        sendPasswordResetEmail(email: String!): [UserResponse]
+        sendPasswordResetEmail(email: String!): UserResponse
 
         # CLIENTS
         addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
