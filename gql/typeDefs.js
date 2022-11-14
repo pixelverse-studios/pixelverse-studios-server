@@ -10,20 +10,24 @@ const typeDefs = gql`
         allUsersFetched
     }
 
-    enum UserErrorTypes {
+    enum ErrorTypes {
+        # FORM
+        badInput
+
+        # USER
         userNotFound
         emailInUse
         invalidToken
         noUsersFound
         invalidCredentials
-    }
+        matchingPasswords
 
-    enum GeneralSuccessTypes {
+        # CLIENT
+        clientNotFound
+        noClientsFound
+
+        # GENERAL
         fetched
-    }
-
-    enum GeneralErrorTypes {
-        badInput
     }
 
     type UserSuccess {
@@ -42,26 +46,13 @@ const typeDefs = gql`
         message: String!
     }
 
-    type FormInputError {
-        formErrorType: GeneralErrorTypes!
+    type Errors {
+        type: ErrorTypes
+        message: String
         errors: [InputFieldError]
     }
 
-    type GeneralErrors {
-        generalErrorType: GeneralErrorTypes!
-        message: String!
-    }
-
-    type UserErrors {
-        userErrorType: UserErrorTypes!
-        message: String!
-    }
-
-    union UserResponse =
-          UserSuccess
-        | FormInputError
-        | UserErrors
-        | GeneralErrors
+    union UserResponse = UserSuccess | Errors
 
     type MeetingPrepInfo {
         answer: String
@@ -96,11 +87,6 @@ const typeDefs = gql`
         allClientsFetched
     }
 
-    enum ClientErrorTypes {
-        clientNotFound
-        noClientsFound
-    }
-
     type ClientSuccess {
         _id: ID!
         email: String!
@@ -114,16 +100,7 @@ const typeDefs = gql`
         successType: ClientSuccessTypes!
     }
 
-    type ClientErrors {
-        clientErrorType: ClientErrorTypes!
-        message: String!
-    }
-
-    union ClientResponse =
-          ClientSuccess
-        | FormInputError
-        | GeneralErrors
-        | ClientErrors
+    union ClientResponse = ClientSuccess | Errors
 
     type Query {
         # USERS
@@ -149,7 +126,11 @@ const typeDefs = gql`
             lastName: String
             email: String!
         ): UserResponse
-        updatePassword(email: String!, newPassword: String!): UserResponse
+        updatePassword(
+            email: String!
+            newPassword: String!
+            token: String!
+        ): UserResponse
         deleteUser(id: String!): [UserResponse]
         sendPasswordResetEmail(email: String!): UserResponse
 

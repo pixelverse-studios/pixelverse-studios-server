@@ -1,9 +1,10 @@
-const { isValid } = require('date-fns')
 const {
     isValidString,
     isValidEmail,
     isValidPassword
 } = require('./validations')
+
+const validationResponse = errors => ({ valid: errors?.length <= 0, errors })
 
 module.exports.validateRegisterUser = ({
     email,
@@ -42,10 +43,7 @@ module.exports.validateRegisterUser = ({
         })
     }
 
-    return {
-        valid: errors?.length <= 0,
-        errors
-    }
+    return validationResponse(errors)
 }
 
 module.exports.validateLogin = ({ email, password }) => {
@@ -65,8 +63,19 @@ module.exports.validateLogin = ({ email, password }) => {
         })
     }
 
-    return {
-        valid: errors?.length <= 0,
-        errors
+    return validationResponse(errors)
+}
+
+module.exports.validatePassword = ({ password }) => {
+    const errors = []
+
+    if (!isValidPassword(password) || !isValidString(password)) {
+        errors.push({
+            field: 'Password',
+            message:
+                'Password is required, and should include at least 1 lowercase & uppercase letter, 1 special character, 1 number, and be minimum 8 characters long.'
+        })
     }
+
+    return validationResponse(errors)
 }

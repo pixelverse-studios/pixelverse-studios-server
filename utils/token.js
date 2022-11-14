@@ -18,7 +18,7 @@ module.exports.generateResetPwToken = user => {
     }
 
     return jwt.sign({ ...userData }, process.env?.TOKEN_SECRET ?? '', {
-        expiresIn: process.env?.TOKEN_EXPIRE ?? '1hr'
+        expiresIn: '1hr'
     })
 }
 
