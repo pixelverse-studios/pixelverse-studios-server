@@ -1,11 +1,17 @@
 const bcrypt = require('bcryptjs')
+const jwt_decode = require('jwt-decode')
 
 const User = require('../../models/User')
 const {
     validateRegisterUser,
-    validateLogin
+    validateLogin,
+    validatePassword
 } = require('../../utils/validators/validate-users')
-const { generateToken, generateResetPwToken } = require('../../utils/token')
+const {
+    generateToken,
+    generateResetPwToken,
+    isTokenExpired
+} = require('../../utils/token')
 const buildResponse = require('../../utils/responseHandlers')
 const {
     resetPasswordEmail
@@ -21,7 +27,6 @@ module.exports.UserMutations = {
                 lastName
             })
             if (!valid) {
-                console.log(buildResponse.form.errors.badInput(errors))
                 return buildResponse.form.errors.badInput(errors)
             }
 
@@ -83,6 +88,48 @@ module.exports.UserMutations = {
             const token = generateResetPwToken(user)
             await resetPasswordEmail(email, token)
 
+            return buildResponse.user.success.loggedIn(user, token)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async updatePassword(_, { email, newPassword, token }) {
+        const decoded = jwt_decode(token)
+        if (!token || !isTokenExpired(decoded.exp)) {
+            return buildResponse.user.errors.invalidToken()
+        }
+
+        const { errors, valid } = validatePassword({ password: newPassword })
+
+        if (!valid) {
+            return buildResponse.form.errors.badInput(errors)
+        }
+
+        try {
+            const sanitizedEmail = email.toLowerCase()
+            const user = await User.findOne({ email: sanitizedEmail })
+
+            if (!user) {
+                return buildResponse.user.errors.userNotFound()
+            }
+
+            const isSamePassword = bcrypt.compareSync(
+                newPassword,
+                user.password
+            )
+
+            if (isSamePassword) {
+                return buildResponse.user.errors.matchingPasswords()
+            }
+
+            bcrypt.genSalt(12, (err, salt) => {
+                bcrypt.hash(newPassword, salt, async (error, hash) => {
+                    user.password = hash
+                    await user.save()
+                })
+            })
+
+            const token = generateToken(user)
             return buildResponse.user.success.loggedIn(user, token)
         } catch (error) {
             throw new Error(error)

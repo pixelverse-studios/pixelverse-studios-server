@@ -1,9 +1,9 @@
-const CLIENT_ERRORS = 'ClientErrors'
+const CLIENT_ERRORS = 'Errors'
 
 module.exports = {
     noClientsFound: () => ({
         __typename: CLIENT_ERRORS,
-        userErrorType: 'noClientsFound',
+        type: 'noClientsFound',
         message: 'No clients exist'
     })
 }

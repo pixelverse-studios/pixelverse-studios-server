@@ -1,9 +1,9 @@
-const FORM_ERROR = 'FormInputError'
+const FORM_ERROR = 'Errors'
 
 module.exports = {
     badInput: errors => ({
         __typename: FORM_ERROR,
-        formErrorType: 'badInput',
+        type: 'badInput',
         errors
     })
 }
