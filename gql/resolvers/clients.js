@@ -6,6 +6,7 @@ const {
     sendIntroMeetingResponse
 } = require('../../utils/mailer/clients/introMeetingResponse')
 const buildResponse = require('../../utils/responseHandlers')
+const { validateToken } = require('../../utils/token')
 
 const phases = {
     PHASE_1: 'Phase 1: Information Gathering',
@@ -83,6 +84,12 @@ module.exports.ClientMutations = {
 module.exports.ClientQueries = {
     async getAllClients(_, {}, context) {
         try {
+            const token = validateToken(context)
+
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
             const clients = await Clients.find()
             if (clients?.length) {
                 return buildResponse.client.success.allClientsFetched(clients)
@@ -90,7 +97,6 @@ module.exports.ClientQueries = {
 
             return buildResponse.client.errors.noClientsFound()
         } catch (error) {
-            console.log(error)
             throw new Error(error)
         }
     }
