@@ -25,7 +25,8 @@ module.exports = {
     registered: (user, token) =>
         baseResponse({ type: 'registered', user, token }),
     loggedIn: (user, token) => baseResponse({ type: 'loggedIn', user, token }),
-    fetchedUser: user => baseResponse({ type: 'fetchedUser', user }),
+    fetchedUser: (user, token) =>
+        baseResponse({ type: 'fetchedUser', user, token }),
     allUsersFetched: users =>
         baseArrayResponse({ type: 'allUsersFetched', users })
 }

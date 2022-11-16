@@ -22,11 +22,12 @@ module.exports.generateResetPwToken = user => {
     })
 }
 
-module.exports.isTokenExpired = expiration => {
+const isTokenExpired = expiration => {
     if (expiration * 1000 < Date.now()) return false
 
     return true
 }
+module.exports.isTokenExpired = isTokenExpired
 
 module.exports.validateToken = context => {
     const { user } = context
