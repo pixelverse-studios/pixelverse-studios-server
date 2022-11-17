@@ -114,6 +114,16 @@ const typeDefs = gql`
         getClient(email: String!): ClientResponse!
     }
 
+    input ProjectFields {
+        title: String
+        domain: String
+        externalDependencies: [String]
+        hoursLogged: Float
+        notes: String
+        originalLaunchDate: Date
+        updatedLaunchDate: Date
+    }
+
     type Mutation {
         # USERS
         register(
@@ -138,6 +148,13 @@ const typeDefs = gql`
 
         # CLIENTS
         addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
+        editClient(
+            email: String!
+            status: String
+            originalCostEstimate: Float
+            updatedCostEstimate: Float
+            project: ProjectFields
+        ): ClientResponse!
     }
 `
 

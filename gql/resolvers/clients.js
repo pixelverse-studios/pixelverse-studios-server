@@ -78,6 +78,45 @@ module.exports.ClientMutations = {
         } catch (error) {
             return new Error(error)
         }
+    },
+    async editClient(
+        _,
+        { email, status, originalCostEstimate, updatedCostEstimate, project },
+        context
+    ) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            if (Object.values(phases).indexOf(status) < 0) {
+                return buildResponse.form.errors.badInput([
+                    {
+                        field: 'Status',
+                        message: 'Invalid client status provided'
+                    }
+                ])
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            client.status = status ?? client.status
+            client.originalCostEstimate =
+                originalCostEstimate ?? client.originalCostEstimate
+            client.updatedCostEstimate =
+                updatedCostEstimate ?? client.updatedCostEstimate
+            client.project = project ?? client.project
+
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
     }
 }
 
