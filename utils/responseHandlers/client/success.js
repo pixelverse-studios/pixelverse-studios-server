@@ -24,6 +24,7 @@ const baseArrayResponse = ({ type, clients }) =>
 module.exports = {
     clientAdded: client => baseResponse({ type: 'clientAdded', client }),
     clientUpdated: client => baseResponse({ type: 'clientUpdated', client }),
+    clientFetched: client => baseResponse({ type: 'clientFetched', client }),
     allClientsFetched: clients =>
         baseArrayResponse({ type: 'allClientsFetched', clients })
 }
