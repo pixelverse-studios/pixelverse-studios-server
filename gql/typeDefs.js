@@ -85,6 +85,7 @@ const typeDefs = gql`
         clientAdded
         clientUpdated
         allClientsFetched
+        clientFetched
     }
 
     type ClientSuccess {
@@ -110,6 +111,7 @@ const typeDefs = gql`
 
         # CLIENTS
         getAllClients: [ClientResponse]
+        getClient(email: String!): ClientResponse!
     }
 
     type Mutation {

@@ -82,6 +82,22 @@ module.exports.ClientMutations = {
 }
 
 module.exports.ClientQueries = {
+    async getClient(_, { email }, context) {
+        try {
+            const token = validateToken(context)
+
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (client) {
+                return buildResponse.client.success.clientFetched(client)
+            }
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
     async getAllClients(_, {}, context) {
         try {
             const token = validateToken(context)
