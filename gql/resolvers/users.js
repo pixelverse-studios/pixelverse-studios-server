@@ -37,6 +37,8 @@ module.exports.UserMutations = {
             const salt = bcrypt.genSaltSync()
             const hashedPw = bcrypt.hashSync(password, salt)
             const newUser = new User({
+                firstName,
+                lastName,
                 email,
                 password: hashedPw
             })
