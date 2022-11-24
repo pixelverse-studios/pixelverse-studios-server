@@ -16,6 +16,7 @@ const buildResponse = require('../../utils/responseHandlers')
 const {
     resetPasswordEmail
 } = require('../../utils/mailer/user/resetPasswordEmail')
+const { validateToken } = require('../../utils/token')
 
 module.exports.UserMutations = {
     async register(_, { email, password, firstName, lastName }) {
@@ -160,7 +161,8 @@ module.exports.UserQueries = {
             }
 
             const user = await User.findOne({ email: token.user.email })
-            return buildResponse.user.success.loggedIn(user)
+            const newToken = generateToken(user)
+            return buildResponse.user.success.loggedIn(user, newToken)
         } catch (error) {
             throw new Error(error)
         }
