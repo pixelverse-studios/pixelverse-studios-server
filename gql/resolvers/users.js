@@ -154,8 +154,7 @@ module.exports.UserQueries = {
     },
     async getLoggedInUser(_, {}, context) {
         try {
-            // const token = validateToken(context)
-            const token = { valid: false, user: { email: null } }
+            const token = validateToken(context)
             if (!token.valid) {
                 return buildResponse.user.errors.invalidToken()
             }
