@@ -64,6 +64,7 @@ const typeDefs = gql`
         url: String
         scheduledFor: Date
         prepInfo: [MeetingPrepInfo]
+        notes: [String]
     }
 
     type Finances {
@@ -71,14 +72,28 @@ const typeDefs = gql`
         totalEstimate: Float
     }
 
+    type LoggedHours {
+        date: Date
+        hours: Float
+        developer: String
+    }
+
+    type ProjectPhase {
+        hoursLogged: [LoggedHours]
+        originalCostEstimate: Float
+        updatedCostEstimate: Float
+        originalLaunchDate: Date
+        updatedLaunchDate: Date
+        status: String
+        notes: [String]
+        amountPaid: Float
+    }
+
     type ClientProject {
         title: String
         domain: String
         externalDependencies: [String]
-        hoursLogged: Float
-        notes: String
-        originalLaunchDate: Date
-        updatedLaunchDate: Date
+        phases: [ProjectPhase]
     }
 
     enum ClientSuccessTypes {
@@ -93,11 +108,9 @@ const typeDefs = gql`
         email: String!
         firstName: String!
         lastName: String!
-        status: String!
         meetings: [Meeting]
-        originalCostEstimate: Float
-        updatedCostEstimate: Float
         project: ClientProject
+        notes: [String]
         successType: ClientSuccessTypes!
     }
 
