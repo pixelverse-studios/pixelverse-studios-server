@@ -44,7 +44,8 @@ module.exports.ClientMutations = {
                         url: location.join_url,
                         created: new Date(created_at),
                         scheduledFor: new Date(start_time),
-                        prepInfo: questions_and_answers
+                        prepInfo: questions_and_answers,
+                        notes: []
                     }
                 ]
                 const updatedClient = await existingClient.save()
@@ -61,7 +62,8 @@ module.exports.ClientMutations = {
                         url: location.join_url,
                         created: new Date(created_at),
                         scheduledFor: new Date(start_time),
-                        prepInfo: questions_and_answers
+                        prepInfo: questions_and_answers,
+                        notes: []
                     }
                 ],
                 status: phases.PHASE_1
@@ -116,6 +118,35 @@ module.exports.ClientMutations = {
         } catch (error) {
             throw new Error(error)
         }
+    },
+    async editClientNotes(_, { notes, email }, context) {
+        try {
+            if (!notes) {
+                return buildResponse.form.errors.badInput([
+                    {
+                        field: 'Notes',
+                        message: 'Notes are required'
+                    }
+                ])
+            }
+
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            client.notes = notes
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
     }
 }
 
@@ -149,7 +180,7 @@ module.exports.ClientQueries = {
                 return buildResponse.client.success.allClientsFetched(clients)
             }
 
-            return buildResponse.client.errors.noClientsFound()
+            return [buildResponse.client.errors.noClientsFound()]
         } catch (error) {
             throw new Error(error)
         }

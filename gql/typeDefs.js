@@ -168,6 +168,7 @@ const typeDefs = gql`
             updatedCostEstimate: Float
             project: ProjectFields
         ): ClientResponse!
+        editClientNotes(notes: [String!], email: String!): ClientResponse!
     }
 `
 
