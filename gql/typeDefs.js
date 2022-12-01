@@ -60,6 +60,7 @@ const typeDefs = gql`
     }
 
     type Meeting {
+        _id: ID
         location: String
         url: String
         scheduledFor: Date
@@ -72,14 +73,15 @@ const typeDefs = gql`
         totalEstimate: Float
     }
 
-    type LoggedHours {
+    type LoggedHoursType {
         date: Date
         hours: Float
         developer: String
     }
 
     type ProjectPhase {
-        hoursLogged: [LoggedHours]
+        _id: ID
+        hoursLogged: [LoggedHoursType]
         originalCostEstimate: Float
         updatedCostEstimate: Float
         originalLaunchDate: Date
@@ -127,14 +129,21 @@ const typeDefs = gql`
         getClient(email: String!): ClientResponse!
     }
 
-    input ProjectFields {
-        title: String
-        domain: String
-        externalDependencies: [String]
-        hoursLogged: Float
-        notes: String
+    input LoggedHoursInput {
+        date: Date
+        hours: Float
+        developer: String
+    }
+
+    input ProjectPhaseInput {
+        hoursLogged: [LoggedHoursInput]
+        originalCostEstimate: Float
+        updatedCostEstimate: Float
         originalLaunchDate: Date
         updatedLaunchDate: Date
+        status: String
+        notes: [String]
+        amountPaid: Float
     }
 
     type Mutation {
@@ -161,18 +170,39 @@ const typeDefs = gql`
 
         # CLIENTS
         addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
-        editClient(
-            email: String!
-            status: String
-            originalCostEstimate: Float
-            updatedCostEstimate: Float
-            project: ProjectFields
-        ): ClientResponse!
         editClientNotes(email: String!, notes: [String!]): ClientResponse!
         editClientMeetingNotes(
             email: String!
             notes: [String!]!
-            meetingIndex: String!
+            meetingId: ID!
+        ): ClientResponse!
+        editClientProject(
+            email: String!
+            title: String
+            domain: String
+            externalDependencies: [String]
+        ): ClientResponse!
+        createClientProjectPhase(
+            email: String!
+            originalCostEstimate: Float!
+            originalLaunchDate: Date!
+            notes: [String]
+        ): ClientResponse!
+        editClientProjectPhase(
+            email: String!
+            phaseId: ID!
+            updatedCostEstimate: Float
+            updatedLaunchDate: Date
+            status: String
+            notes: [String]
+            amountPaid: Float
+        ): ClientResponse!
+        updateProjectHoursLogged(
+            email: String!
+            phaseId: ID!
+            date: Date!
+            hours: Float!
+            developer: String!
         ): ClientResponse!
     }
 `

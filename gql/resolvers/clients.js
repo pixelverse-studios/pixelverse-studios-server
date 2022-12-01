@@ -65,8 +65,7 @@ module.exports.ClientMutations = {
                         prepInfo: questions_and_answers,
                         notes: []
                     }
-                ],
-                status: phases.PHASE_1
+                ]
             })
             // trigger an email sent to the new client welcoming them and letting them know we got and confirmed their meeting request
             const savedClient = await newClient.save()
@@ -78,45 +77,6 @@ module.exports.ClientMutations = {
             return buildResponse.client.success.clientAdded(savedClient)
         } catch (error) {
             return new Error(error)
-        }
-    },
-    async editClient(
-        _,
-        { email, status, originalCostEstimate, updatedCostEstimate, project },
-        context
-    ) {
-        try {
-            const token = validateToken(context)
-            if (!token.valid) {
-                return buildResponse.user.errors.invalidToken()
-            }
-
-            if (Object.values(phases).indexOf(status) < 0) {
-                return buildResponse.form.errors.badInput([
-                    {
-                        field: 'Status',
-                        message: 'Invalid client status provided'
-                    }
-                ])
-            }
-
-            const client = await Clients.findOne({ email })
-            if (!client) {
-                return buildResponse.client.errors.clientNotFound()
-            }
-
-            client.status = status ?? client.status
-            client.originalCostEstimate =
-                originalCostEstimate ?? client.originalCostEstimate
-            client.updatedCostEstimate =
-                updatedCostEstimate ?? client.updatedCostEstimate
-            client.project = project ?? client.project
-
-            await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
-        } catch (error) {
-            throw new Error(error)
         }
     },
     async editClientNotes(_, { email, notes }, context) {
@@ -148,7 +108,7 @@ module.exports.ClientMutations = {
             throw new Error(error)
         }
     },
-    async editClientMeetingNotes(_, { email, notes, meetingIndex }, context) {
+    async editClientMeetingNotes(_, { email, notes, meetingId }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -169,7 +129,150 @@ module.exports.ClientMutations = {
                 return buildResponse.client.errors.clientNotFound()
             }
 
-            client.meetings[meetingIndex].notes = notes
+            client.meetings.id(meetingId).notes = client.meetings
+                .id(meetingId)
+                .notes.concat(notes)
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async editClientProject(
+        _,
+        { email, title, domain, externalDependencies },
+        context
+    ) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            client.project.title = title ?? client.project.title
+            client.project.domain = domain ?? client.project.domain
+            client.project.externalDependencies =
+                externalDependencies ?? client.project.externalDependencies
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async createClientProjectPhase(
+        _,
+        { email, originalCostEstimate, originalLaunchDate, notes },
+        context
+    ) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            const launchDate = format(
+                new Date(originalLaunchDate),
+                'MM/dd h:m aaa'
+            )
+            const newProjectPhase = {
+                hoursLogged: [],
+                originalCostEstimate,
+                updatedCostEstimate: originalCostEstimate,
+                originalLaunchDate: launchDate,
+                updatedLaunchDate: launchDate,
+                status: phases.PHASE_1,
+                notes: notes ?? []
+            }
+
+            client.project.phases.push(newProjectPhase)
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async editClientProjectPhase(
+        _,
+        {
+            email,
+            phaseId,
+            updatedCostEstimate,
+            updatedLaunchDate,
+            status,
+            notes,
+            amountPaid
+        },
+        context
+    ) {
+        try {
+            if (status && Object.values(phases).indexOf(status) < 0) {
+                return buildResponse.form.errors.badInput([
+                    {
+                        field: 'Status',
+                        message: 'Invalid client status provided'
+                    }
+                ])
+            }
+
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            const currentPhase = client.project.phases.id(phaseId)
+            currentPhase.updatedCostEstimate =
+                updatedCostEstimate ?? currentPhase.originalCostEstimate
+            currentPhase.updatedLaunchDate =
+                updatedLaunchDate ?? currentPhase.originalLaunchDate
+            currentPhase.status = status ?? currentPhase.status
+            currentPhase.notes = notes ?? currentPhase.notes
+            currentPhase.amountPaid = amountPaid ?? currentPhase.amountPaid
+
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async updateProjectHoursLogged(
+        _,
+        { email, phaseId, date, hours, developer },
+        context
+    ) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            client.project.phases
+                .id(phaseId)
+                .hoursLogged.push({ date, hours, developer })
+
             await client.save()
 
             return buildResponse.client.success.clientUpdated(client)
