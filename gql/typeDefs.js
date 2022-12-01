@@ -168,7 +168,12 @@ const typeDefs = gql`
             updatedCostEstimate: Float
             project: ProjectFields
         ): ClientResponse!
-        editClientNotes(notes: [String!], email: String!): ClientResponse!
+        editClientNotes(email: String!, notes: [String!]): ClientResponse!
+        editClientMeetingNotes(
+            email: String!
+            notes: [String!]!
+            meetingIndex: String!
+        ): ClientResponse!
     }
 `
 

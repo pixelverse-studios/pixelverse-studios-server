@@ -119,7 +119,7 @@ module.exports.ClientMutations = {
             throw new Error(error)
         }
     },
-    async editClientNotes(_, { notes, email }, context) {
+    async editClientNotes(_, { email, notes }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -141,6 +141,35 @@ module.exports.ClientMutations = {
             }
 
             client.notes = notes
+            await client.save()
+
+            return buildResponse.client.success.clientUpdated(client)
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async editClientMeetingNotes(_, { email, notes, meetingIndex }, context) {
+        try {
+            if (!notes) {
+                return buildResponse.form.errors.badInput([
+                    {
+                        field: 'Notes',
+                        message: 'Meeting notes are required'
+                    }
+                ])
+            }
+
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const client = await Clients.findOne({ email })
+            if (!client) {
+                return buildResponse.client.errors.clientNotFound()
+            }
+
+            client.meetings[meetingIndex].notes = notes
             await client.save()
 
             return buildResponse.client.success.clientUpdated(client)
@@ -170,9 +199,8 @@ module.exports.ClientQueries = {
     async getAllClients(_, {}, context) {
         try {
             const token = validateToken(context)
-
             if (!token.valid) {
-                return buildResponse.user.errors.invalidToken()
+                return [buildResponse.user.errors.invalidToken()]
             }
 
             const clients = await Clients.find()
