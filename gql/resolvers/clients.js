@@ -17,7 +17,7 @@ const phases = {
 }
 
 module.exports.ClientMutations = {
-    async addNewClient(_, { eventUri, inviteeUri }) {
+    async setClientMeetings(_, { eventUri, inviteeUri }) {
         try {
             const authHeader = {
                 headers: {

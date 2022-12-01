@@ -169,7 +169,10 @@ const typeDefs = gql`
         sendPasswordResetEmail(email: String!): UserResponse
 
         # CLIENTS
-        addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
+        setClientMeetings(
+            eventUri: String!
+            inviteeUri: String!
+        ): ClientResponse!
         editClientNotes(email: String!, notes: [String!]): ClientResponse!
         editClientMeetingNotes(
             email: String!
