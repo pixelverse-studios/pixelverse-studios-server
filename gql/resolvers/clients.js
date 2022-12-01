@@ -79,7 +79,7 @@ module.exports.ClientMutations = {
             return new Error(error)
         }
     },
-    async editClientNotes(_, { email, notes }, context) {
+    async editClientNotes(_, { clientId, notes }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -95,7 +95,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -108,7 +108,7 @@ module.exports.ClientMutations = {
             throw new Error(error)
         }
     },
-    async editClientMeetingNotes(_, { email, notes, meetingId }, context) {
+    async editClientMeetingNotes(_, { clientId, notes, meetingId }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -124,7 +124,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -141,7 +141,7 @@ module.exports.ClientMutations = {
     },
     async editClientProject(
         _,
-        { email, title, domain, externalDependencies },
+        { clientId, title, domain, externalDependencies },
         context
     ) {
         try {
@@ -150,7 +150,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -168,7 +168,7 @@ module.exports.ClientMutations = {
     },
     async createClientProjectPhase(
         _,
-        { email, originalCostEstimate, originalLaunchDate, notes },
+        { clientId, originalCostEstimate, originalLaunchDate, notes },
         context
     ) {
         try {
@@ -177,7 +177,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -207,7 +207,7 @@ module.exports.ClientMutations = {
     async editClientProjectPhase(
         _,
         {
-            email,
+            clientId,
             phaseId,
             updatedCostEstimate,
             updatedLaunchDate,
@@ -232,7 +232,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -255,7 +255,7 @@ module.exports.ClientMutations = {
     },
     async updateProjectHoursLogged(
         _,
-        { email, phaseId, date, hours, developer },
+        { clientId, phaseId, date, hours, developer },
         context
     ) {
         try {
@@ -264,7 +264,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -283,7 +283,7 @@ module.exports.ClientMutations = {
 }
 
 module.exports.ClientQueries = {
-    async getClient(_, { email }, context) {
+    async getClient(_, { clientId }, context) {
         try {
             const token = validateToken(context)
 
@@ -291,7 +291,7 @@ module.exports.ClientQueries = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ email })
+            const client = await Clients.findOne({ _id: clientId })
             if (client) {
                 return buildResponse.client.success.clientFetched(client)
             }
