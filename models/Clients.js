@@ -4,7 +4,6 @@ const clientsSchema = new Schema({
     email: { type: String, unqiue: true },
     firstName: String,
     lastName: String,
-    status: String,
     meetings: [
         {
             location: String,
@@ -16,20 +15,28 @@ const clientsSchema = new Schema({
                     question: String,
                     answer: String
                 }
-            ]
+            ],
+            notes: [String]
         }
     ],
-    originalCostEstimate: Number,
-    updatedCostEstimate: Number,
     project: {
         title: String,
         domain: String,
         externalDependencies: [String],
-        hoursLogged: Number,
-        notes: String,
-        originalLaunchDate: Date,
-        updatedLaunchDate: Date
+        phases: [
+            {
+                hoursLogged: [{ date: Date, hours: Number, developer: String }],
+                originalCostEstimate: Number,
+                updatedCostEstimate: Number,
+                originalLaunchDate: Date,
+                updatedLaunchDate: Date,
+                status: String,
+                notes: [String],
+                amountPaid: Number
+            }
+        ]
     },
+    notes: [String],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 })

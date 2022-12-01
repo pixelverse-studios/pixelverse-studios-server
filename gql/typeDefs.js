@@ -60,10 +60,12 @@ const typeDefs = gql`
     }
 
     type Meeting {
+        _id: ID
         location: String
         url: String
         scheduledFor: Date
         prepInfo: [MeetingPrepInfo]
+        notes: [String]
     }
 
     type Finances {
@@ -71,14 +73,29 @@ const typeDefs = gql`
         totalEstimate: Float
     }
 
+    type LoggedHoursType {
+        date: Date
+        hours: Float
+        developer: String
+    }
+
+    type ProjectPhase {
+        _id: ID
+        hoursLogged: [LoggedHoursType]
+        originalCostEstimate: Float
+        updatedCostEstimate: Float
+        originalLaunchDate: Date
+        updatedLaunchDate: Date
+        status: String
+        notes: [String]
+        amountPaid: Float
+    }
+
     type ClientProject {
         title: String
         domain: String
         externalDependencies: [String]
-        hoursLogged: Float
-        notes: String
-        originalLaunchDate: Date
-        updatedLaunchDate: Date
+        phases: [ProjectPhase]
     }
 
     enum ClientSuccessTypes {
@@ -93,11 +110,9 @@ const typeDefs = gql`
         email: String!
         firstName: String!
         lastName: String!
-        status: String!
         meetings: [Meeting]
-        originalCostEstimate: Float
-        updatedCostEstimate: Float
         project: ClientProject
+        notes: [String]
         successType: ClientSuccessTypes!
     }
 
@@ -111,17 +126,24 @@ const typeDefs = gql`
 
         # CLIENTS
         getAllClients: [ClientResponse]
-        getClient(email: String!): ClientResponse!
+        getClient(clientId: String!): ClientResponse!
     }
 
-    input ProjectFields {
-        title: String
-        domain: String
-        externalDependencies: [String]
-        hoursLogged: Float
-        notes: String
+    input LoggedHoursInput {
+        date: Date
+        hours: Float
+        developer: String
+    }
+
+    input ProjectPhaseInput {
+        hoursLogged: [LoggedHoursInput]
+        originalCostEstimate: Float
+        updatedCostEstimate: Float
         originalLaunchDate: Date
         updatedLaunchDate: Date
+        status: String
+        notes: [String]
+        amountPaid: Float
     }
 
     type Mutation {
@@ -147,13 +169,43 @@ const typeDefs = gql`
         sendPasswordResetEmail(email: String!): UserResponse
 
         # CLIENTS
-        addNewClient(eventUri: String!, inviteeUri: String!): ClientResponse!
-        editClient(
-            email: String!
-            status: String
-            originalCostEstimate: Float
+        setClientMeetings(
+            eventUri: String!
+            inviteeUri: String!
+        ): ClientResponse!
+        editClientNotes(clientId: ID!, notes: [String!]): ClientResponse!
+        editClientMeetingNotes(
+            clientId: ID!
+            notes: [String!]!
+            meetingId: ID!
+        ): ClientResponse!
+        editClientProject(
+            clientId: ID!
+            title: String
+            domain: String
+            externalDependencies: [String]
+        ): ClientResponse!
+        createClientProjectPhase(
+            clientId: ID!
+            originalCostEstimate: Float!
+            originalLaunchDate: Date!
+            notes: [String]
+        ): ClientResponse!
+        editClientProjectPhase(
+            clientId: ID!
+            phaseId: ID!
             updatedCostEstimate: Float
-            project: ProjectFields
+            updatedLaunchDate: Date
+            status: String
+            notes: [String]
+            amountPaid: Float
+        ): ClientResponse!
+        updateProjectHoursLogged(
+            clientId: ID!
+            phaseId: ID!
+            date: Date!
+            hours: Float!
+            developer: String!
         ): ClientResponse!
     }
 `
