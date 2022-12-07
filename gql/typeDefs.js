@@ -165,7 +165,7 @@ const typeDefs = gql`
             newPassword: String!
             token: String!
         ): UserResponse
-        deleteUser(id: String!): [UserResponse]
+        deleteUser(email: String!): [UserResponse]
         sendPasswordResetEmail(email: String!): UserResponse
 
         # CLIENTS
