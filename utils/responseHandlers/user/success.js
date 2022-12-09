@@ -28,5 +28,6 @@ module.exports = {
     fetchedUser: (user, token) =>
         baseResponse({ type: 'fetchedUser', user, token }),
     allUsersFetched: users =>
-        baseArrayResponse({ type: 'allUsersFetched', users })
+        baseArrayResponse({ type: 'allUsersFetched', users }),
+    hoursUpdated: user => baseResponse({ type: 'hoursUpdated', user })
 }

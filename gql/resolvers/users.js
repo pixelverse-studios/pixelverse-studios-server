@@ -155,6 +155,33 @@ module.exports.UserMutations = {
         } catch (error) {
             throw new Error(error)
         }
+    },
+    async updateDevHours(
+        _,
+        { email, date, hoursLogged, project, projectPhase },
+        context
+    ) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const user = await User.findOne({ email })
+            if (!user) {
+                return buildResponse.user.errors.userNotFound()
+            }
+
+            const newHours = { date, hoursLogged, project, projectPhase }
+            user.devHours = user?.devHours?.length
+                ? [...user.devHours, newHours]
+                : [newHours]
+            await user.save()
+
+            return buildResponse.user.success.hoursUpdated(user)
+        } catch (error) {
+            throw new Error(error)
+        }
     }
 }
 

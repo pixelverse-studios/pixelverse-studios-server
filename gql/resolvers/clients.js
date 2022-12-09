@@ -252,33 +252,6 @@ module.exports.ClientMutations = {
         } catch (error) {
             throw new Error(error)
         }
-    },
-    async updateProjectHoursLogged(
-        _,
-        { clientId, phaseId, date, hours, developer },
-        context
-    ) {
-        try {
-            const token = validateToken(context)
-            if (!token.valid) {
-                return buildResponse.user.errors.invalidToken()
-            }
-
-            const client = await Clients.findOne({ _id: clientId })
-            if (!client) {
-                return buildResponse.client.errors.clientNotFound()
-            }
-
-            client.project.phases
-                .id(phaseId)
-                .hoursLogged.push({ date, hours, developer })
-
-            await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
-        } catch (error) {
-            throw new Error(error)
-        }
     }
 }
 
