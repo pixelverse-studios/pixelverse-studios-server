@@ -8,6 +8,7 @@ const typeDefs = gql`
         loggedIn
         fetchedUser
         allUsersFetched
+        hoursUpdated
     }
 
     enum ErrorTypes {
@@ -30,6 +31,13 @@ const typeDefs = gql`
         fetched
     }
 
+    type DevHoursFields {
+        date: Date
+        hoursLogged: Float
+        project: ID
+        projectPhase: ID
+    }
+
     type UserSuccess {
         _id: ID!
         email: String!
@@ -37,7 +45,7 @@ const typeDefs = gql`
         firstName: String
         lastName: String
         token: String
-        passwordResetToken: String
+        devHours: [DevHoursFields]
         successType: UserSuccessTypes!
     }
 
@@ -153,6 +161,13 @@ const typeDefs = gql`
         ): UserResponse
         deleteUser(email: String!): [UserResponse]
         sendPasswordResetEmail(email: String!): UserResponse
+        updateDevHours(
+            email: String!
+            date: Date!
+            hoursLogged: Float!
+            project: ID!
+            projectPhase: ID!
+        ): UserResponse
 
         # CLIENTS
         setClientMeetings(

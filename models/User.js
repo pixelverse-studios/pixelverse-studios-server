@@ -5,9 +5,16 @@ const userSchema = new Schema({
     firstName: String,
     lastName: String,
     password: String,
-    passwordResetToken: String,
     createdAt: { type: Date, default: Date.now },
-    updatedAt: Date
+    updatedAt: Date,
+    devHours: [
+        {
+            date: Date,
+            hoursLogged: Number,
+            project: String,
+            projectPhase: String
+        }
+    ]
 })
 
 module.exports = model('User', userSchema)

@@ -7,6 +7,8 @@ const baseResponse = ({ type, user, token }) => {
         ...user._doc
     }
 
+    console.log('response: ', response)
+
     if (token) {
         response.token = token
     }
@@ -28,5 +30,6 @@ module.exports = {
     fetchedUser: (user, token) =>
         baseResponse({ type: 'fetchedUser', user, token }),
     allUsersFetched: users =>
-        baseArrayResponse({ type: 'allUsersFetched', users })
+        baseArrayResponse({ type: 'allUsersFetched', users }),
+    hoursUpdated: user => baseResponse({ type: 'hoursUpdated', user })
 }
