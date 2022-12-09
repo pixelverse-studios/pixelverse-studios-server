@@ -73,15 +73,8 @@ const typeDefs = gql`
         totalEstimate: Float
     }
 
-    type LoggedHoursType {
-        date: Date
-        hours: Float
-        developer: String
-    }
-
     type ProjectPhase {
         _id: ID
-        hoursLogged: [LoggedHoursType]
         originalCostEstimate: Float
         updatedCostEstimate: Float
         originalLaunchDate: Date
@@ -129,14 +122,7 @@ const typeDefs = gql`
         getClient(clientId: String!): ClientResponse!
     }
 
-    input LoggedHoursInput {
-        date: Date
-        hours: Float
-        developer: String
-    }
-
     input ProjectPhaseInput {
-        hoursLogged: [LoggedHoursInput]
         originalCostEstimate: Float
         updatedCostEstimate: Float
         originalLaunchDate: Date
@@ -199,13 +185,6 @@ const typeDefs = gql`
             status: String
             notes: [String]
             amountPaid: Float
-        ): ClientResponse!
-        updateProjectHoursLogged(
-            clientId: ID!
-            phaseId: ID!
-            date: Date!
-            hours: Float!
-            developer: String!
         ): ClientResponse!
     }
 `
