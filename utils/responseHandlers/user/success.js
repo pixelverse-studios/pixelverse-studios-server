@@ -7,8 +7,6 @@ const baseResponse = ({ type, user, token }) => {
         ...user._doc
     }
 
-    console.log('response: ', response)
-
     if (token) {
         response.token = token
     }
