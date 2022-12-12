@@ -237,10 +237,11 @@ module.exports.UserQueries = {
             let totalHours = 0
             const developers = []
 
-            users.forEach(({ firstName, devHours }) => {
+            users.forEach(({ firstName, devHours, _id }) => {
                 const developerData = {
                     name: firstName,
-                    data: devHours
+                    data: devHours,
+                    _id
                 }
 
                 let devsTotalHours = 0
@@ -267,7 +268,7 @@ module.exports.UserQueries = {
 
                 developers.forEach(dev => {
                     const devHoursPerPhase = []
-                    dev.data.forEach(item => {
+                    dev?.data.forEach(item => {
                         if (item.projectPhase === phase) {
                             devHoursPerPhase.push(item.hoursLogged)
                         }
@@ -291,6 +292,7 @@ module.exports.UserQueries = {
                 projects
             })
         } catch (error) {
+            console.log(error)
             throw new Error(error)
         }
     }

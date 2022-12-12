@@ -67,13 +67,13 @@ const typeDefs = gql`
     }
 
     type PhaseDeveloperHoursFields {
-        projectPhase: ID!
+        projectPhase: ID
         devs: [DevsPerPhaseHoursFields]
     }
 
     type DeveloperHoursSuccess {
-        developers: [DeveloperHoursFields]!
-        projects: [PhaseDeveloperHoursFields]!
+        developers: [DeveloperHoursFields]
+        projects: [PhaseDeveloperHoursFields]
         totalHours: Float!
     }
 
