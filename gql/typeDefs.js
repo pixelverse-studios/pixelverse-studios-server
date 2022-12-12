@@ -54,15 +54,26 @@ const typeDefs = gql`
         devHours: [DevHoursFields]
     }
 
-    type DeveloperHoursResponse {
+    type DeveloperHoursFields {
         _id: ID!
-        dev: String!
+        name: String!
         totalHours: Float!
         data: [DevHoursFields]
     }
 
+    type DevsPerPhaseHoursFields {
+        name: String
+        totalHours: Float
+    }
+
+    type PhaseDeveloperHoursFields {
+        projectPhase: ID!
+        devs: [DevsPerPhaseHoursFields]
+    }
+
     type DeveloperHoursSuccess {
-        developers: [DeveloperHoursResponse]!
+        developers: [DeveloperHoursFields]!
+        projects: [PhaseDeveloperHoursFields]!
         totalHours: Float!
     }
 
