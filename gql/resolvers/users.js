@@ -260,7 +260,6 @@ module.exports.UserQueries = {
                     projectPhases.push(phase._id.toString())
                 )
             })
-            console.log('projectPhases: ', projectPhases)
 
             const projects = []
             projectPhases.forEach(phase => {
