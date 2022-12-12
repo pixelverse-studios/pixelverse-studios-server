@@ -3,14 +3,6 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    enum UserSuccessTypes {
-        registered
-        loggedIn
-        fetchedUser
-        allUsersFetched
-        hoursUpdated
-    }
-
     enum ErrorTypes {
         # FORM
         badInput
@@ -60,7 +52,6 @@ const typeDefs = gql`
         lastName: String
         token: String
         devHours: [DevHoursFields]
-        successType: UserSuccessTypes!
     }
 
     type DeveloperHoursResponse {
@@ -127,11 +118,14 @@ const typeDefs = gql`
         phases: [ProjectPhase]
     }
 
-    enum ClientSuccessTypes {
-        clientAdded
-        clientUpdated
-        allClientsFetched
-        clientFetched
+    type ClientFields {
+        _id: ID!
+        email: String!
+        firstName: String!
+        lastName: String!
+        meetings: [Meeting]
+        project: ClientProject
+        notes: [String]
     }
 
     type ClientSuccess {
@@ -142,10 +136,14 @@ const typeDefs = gql`
         meetings: [Meeting]
         project: ClientProject
         notes: [String]
-        successType: ClientSuccessTypes!
+    }
+
+    type MultipleClientSuccess {
+        clients: [ClientFields]
     }
 
     union ClientResponse = ClientSuccess | Errors
+    union MultiClientResponse = MultipleClientSuccess | Errors
 
     type Query {
         # USERS
@@ -155,7 +153,7 @@ const typeDefs = gql`
         getDeveloperHours: DevHoursResponse!
 
         # CLIENTS
-        getAllClients: [ClientResponse]
+        getAllClients: MultiClientResponse!
         getClient(clientId: String!): ClientResponse!
     }
 
@@ -188,7 +186,7 @@ const typeDefs = gql`
             newPassword: String!
             token: String!
         ): UserResponse
-        deleteUser(email: String!): [UserResponse]
+        deleteUser(email: String!): MultiUserResponse
         sendPasswordResetEmail(email: String!): UserResponse
         updateDevHours(
             email: String!
