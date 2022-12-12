@@ -3,14 +3,6 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    enum UserSuccessTypes {
-        registered
-        loggedIn
-        fetchedUser
-        allUsersFetched
-        hoursUpdated
-    }
-
     enum ErrorTypes {
         # FORM
         badInput
@@ -38,6 +30,20 @@ const typeDefs = gql`
         projectPhase: ID
     }
 
+    type UserFields {
+        _id: ID!
+        email: String!
+        password: String!
+        firstName: String
+        lastName: String
+        token: String
+        devHours: [DevHoursFields]
+    }
+
+    type MultipleUsersSuccess {
+        users: [UserFields]
+    }
+
     type UserSuccess {
         _id: ID!
         email: String!
@@ -46,7 +52,29 @@ const typeDefs = gql`
         lastName: String
         token: String
         devHours: [DevHoursFields]
-        successType: UserSuccessTypes!
+    }
+
+    type DeveloperHoursFields {
+        _id: ID!
+        name: String!
+        totalHours: Float!
+        data: [DevHoursFields]
+    }
+
+    type DevsPerPhaseHoursFields {
+        name: String
+        totalHours: Float
+    }
+
+    type PhaseDeveloperHoursFields {
+        projectPhase: ID!
+        devs: [DevsPerPhaseHoursFields]
+    }
+
+    type DeveloperHoursSuccess {
+        developers: [DeveloperHoursFields]!
+        projects: [PhaseDeveloperHoursFields]!
+        totalHours: Float!
     }
 
     type InputFieldError {
@@ -61,6 +89,8 @@ const typeDefs = gql`
     }
 
     union UserResponse = UserSuccess | Errors
+    union MultiUserResponse = MultipleUsersSuccess | Errors
+    union DevHoursResponse = DeveloperHoursSuccess | Errors
 
     type MeetingPrepInfo {
         answer: String
@@ -99,11 +129,14 @@ const typeDefs = gql`
         phases: [ProjectPhase]
     }
 
-    enum ClientSuccessTypes {
-        clientAdded
-        clientUpdated
-        allClientsFetched
-        clientFetched
+    type ClientFields {
+        _id: ID!
+        email: String!
+        firstName: String!
+        lastName: String!
+        meetings: [Meeting]
+        project: ClientProject
+        notes: [String]
     }
 
     type ClientSuccess {
@@ -114,19 +147,24 @@ const typeDefs = gql`
         meetings: [Meeting]
         project: ClientProject
         notes: [String]
-        successType: ClientSuccessTypes!
+    }
+
+    type MultipleClientSuccess {
+        clients: [ClientFields]
     }
 
     union ClientResponse = ClientSuccess | Errors
+    union MultiClientResponse = MultipleClientSuccess | Errors
 
     type Query {
         # USERS
         getUser(email: String!): UserResponse!
-        getAllUsers: [UserResponse]
+        getAllUsers: MultiUserResponse!
         getLoggedInUser: UserResponse!
+        getDeveloperHours: DevHoursResponse!
 
         # CLIENTS
-        getAllClients: [ClientResponse]
+        getAllClients: MultiClientResponse!
         getClient(clientId: String!): ClientResponse!
     }
 
@@ -159,7 +197,7 @@ const typeDefs = gql`
             newPassword: String!
             token: String!
         ): UserResponse
-        deleteUser(email: String!): [UserResponse]
+        deleteUser(email: String!): MultiUserResponse
         sendPasswordResetEmail(email: String!): UserResponse
         updateDevHours(
             email: String!

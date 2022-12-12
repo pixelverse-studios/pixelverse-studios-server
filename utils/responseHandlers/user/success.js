@@ -1,9 +1,15 @@
 const USER_SUCCESS = 'UserSuccess'
+const MULTI_USER_SUCCESS = 'MultipleUsersSuccess'
+const DEV_HOURS_SUCCESS = 'DeveloperHoursSuccess'
 
-const baseResponse = ({ type, user, token }) => {
+const baseArrayResponse = users => ({
+    __typename: MULTI_USER_SUCCESS,
+    users
+})
+
+const baseResponse = ({ user, token }) => {
     const response = {
         __typename: USER_SUCCESS,
-        successType: type,
         ...user._doc
     }
 
@@ -14,20 +20,16 @@ const baseResponse = ({ type, user, token }) => {
     return response
 }
 
-const baseArrayResponse = ({ type, users }) =>
-    users.map(user => ({
-        ...user._doc,
-        __typename: USER_SUCCESS,
-        successType: type
-    }))
+const devResponse = hours => ({
+    __typename: DEV_HOURS_SUCCESS,
+    ...hours
+})
 
 module.exports = {
-    registered: (user, token) =>
-        baseResponse({ type: 'registered', user, token }),
-    loggedIn: (user, token) => baseResponse({ type: 'loggedIn', user, token }),
-    fetchedUser: (user, token) =>
-        baseResponse({ type: 'fetchedUser', user, token }),
-    allUsersFetched: users =>
-        baseArrayResponse({ type: 'allUsersFetched', users }),
-    hoursUpdated: user => baseResponse({ type: 'hoursUpdated', user })
+    registered: (user, token) => baseResponse({ user, token }),
+    loggedIn: (user, token) => baseResponse({ user, token }),
+    fetchedUser: (user, token) => baseResponse({ user, token }),
+    allUsersFetched: users => baseArrayResponse(users),
+    hoursUpdated: user => baseResponse({ user }),
+    fetchedDevHours: hours => devResponse(hours)
 }

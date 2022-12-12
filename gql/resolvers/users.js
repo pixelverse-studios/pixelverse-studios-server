@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs')
 const jwt_decode = require('jwt-decode')
 
 const User = require('../../models/User')
+const Clients = require('../../models/Clients')
 const {
     validateRegisterUser,
     validateLogin,
@@ -219,6 +220,76 @@ module.exports.UserQueries = {
                 return buildResponse.user.success.allUsersFetched(users)
             }
             return buildResponse.user.errors.noUsersFound()
+        } catch (error) {
+            throw new Error(error)
+        }
+    },
+    async getDeveloperHours(_, {}, context) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const users = await User.find()
+            const clients = await Clients.find()
+
+            let totalHours = 0
+            const developers = []
+
+            users.forEach(({ firstName, devHours }) => {
+                const developerData = {
+                    name: firstName,
+                    data: devHours
+                }
+
+                let devsTotalHours = 0
+                devHours.forEach(item => {
+                    devsTotalHours += item.hoursLogged
+                    totalHours += devsTotalHours
+                })
+
+                developerData.totalHours = devsTotalHours
+                developers.push(developerData)
+            })
+
+            const projectPhases = []
+
+            clients.forEach(client => {
+                client.project.phases.forEach(phase =>
+                    projectPhases.push(phase._id.toString())
+                )
+            })
+
+            const projects = []
+            projectPhases.forEach(phase => {
+                const hoursPerPhase = []
+
+                developers.forEach(dev => {
+                    const devHoursPerPhase = []
+                    dev.data.forEach(item => {
+                        if (item.projectPhase === phase) {
+                            devHoursPerPhase.push(item.hoursLogged)
+                        }
+                    })
+                    hoursPerPhase.push({
+                        name: dev.name,
+                        totalHours: devHoursPerPhase?.length
+                            ? devHoursPerPhase.reduce(
+                                  (accumulator, current) =>
+                                      accumulator + current
+                              )
+                            : 0
+                    })
+                })
+                projects.push({ projectPhase: phase, devs: hoursPerPhase })
+            })
+
+            return buildResponse.user.success.fetchedDevHours({
+                totalHours,
+                developers,
+                projects
+            })
         } catch (error) {
             throw new Error(error)
         }
