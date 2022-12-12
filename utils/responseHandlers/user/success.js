@@ -31,5 +31,6 @@ module.exports = {
     fetchedUser: (user, token) => baseResponse({ user, token }),
     allUsersFetched: users => baseArrayResponse(users),
     hoursUpdated: user => baseResponse({ user }),
-    fetchedDevHours: hours => devResponse(hours)
+    fetchedDevHours: hours => devResponse(hours),
+    userDeleted: users => baseArrayResponse(users)
 }
