@@ -38,6 +38,20 @@ const typeDefs = gql`
         projectPhase: ID
     }
 
+    type UserFields {
+        _id: ID!
+        email: String!
+        password: String!
+        firstName: String
+        lastName: String
+        token: String
+        devHours: [DevHoursFields]
+    }
+
+    type MultipleUsersSuccess {
+        users: [UserFields]
+    }
+
     type UserSuccess {
         _id: ID!
         email: String!
@@ -47,6 +61,18 @@ const typeDefs = gql`
         token: String
         devHours: [DevHoursFields]
         successType: UserSuccessTypes!
+    }
+
+    type DeveloperHoursResponse {
+        _id: ID!
+        dev: String!
+        totalHours: Float!
+        data: [DevHoursFields]
+    }
+
+    type DeveloperHoursSuccess {
+        developers: [DeveloperHoursResponse]!
+        totalHours: Float!
     }
 
     type InputFieldError {
@@ -61,6 +87,8 @@ const typeDefs = gql`
     }
 
     union UserResponse = UserSuccess | Errors
+    union MultiUserResponse = MultipleUsersSuccess | Errors
+    union DevHoursResponse = DeveloperHoursSuccess | Errors
 
     type MeetingPrepInfo {
         answer: String
@@ -122,8 +150,9 @@ const typeDefs = gql`
     type Query {
         # USERS
         getUser(email: String!): UserResponse!
-        getAllUsers: [UserResponse]
+        getAllUsers: MultiUserResponse!
         getLoggedInUser: UserResponse!
+        getDeveloperHours: DevHoursResponse!
 
         # CLIENTS
         getAllClients: [ClientResponse]

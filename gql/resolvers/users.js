@@ -222,5 +222,41 @@ module.exports.UserQueries = {
         } catch (error) {
             throw new Error(error)
         }
+    },
+    async getDeveloperHours(_, {}, context) {
+        try {
+            const token = validateToken(context)
+            if (!token.valid) {
+                return buildResponse.user.errors.invalidToken()
+            }
+
+            const users = await User.find()
+
+            let totalHours = 0
+            const developers = []
+
+            users.forEach(({ firstName, devHours }) => {
+                const developerData = {
+                    dev: firstName,
+                    data: devHours
+                }
+
+                let devsTotalHours = 0
+
+                devHours.forEach(item => (devsTotalHours += item.hoursLogged))
+
+                totalHours += devsTotalHours
+                developerData.totalHours = devsTotalHours
+
+                developers.push(developerData)
+            })
+
+            return buildResponse.user.success.fetchedDevHours({
+                developers,
+                totalHours
+            })
+        } catch (error) {
+            throw new Error(error)
+        }
     }
 }
