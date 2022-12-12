@@ -137,6 +137,25 @@ module.exports.UserMutations = {
         } catch (error) {
             throw new Error(error)
         }
+    },
+    async deleteUser(_, { _id }, context) {
+        try {
+            if (!_id) {
+                return buildResponse.form.errors.badInput([
+                    {
+                        field: 'ID',
+                        message:
+                            'User ID is required in order to delete the user.'
+                    }
+                ])
+            }
+
+            const response = await User.findByIdAndDelete({ _id })
+
+            console.log('response: ', response)
+        } catch (error) {
+            throw new Error(error)
+        }
     }
 }
 
