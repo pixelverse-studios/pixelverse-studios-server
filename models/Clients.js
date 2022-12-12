@@ -25,7 +25,6 @@ const clientsSchema = new Schema({
         externalDependencies: [String],
         phases: [
             {
-                hoursLogged: [{ date: Date, hours: Number, developer: String }],
                 originalCostEstimate: Number,
                 updatedCostEstimate: Number,
                 originalLaunchDate: Date,
