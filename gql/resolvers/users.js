@@ -141,7 +141,6 @@ module.exports.UserMutations = {
     },
     async deleteUser(_, { id }, context) {
         try {
-            console.log('id: ', id)
             const token = validateToken(context)
             if (!token.valid) {
                 return buildResponse.user.errors.invalidToken()
