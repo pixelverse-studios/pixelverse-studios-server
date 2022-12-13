@@ -31,7 +31,8 @@ const clientsSchema = new Schema({
                 updatedLaunchDate: Date,
                 status: String,
                 notes: [String],
-                amountPaid: Number
+                amountPaid: Number,
+                isActive: Boolean
             }
         ]
     },

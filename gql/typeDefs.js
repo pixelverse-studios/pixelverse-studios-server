@@ -120,6 +120,7 @@ const typeDefs = gql`
         status: String
         notes: [String]
         amountPaid: Float
+        isActive: Boolean
     }
 
     type ClientProject {
@@ -197,7 +198,7 @@ const typeDefs = gql`
             newPassword: String!
             token: String!
         ): UserResponse
-        deleteUser(email: String!): MultiUserResponse
+        deleteUser(id: String!): MultiUserResponse
         sendPasswordResetEmail(email: String!): UserResponse
         updateDevHours(
             email: String!
@@ -238,6 +239,7 @@ const typeDefs = gql`
             status: String
             notes: [String]
             amountPaid: Float
+            isActive: Boolean
         ): ClientResponse!
     }
 `

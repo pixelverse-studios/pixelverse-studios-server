@@ -16,6 +16,8 @@ const phases = {
     PHASE_5: 'Phase 5: Post Launch Maintenance'
 }
 
+const hasAnActivePhase = phases => phases.some(phase => phase.isActive)
+
 module.exports.ClientMutations = {
     async setClientMeetings(_, { eventUri, inviteeUri }) {
         try {
@@ -186,6 +188,7 @@ module.exports.ClientMutations = {
                 new Date(originalLaunchDate),
                 'MM/dd h:m aaa'
             )
+
             const newProjectPhase = {
                 hoursLogged: [],
                 originalCostEstimate,
@@ -193,7 +196,8 @@ module.exports.ClientMutations = {
                 originalLaunchDate: launchDate,
                 updatedLaunchDate: launchDate,
                 status: phases.PHASE_1,
-                notes: notes ?? []
+                notes: notes ?? [],
+                isActive: !hasAnActivePhase(client.project.phases)
             }
 
             client.project.phases.push(newProjectPhase)
@@ -213,7 +217,8 @@ module.exports.ClientMutations = {
             updatedLaunchDate,
             status,
             notes,
-            amountPaid
+            amountPaid,
+            isActive
         },
         context
     ) {
@@ -237,6 +242,8 @@ module.exports.ClientMutations = {
                 return buildResponse.client.errors.clientNotFound()
             }
 
+            const canBeActive = !hasAnActivePhase(client.project.phases)
+
             const currentPhase = client.project.phases.id(phaseId)
             currentPhase.updatedCostEstimate =
                 updatedCostEstimate ?? currentPhase.originalCostEstimate
@@ -245,6 +252,7 @@ module.exports.ClientMutations = {
             currentPhase.status = status ?? currentPhase.status
             currentPhase.notes = notes ?? currentPhase.notes
             currentPhase.amountPaid = amountPaid ?? currentPhase.amountPaid
+            currentPhase.isActive = canBeActive ? isActive : false
 
             await client.save()
 

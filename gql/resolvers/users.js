@@ -139,20 +139,22 @@ module.exports.UserMutations = {
             throw new Error(error)
         }
     },
-    async deleteUser(_, { email }, context) {
+    async deleteUser(_, { id }, context) {
         try {
             const token = validateToken(context)
             if (!token.valid) {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const user = await User.find({ email })
+            const user = await User.find({ _id: id })
 
             if (!user) {
                 buildResponse.user.errors.userNotFound()
             }
 
-            return await User.findOneAndDelete({ email })
+            await User.findOneAndDelete({ _id: id })
+            const users = await User.find()
+            return buildResponse.user.success.userDeleted(users)
         } catch (error) {
             throw new Error(error)
         }
