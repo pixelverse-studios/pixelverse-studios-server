@@ -252,7 +252,10 @@ module.exports.ClientMutations = {
             currentPhase.status = status ?? currentPhase.status
             currentPhase.notes = notes ?? currentPhase.notes
             currentPhase.amountPaid = amountPaid ?? currentPhase.amountPaid
-            currentPhase.isActive = canBeActive ? isActive : false
+
+            if (canBeActive && (isActive === true || isActive === false)) {
+                currentPhase.isActive = isActive
+            }
 
             await client.save()
 
