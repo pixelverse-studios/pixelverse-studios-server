@@ -120,6 +120,7 @@ const typeDefs = gql`
         status: String
         notes: [String]
         amountPaid: Float
+        isActive: Boolean
     }
 
     type ClientProject {
@@ -238,6 +239,7 @@ const typeDefs = gql`
             status: String
             notes: [String]
             amountPaid: Float
+            isActive: Boolean
         ): ClientResponse!
     }
 `
