@@ -267,12 +267,14 @@ module.exports.UserQueries = {
             const projects = []
             projectPhases.forEach(phase => {
                 const hoursPerPhase = []
+                let totalHoursInPhase = 0
 
                 developers.forEach(dev => {
                     const devHoursPerPhase = []
                     dev?.data.forEach(item => {
                         if (item.projectPhase === phase) {
                             devHoursPerPhase.push(item.hoursLogged)
+                            totalHoursInPhase += item.hoursLogged
                         }
                     })
                     hoursPerPhase.push({
@@ -285,7 +287,12 @@ module.exports.UserQueries = {
                             : 0
                     })
                 })
-                projects.push({ projectPhase: phase, devs: hoursPerPhase })
+
+                projects.push({
+                    projectPhase: phase,
+                    devs: hoursPerPhase,
+                    totalHours: totalHoursInPhase
+                })
             })
 
             return buildResponse.user.success.fetchedDevHours({
