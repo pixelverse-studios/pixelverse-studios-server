@@ -68,6 +68,7 @@ const typeDefs = gql`
 
     type PhaseDeveloperHoursFields {
         projectPhase: ID
+        totalHours: Float
         devs: [DevsPerPhaseHoursFields]
     }
 
