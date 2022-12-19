@@ -166,7 +166,7 @@ const typeDefs = gql`
         getDeveloperHours: DevHoursResponse!
 
         # CLIENTS
-        getAllClients: MultiClientResponse!
+        getAllClients: MultiClientResponse
         getClient(clientID: String!): ClientResponse!
     }
 
@@ -214,24 +214,24 @@ const typeDefs = gql`
             eventUri: String!
             inviteeUri: String!
         ): ClientResponse!
-        editClientNotes(clientID: ID!, notes: [String!]): ClientResponse!
+        editClientNotes(clientID: ID!, notes: [String!]!): MultiClientResponse
         editClientMeetingNotes(
             clientID: ID!
             notes: [String!]!
             meetingId: ID!
-        ): ClientResponse!
+        ): MultiClientResponse
         editClientProject(
             clientID: ID!
             title: String
             domain: String
             externalDependencies: [String]
-        ): ClientResponse!
+        ): MultiClientResponse
         createClientProjectPhase(
             clientID: ID!
             originalCostEstimate: Float!
             originalLaunchDate: Date!
             notes: [String]
-        ): ClientResponse!
+        ): MultiClientResponse
         editClientProjectPhase(
             clientID: ID!
             phaseId: ID!
@@ -241,7 +241,7 @@ const typeDefs = gql`
             notes: [String]
             amountPaid: Float
             isActive: Boolean
-        ): ClientResponse!
+        ): MultiClientResponse
     }
 `
 
