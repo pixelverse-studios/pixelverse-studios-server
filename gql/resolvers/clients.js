@@ -81,7 +81,7 @@ module.exports.ClientMutations = {
             return new Error(error)
         }
     },
-    async editClientNotes(_, { clientId, notes }, context) {
+    async editClientNotes(_, { clientID, notes }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -97,7 +97,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -110,7 +110,7 @@ module.exports.ClientMutations = {
             throw new Error(error)
         }
     },
-    async editClientMeetingNotes(_, { clientId, notes, meetingId }, context) {
+    async editClientMeetingNotes(_, { clientID, notes, meetingId }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -126,7 +126,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -143,7 +143,7 @@ module.exports.ClientMutations = {
     },
     async editClientProject(
         _,
-        { clientId, title, domain, externalDependencies },
+        { clientID, title, domain, externalDependencies },
         context
     ) {
         try {
@@ -152,7 +152,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -170,7 +170,7 @@ module.exports.ClientMutations = {
     },
     async createClientProjectPhase(
         _,
-        { clientId, originalCostEstimate, originalLaunchDate, notes },
+        { clientID, originalCostEstimate, originalLaunchDate, notes },
         context
     ) {
         try {
@@ -179,7 +179,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -211,7 +211,7 @@ module.exports.ClientMutations = {
     async editClientProjectPhase(
         _,
         {
-            clientId,
+            clientID,
             phaseId,
             updatedCostEstimate,
             updatedLaunchDate,
@@ -237,7 +237,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -267,7 +267,7 @@ module.exports.ClientMutations = {
 }
 
 module.exports.ClientQueries = {
-    async getClient(_, { clientId }, context) {
+    async getClient(_, { clientID }, context) {
         try {
             const token = validateToken(context)
 
@@ -275,7 +275,7 @@ module.exports.ClientQueries = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (client) {
                 return buildResponse.client.success.clientFetched(client)
             }

@@ -167,7 +167,7 @@ const typeDefs = gql`
 
         # CLIENTS
         getAllClients: MultiClientResponse!
-        getClient(clientId: String!): ClientResponse!
+        getClient(clientID: String!): ClientResponse!
     }
 
     input ProjectPhaseInput {
@@ -214,26 +214,26 @@ const typeDefs = gql`
             eventUri: String!
             inviteeUri: String!
         ): ClientResponse!
-        editClientNotes(clientId: ID!, notes: [String!]): ClientResponse!
+        editClientNotes(clientID: ID!, notes: [String!]): ClientResponse!
         editClientMeetingNotes(
-            clientId: ID!
+            clientID: ID!
             notes: [String!]!
             meetingId: ID!
         ): ClientResponse!
         editClientProject(
-            clientId: ID!
+            clientID: ID!
             title: String
             domain: String
             externalDependencies: [String]
         ): ClientResponse!
         createClientProjectPhase(
-            clientId: ID!
+            clientID: ID!
             originalCostEstimate: Float!
             originalLaunchDate: Date!
             notes: [String]
         ): ClientResponse!
         editClientProjectPhase(
-            clientId: ID!
+            clientID: ID!
             phaseId: ID!
             updatedCostEstimate: Float
             updatedLaunchDate: Date
