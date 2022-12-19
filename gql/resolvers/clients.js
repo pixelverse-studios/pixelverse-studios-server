@@ -17,6 +17,11 @@ const phases = {
 }
 
 const hasAnActivePhase = phases => phases.some(phase => phase.isActive)
+const handleEditedClientSuccess = async () => {
+    const allClients = await Clients.find()
+
+    return buildResponse.client.success.clientUpdated(allClients)
+}
 
 module.exports.ClientMutations = {
     async setClientMeetings(_, { eventUri, inviteeUri }) {
@@ -104,9 +109,7 @@ module.exports.ClientMutations = {
 
             client.notes = notes
             await client.save()
-            const allClients = await Clients.find()
-
-            return buildResponse.client.success.clientUpdated(allClients)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -136,9 +139,7 @@ module.exports.ClientMutations = {
                 .id(meetingId)
                 .notes.concat(notes)
             await client.save()
-            const allClients = await Clients.find()
-
-            return buildResponse.client.success.clientUpdated(allClients)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -164,9 +165,7 @@ module.exports.ClientMutations = {
             client.project.externalDependencies =
                 externalDependencies ?? client.project.externalDependencies
             await client.save()
-            const allClients = await Clients.find()
-
-            return buildResponse.client.success.clientUpdated(allClients)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -205,9 +204,7 @@ module.exports.ClientMutations = {
 
             client.project.phases.push(newProjectPhase)
             await client.save()
-            const allClients = await Clients.find()
-
-            return buildResponse.client.success.clientUpdated(allClients)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -262,9 +259,7 @@ module.exports.ClientMutations = {
             }
 
             await client.save()
-            const allClients = await Clients.find()
-
-            return buildResponse.client.success.clientUpdated(allClients)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
