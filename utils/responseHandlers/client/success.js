@@ -21,7 +21,7 @@ const baseArrayResponse = clients => ({
 
 module.exports = {
     clientAdded: client => baseResponse({ client }),
-    clientUpdated: client => baseResponse({ client }),
+    clientUpdated: clients => baseArrayResponse(clients),
     clientFetched: client => baseResponse({ client }),
     allClientsFetched: clients => baseArrayResponse(clients)
 }

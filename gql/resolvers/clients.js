@@ -17,6 +17,11 @@ const phases = {
 }
 
 const hasAnActivePhase = phases => phases.some(phase => phase.isActive)
+const handleEditedClientSuccess = async () => {
+    const allClients = await Clients.find()
+
+    return buildResponse.client.success.clientUpdated(allClients)
+}
 
 module.exports.ClientMutations = {
     async setClientMeetings(_, { eventUri, inviteeUri }) {
@@ -81,7 +86,7 @@ module.exports.ClientMutations = {
             return new Error(error)
         }
     },
-    async editClientNotes(_, { clientId, notes }, context) {
+    async editClientNotes(_, { clientID, notes }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -97,20 +102,19 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
 
             client.notes = notes
             await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
     },
-    async editClientMeetingNotes(_, { clientId, notes, meetingId }, context) {
+    async editClientMeetingNotes(_, { clientID, notes, meetingId }, context) {
         try {
             if (!notes) {
                 return buildResponse.form.errors.badInput([
@@ -126,7 +130,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -135,15 +139,14 @@ module.exports.ClientMutations = {
                 .id(meetingId)
                 .notes.concat(notes)
             await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
     },
     async editClientProject(
         _,
-        { clientId, title, domain, externalDependencies },
+        { clientID, title, domain, externalDependencies },
         context
     ) {
         try {
@@ -152,7 +155,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -162,15 +165,14 @@ module.exports.ClientMutations = {
             client.project.externalDependencies =
                 externalDependencies ?? client.project.externalDependencies
             await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
     },
     async createClientProjectPhase(
         _,
-        { clientId, originalCostEstimate, originalLaunchDate, notes },
+        { clientID, originalCostEstimate, originalLaunchDate, notes },
         context
     ) {
         try {
@@ -179,7 +181,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -202,8 +204,7 @@ module.exports.ClientMutations = {
 
             client.project.phases.push(newProjectPhase)
             await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -211,7 +212,7 @@ module.exports.ClientMutations = {
     async editClientProjectPhase(
         _,
         {
-            clientId,
+            clientID,
             phaseId,
             updatedCostEstimate,
             updatedLaunchDate,
@@ -237,7 +238,7 @@ module.exports.ClientMutations = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (!client) {
                 return buildResponse.client.errors.clientNotFound()
             }
@@ -258,8 +259,7 @@ module.exports.ClientMutations = {
             }
 
             await client.save()
-
-            return buildResponse.client.success.clientUpdated(client)
+            return await handleEditedClientSuccess()
         } catch (error) {
             throw new Error(error)
         }
@@ -267,7 +267,7 @@ module.exports.ClientMutations = {
 }
 
 module.exports.ClientQueries = {
-    async getClient(_, { clientId }, context) {
+    async getClient(_, { clientID }, context) {
         try {
             const token = validateToken(context)
 
@@ -275,7 +275,7 @@ module.exports.ClientQueries = {
                 return buildResponse.user.errors.invalidToken()
             }
 
-            const client = await Clients.findOne({ _id: clientId })
+            const client = await Clients.findOne({ _id: clientID })
             if (client) {
                 return buildResponse.client.success.clientFetched(client)
             }
