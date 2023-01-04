@@ -3,13 +3,6 @@ const { gql } = require('apollo-server')
 const typeDefs = gql`
     scalar Date
 
-    enum UserSuccessTypes {
-        registered
-        loggedIn
-        fetchedUser
-        allUsersFetched
-    }
-
     enum ErrorTypes {
         # FORM
         badInput
@@ -30,6 +23,27 @@ const typeDefs = gql`
         fetched
     }
 
+    type DevHoursFields {
+        date: Date
+        hoursLogged: Float
+        project: ID
+        projectPhase: ID
+    }
+
+    type UserFields {
+        _id: ID!
+        email: String!
+        password: String!
+        firstName: String
+        lastName: String
+        token: String
+        devHours: [DevHoursFields]
+    }
+
+    type MultipleUsersSuccess {
+        users: [UserFields]
+    }
+
     type UserSuccess {
         _id: ID!
         email: String!
@@ -37,8 +51,31 @@ const typeDefs = gql`
         firstName: String
         lastName: String
         token: String
-        passwordResetToken: String
-        successType: UserSuccessTypes!
+        devHours: [DevHoursFields]
+    }
+
+    type DeveloperHoursFields {
+        _id: ID!
+        name: String!
+        totalHours: Float!
+        data: [DevHoursFields]
+    }
+
+    type DevsPerPhaseHoursFields {
+        name: String
+        totalHours: Float
+    }
+
+    type PhaseDeveloperHoursFields {
+        projectPhase: ID
+        totalHours: Float
+        devs: [DevsPerPhaseHoursFields]
+    }
+
+    type DeveloperHoursSuccess {
+        developers: [DeveloperHoursFields]
+        projects: [PhaseDeveloperHoursFields]
+        totalHours: Float!
     }
 
     type InputFieldError {
@@ -53,6 +90,8 @@ const typeDefs = gql`
     }
 
     union UserResponse = UserSuccess | Errors
+    union MultiUserResponse = MultipleUsersSuccess | Errors
+    union DevHoursResponse = DeveloperHoursSuccess | Errors
 
     type MeetingPrepInfo {
         answer: String
@@ -73,15 +112,8 @@ const typeDefs = gql`
         totalEstimate: Float
     }
 
-    type LoggedHoursType {
-        date: Date
-        hours: Float
-        developer: String
-    }
-
     type ProjectPhase {
         _id: ID
-        hoursLogged: [LoggedHoursType]
         originalCostEstimate: Float
         updatedCostEstimate: Float
         originalLaunchDate: Date
@@ -89,6 +121,7 @@ const typeDefs = gql`
         status: String
         notes: [String]
         amountPaid: Float
+        isActive: Boolean
     }
 
     type ClientProject {
@@ -98,11 +131,14 @@ const typeDefs = gql`
         phases: [ProjectPhase]
     }
 
-    enum ClientSuccessTypes {
-        clientAdded
-        clientUpdated
-        allClientsFetched
-        clientFetched
+    type ClientFields {
+        _id: ID!
+        email: String!
+        firstName: String!
+        lastName: String!
+        meetings: [Meeting]
+        project: ClientProject
+        notes: [String]
     }
 
     type ClientSuccess {
@@ -113,30 +149,28 @@ const typeDefs = gql`
         meetings: [Meeting]
         project: ClientProject
         notes: [String]
-        successType: ClientSuccessTypes!
+    }
+
+    type MultipleClientSuccess {
+        clients: [ClientFields]
     }
 
     union ClientResponse = ClientSuccess | Errors
+    union MultiClientResponse = MultipleClientSuccess | Errors
 
     type Query {
         # USERS
         getUser(email: String!): UserResponse!
-        getAllUsers: [UserResponse]
+        getAllUsers: MultiUserResponse!
         getLoggedInUser: UserResponse!
+        getDeveloperHours: DevHoursResponse!
 
         # CLIENTS
-        getAllClients: [ClientResponse]
-        getClient(clientId: String!): ClientResponse!
-    }
-
-    input LoggedHoursInput {
-        date: Date
-        hours: Float
-        developer: String
+        getAllClients: MultiClientResponse
+        getClient(clientID: String!): ClientResponse!
     }
 
     input ProjectPhaseInput {
-        hoursLogged: [LoggedHoursInput]
         originalCostEstimate: Float
         updatedCostEstimate: Float
         originalLaunchDate: Date
@@ -165,48 +199,49 @@ const typeDefs = gql`
             newPassword: String!
             token: String!
         ): UserResponse
-        deleteUser(id: String!): [UserResponse]
+        deleteUser(id: String!): MultiUserResponse
         sendPasswordResetEmail(email: String!): UserResponse
+        updateDevHours(
+            email: String!
+            date: Date!
+            hoursLogged: Float!
+            project: ID!
+            projectPhase: ID!
+        ): UserResponse
 
         # CLIENTS
         setClientMeetings(
             eventUri: String!
             inviteeUri: String!
         ): ClientResponse!
-        editClientNotes(clientId: ID!, notes: [String!]): ClientResponse!
+        editClientNotes(clientID: ID!, notes: [String!]!): MultiClientResponse
         editClientMeetingNotes(
-            clientId: ID!
+            clientID: ID!
             notes: [String!]!
             meetingId: ID!
-        ): ClientResponse!
+        ): MultiClientResponse
         editClientProject(
-            clientId: ID!
+            clientID: ID!
             title: String
             domain: String
             externalDependencies: [String]
-        ): ClientResponse!
+        ): MultiClientResponse
         createClientProjectPhase(
-            clientId: ID!
+            clientID: ID!
             originalCostEstimate: Float!
             originalLaunchDate: Date!
             notes: [String]
-        ): ClientResponse!
+        ): MultiClientResponse
         editClientProjectPhase(
-            clientId: ID!
+            clientID: ID!
             phaseId: ID!
             updatedCostEstimate: Float
             updatedLaunchDate: Date
             status: String
             notes: [String]
             amountPaid: Float
-        ): ClientResponse!
-        updateProjectHoursLogged(
-            clientId: ID!
-            phaseId: ID!
-            date: Date!
-            hours: Float!
-            developer: String!
-        ): ClientResponse!
+            isActive: Boolean
+        ): MultiClientResponse
     }
 `
 

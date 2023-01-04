@@ -1,9 +1,9 @@
 const CLIENT_SUCCESS = 'ClientSuccess'
+const MULTI_CLIENT_SUCCESS = 'MultipleClientSuccess'
 
-const baseResponse = ({ type, client, token }) => {
+const baseResponse = ({ client, token }) => {
     const response = {
         __typename: CLIENT_SUCCESS,
-        successType: type,
         ...client._doc
     }
 
@@ -14,17 +14,14 @@ const baseResponse = ({ type, client, token }) => {
     return response
 }
 
-const baseArrayResponse = ({ type, clients }) =>
-    clients.map(client => ({
-        ...client._doc,
-        __typename: CLIENT_SUCCESS,
-        successType: type
-    }))
+const baseArrayResponse = clients => ({
+    __typename: MULTI_CLIENT_SUCCESS,
+    clients
+})
 
 module.exports = {
-    clientAdded: client => baseResponse({ type: 'clientAdded', client }),
-    clientUpdated: client => baseResponse({ type: 'clientUpdated', client }),
-    clientFetched: client => baseResponse({ type: 'clientFetched', client }),
-    allClientsFetched: clients =>
-        baseArrayResponse({ type: 'allClientsFetched', clients })
+    clientAdded: client => baseResponse({ client }),
+    clientUpdated: clients => baseArrayResponse(clients),
+    clientFetched: client => baseResponse({ client }),
+    allClientsFetched: clients => baseArrayResponse(clients)
 }
