@@ -64,7 +64,7 @@ module.exports.UserMutations = {
                 return buildResponse.form.user.errors.userNotFound()
             }
 
-            const match = bcrypt.compare(password, user.password)
+            const match = await bcrypt.compare(password, user.password)
             if (!match) {
                 return buildResponse.user.errors.invalidCredentials()
             }
