@@ -117,7 +117,7 @@ module.exports.UserMutations = {
                 return buildResponse.user.errors.userNotFound()
             }
 
-            const isSamePassword = bcrypt.compareSync(
+            const isSamePassword = await bcrypt.compareSync(
                 newPassword,
                 user.password
             )
