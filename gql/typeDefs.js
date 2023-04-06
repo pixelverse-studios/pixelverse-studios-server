@@ -21,6 +21,9 @@ const typeDefs = gql`
 
         # GENERAL
         fetched
+
+        # NEWSLETTER
+        failedToPost
     }
 
     type DevHoursFields {
@@ -158,6 +161,22 @@ const typeDefs = gql`
     union ClientResponse = ClientSuccess | Errors
     union MultiClientResponse = MultipleClientSuccess | Errors
 
+    type NewsletterSuccess {
+        _id: ID!
+        email: String!
+        name: String!
+        subscribed: Boolean
+        createdAt: Date
+        updatedAt: Date
+    }
+
+    type MultiNewsletterSuccess {
+        users: [NewsletterSuccess]
+    }
+
+    union NewsletterResponse = NewsletterSuccess | Errors
+    union MultiNewsletterResponse = MultiNewsletterSuccess | Errors
+
     type Query {
         # USERS
         getUser(email: String!): UserResponse!
@@ -168,6 +187,10 @@ const typeDefs = gql`
         # CLIENTS
         getAllClients: MultiClientResponse
         getClient(clientID: String!): ClientResponse!
+
+        # NEWSLETTER
+        getAllNewsletterUsers: MultiNewsletterResponse
+        getSubscribedNewsletterUsers: MultiNewsletterResponse
     }
 
     input ProjectPhaseInput {
@@ -242,6 +265,13 @@ const typeDefs = gql`
             amountPaid: Float
             isActive: Boolean
         ): MultiClientResponse
+
+        # NEWSLETTER
+        addNewsletterParticipant(
+            email: String!
+            name: String!
+        ): NewsletterResponse
+        addCalendlyParticipant(inviteeUri: String!): NewsletterResponse
     }
 `
 

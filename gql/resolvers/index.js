@@ -1,12 +1,15 @@
 const { UserQueries, UserMutations } = require('./users')
 const { ClientQueries, ClientMutations } = require('./clients')
+const { NewsletterMutations, NewsletterQueries } = require('./ggcNewsletter')
 
 const Query = {
     ...UserQueries,
-    ...ClientQueries
+    ...ClientQueries,
+    ...NewsletterQueries
 }
 const Mutation = {
     ...UserMutations,
-    ...ClientMutations
+    ...ClientMutations,
+    ...NewsletterMutations
 }
 module.exports = { Query, Mutation }
