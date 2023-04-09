@@ -189,7 +189,11 @@ module.exports.UserMutations = {
 }
 
 module.exports.UserQueries = {
-    async getUser(_, { email }) {
+    async getUser(_, { email }, context) {
+        const token = validateToken(context)
+        if (!token.valid) {
+            return buildResponse.user.errors.invalidToken()
+        }
         try {
             const user = await User.findOne({ email })
             if (user) {
@@ -215,7 +219,11 @@ module.exports.UserQueries = {
             throw new Error(error)
         }
     },
-    async getAllUsers() {
+    async getAllUsers(_, {}, context) {
+        const token = validateToken(context)
+        if (!token.valid) {
+            return buildResponse.user.errors.invalidToken()
+        }
         try {
             const users = await User.find()
             if (users?.length) {

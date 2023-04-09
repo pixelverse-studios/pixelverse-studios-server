@@ -36,7 +36,6 @@ const typeDefs = gql`
     type UserFields {
         _id: ID!
         email: String!
-        password: String!
         firstName: String
         lastName: String
         token: String
@@ -50,7 +49,6 @@ const typeDefs = gql`
     type UserSuccess {
         _id: ID!
         email: String!
-        password: String!
         firstName: String
         lastName: String
         token: String

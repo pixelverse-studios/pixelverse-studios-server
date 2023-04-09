@@ -37,7 +37,7 @@ mongoose
     .connect(MONGO_URI)
     .then(() => console.log('MongoDB connected.'))
     .catch(() => () => console.error('Error connecting to MongoDB'))
-
+const isProd = process.env.origin !== 'DEVELOPMENT'
 async function startApolloServer() {
     const app = express()
     const httpServer = http.createServer(app)
@@ -54,7 +54,9 @@ async function startApolloServer() {
                 return { req, user }
             }
         },
-        plugins: [ApolloServerPluginDrainHttpServer({ httpServer })]
+        plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
+        introspection: isProd,
+        playground: isProd
     })
     await server.start()
     server.applyMiddleware({ app })
