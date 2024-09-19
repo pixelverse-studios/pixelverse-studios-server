@@ -2,31 +2,29 @@ import { Router } from 'express'
 import { body, param } from 'express-validator'
 
 import { validateRequest } from './middleware'
-import {
-    getAllClients,
-    addClient,
-    editClient,
-    deleteClient
-} from '../controllers/internal/clients'
+import clients from '../controllers/clients'
 
-const internalRouter: Router = Router()
-const API_PREFIX = '/clients'
+const clientsRouter: Router = Router()
 
-internalRouter.get(API_PREFIX, getAllClients)
-internalRouter.post(
-    `${API_PREFIX}/new`,
+clientsRouter.get('/', clients.getAll)
+clientsRouter.post(
+    `/new`,
     [
         body('client')
             .isString()
             .notEmpty()
             .withMessage('"client" is required'),
+        body('client_slug')
+            .isString()
+            .notEmpty()
+            .withMessage('"client slug" is required'),
         body('active').isBoolean().withMessage('"active" is required')
     ],
     validateRequest,
-    addClient
+    clients.add
 )
-internalRouter.put(
-    `${API_PREFIX}/:id`,
+clientsRouter.put(
+    `/:id`,
     [
         param('id').isNumeric().withMessage('Client ID must be a number'),
         body().custom((_, { req }) => {
@@ -49,17 +47,17 @@ internalRouter.put(
             .withMessage('active must be a boolean')
     ],
     validateRequest,
-    editClient
+    clients.edit
 )
-internalRouter.delete(
-    `${API_PREFIX}/:id`,
+clientsRouter.delete(
+    `/:id`,
     [
         param('id')
             .isNumeric()
             .withMessage('Client ID must be provided and a number')
     ],
     validateRequest,
-    deleteClient
+    clients.remove
 )
 
-export default internalRouter
+export default clientsRouter
