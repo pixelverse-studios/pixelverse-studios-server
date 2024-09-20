@@ -1,7 +1,8 @@
 import express, { Application } from 'express'
 import bodyParser from 'body-parser'
 
-import internalRouter from './routes/internal'
+import clientsRouter from './routes/clients'
+import newsletterRouter from './routes/newsletter'
 
 import 'dotenv/config'
 
@@ -13,8 +14,8 @@ const PORT = process.env.PORT || 3000
 app.use(bodyParser.json())
 
 // Routes
-app.use('/api/internal', internalRouter)
-// app.use('/api/users', userRoutes)
+app.use('/api/clients', clientsRouter)
+app.use('/api/newsletter', newsletterRouter)
 
 // Error handling middleware
 app.use(

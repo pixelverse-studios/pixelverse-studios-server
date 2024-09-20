@@ -1,12 +1,9 @@
 import { Request, Response } from 'express'
 
-import { db, Tables } from '../../lib/db'
-import { handleGenericError } from '../../utils/http'
+import { db, Tables } from '../lib/db'
+import { handleGenericError } from '../utils/http'
 
-export const getAllClients = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
+const getAll = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { data, error } = await db.from(Tables.CLIENTS).select('*')
         if (error) {
@@ -19,16 +16,27 @@ export const getAllClients = async (
     }
 }
 
-export const addClient = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
-    const { client, active } = req.body
+const getIdBySlug = async (slug: string) => {
+    try {
+        const { data, error } = await db
+            .from(Tables.CLIENTS)
+            .select()
+            .eq('client_slug', slug)
+
+        if (error) throw error
+        return data[0].id
+    } catch (err) {
+        throw err
+    }
+}
+
+const add = async (req: Request, res: Response): Promise<Response> => {
+    const { active, client, client_slug } = req.body
 
     try {
         const { data, error } = await db
             .from(Tables.CLIENTS)
-            .insert([{ client, active, updated_at: new Date() }])
+            .insert([{ client, active, client_slug, updated_at: new Date() }])
             .select()
 
         if (error) {
@@ -43,10 +51,7 @@ export const addClient = async (
     }
 }
 
-export const editClient = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
+const edit = async (req: Request, res: Response): Promise<Response> => {
     const { id } = req.params
     const { client, active } = req.body
 
@@ -82,10 +87,7 @@ export const editClient = async (
     }
 }
 
-export const deleteClient = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
+const remove = async (req: Request, res: Response): Promise<Response> => {
     const { id } = req.params
     const { data, error } = await db
         .from('clients')
@@ -101,3 +103,5 @@ export const deleteClient = async (
         .status(200)
         .json({ message: 'Client deleted successfully', data })
 }
+
+export default { add, remove, edit, getAll, getIdBySlug }

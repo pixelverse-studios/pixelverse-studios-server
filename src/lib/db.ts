@@ -9,5 +9,6 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY || ''
 export const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 export const Tables = {
-    CLIENTS: 'clients'
+    CLIENTS: 'clients',
+    NEWSLETTER: 'newsletter'
 }
