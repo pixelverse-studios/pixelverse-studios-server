@@ -17,4 +17,7 @@ cmsRouter.post(
     cms.add
 )
 
+// TODO: Add user verification to endpoints when we have it built into the ui, for appropriate routes that are not public
+cmsRouter.get('/', cms.get)
+
 export default cmsRouter

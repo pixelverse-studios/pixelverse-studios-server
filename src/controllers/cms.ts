@@ -4,6 +4,19 @@ import { db, Tables } from '../lib/db'
 import clients from './clients'
 import { handleGenericError } from '../utils/http'
 
+const get = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { data, error } = await db.from(Tables.CMS).select()
+        if (error) {
+            throw error
+        }
+
+        return res.status(200).json({ cms: data })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 const add = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { page, content, active } = req.body
@@ -29,4 +42,4 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add }
+export default { add, get }
