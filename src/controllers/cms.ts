@@ -17,7 +17,7 @@ const get = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const getOne = async (req: Request, res: Response): Promise<Response> => {
+const getById = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { clientSlug } = req.params
 
@@ -26,6 +26,28 @@ const getOne = async (req: Request, res: Response): Promise<Response> => {
             .from(Tables.CMS)
             .select()
             .eq(COLUMNS.CLIENT_ID, clientId)
+        if (error) {
+            throw error
+        }
+
+        return res.status(200).json(data)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+const getActiveById = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const { clientSlug } = req.params
+        const clientId = await clients.getIdBySlug(clientSlug)
+        const { data, error } = await db
+            .from(Tables.CMS)
+            .select()
+            .eq(COLUMNS.CLIENT_ID, clientId)
+            .eq('active', true)
         if (error) {
             throw error
         }
@@ -61,4 +83,4 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, get, getOne }
+export default { add, get, getById, getActiveById }

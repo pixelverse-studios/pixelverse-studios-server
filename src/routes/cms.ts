@@ -8,11 +8,19 @@ const cmsRouter: Router = Router()
 // TODO: Add user verification to endpoints when we have it built into the ui, for appropriate routes that are not public
 const BASE_ROUTE = '/api/cms'
 cmsRouter.get(BASE_ROUTE, cms.get)
+
 cmsRouter.get(
     `${BASE_ROUTE}/:clientSlug`,
     [param('clientSlug').exists().withMessage('slug is required')],
     validateRequest,
-    cms.getOne
+    cms.getById
+)
+
+cmsRouter.get(
+    `${BASE_ROUTE}/:clientSlug/active`,
+    [param('clientSlug').exists().withMessage('slug is required')],
+    validateRequest,
+    cms.getActiveById
 )
 
 cmsRouter.post(
