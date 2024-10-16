@@ -3,6 +3,7 @@ import bodyParser from 'body-parser'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
+import cmsRouter from './routes/cms'
 
 import 'dotenv/config'
 
@@ -16,6 +17,7 @@ app.use(bodyParser.json())
 // Routes
 app.use('/api/clients', clientsRouter)
 app.use('/api/newsletter', newsletterRouter)
+app.use('/api/cms', cmsRouter)
 
 // Error handling middleware
 app.use(

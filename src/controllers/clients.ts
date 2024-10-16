@@ -22,9 +22,10 @@ const getIdBySlug = async (slug: string) => {
             .from(Tables.CLIENTS)
             .select()
             .eq('client_slug', slug)
+            .single()
 
-        if (error) throw error
-        return data[0].id
+        if (error) throw new Error(error.message)
+        return data.id
     } catch (err) {
         throw err
     }
@@ -36,7 +37,7 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { data, error } = await db
             .from(Tables.CLIENTS)
-            .insert([{ client, active, client_slug, updated_at: new Date() }])
+            .insert({ client, active, client_slug, updated_at: new Date() })
             .select()
 
         if (error) {

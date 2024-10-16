@@ -10,5 +10,10 @@ export const db = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 export const Tables = {
     CLIENTS: 'clients',
+    CMS: 'cms',
     NEWSLETTER: 'newsletter'
+}
+
+export const COLUMNS = {
+    SLUG: 'client_slug'
 }
