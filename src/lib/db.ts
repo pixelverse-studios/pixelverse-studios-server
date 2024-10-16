@@ -15,5 +15,6 @@ export const Tables = {
 }
 
 export const COLUMNS = {
-    SLUG: 'client_slug'
+    SLUG: 'client_slug',
+    CLIENT_ID: 'client_id'
 }

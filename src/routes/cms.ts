@@ -5,8 +5,18 @@ import cms from '../controllers/cms'
 
 const cmsRouter: Router = Router()
 
+// TODO: Add user verification to endpoints when we have it built into the ui, for appropriate routes that are not public
+const BASE_ROUTE = '/api/cms'
+cmsRouter.get(BASE_ROUTE, cms.get)
+cmsRouter.get(
+    `${BASE_ROUTE}/:clientSlug`,
+    [param('clientSlug').exists().withMessage('slug is required')],
+    validateRequest,
+    cms.getOne
+)
+
 cmsRouter.post(
-    '/:clientSlug',
+    `${BASE_ROUTE}/:clientSlug`,
     [
         param('clientSlug').exists().withMessage('slug is required'),
         body('page').isString().notEmpty().withMessage('"page" is required'),
@@ -16,8 +26,5 @@ cmsRouter.post(
     validateRequest,
     cms.add
 )
-
-// TODO: Add user verification to endpoints when we have it built into the ui, for appropriate routes that are not public
-cmsRouter.get('/', cms.get)
 
 export default cmsRouter

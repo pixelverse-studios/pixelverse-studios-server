@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 
-import { db, Tables } from '../lib/db'
+import { COLUMNS, db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 
 const getAll = async (req: Request, res: Response): Promise<Response> => {
@@ -10,7 +10,7 @@ const getAll = async (req: Request, res: Response): Promise<Response> => {
             throw error
         }
 
-        return res.status(200).json({ clients: data })
+        return res.status(200).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -21,7 +21,7 @@ const getIdBySlug = async (slug: string) => {
         const { data, error } = await db
             .from(Tables.CLIENTS)
             .select()
-            .eq('client_slug', slug)
+            .eq(COLUMNS.SLUG, slug)
             .single()
 
         if (error) throw new Error(error.message)
@@ -44,9 +44,7 @@ const add = async (req: Request, res: Response): Promise<Response> => {
             throw error
         }
 
-        return res
-            .status(201)
-            .json({ message: 'Client created successfully', data })
+        return res.status(201).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -71,6 +69,7 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
             .update(payload)
             .eq('id', id)
             .select()
+            .single()
 
         if (data == null) {
             return res.status(404).json({ error: 'Client not found' })
@@ -80,9 +79,7 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
             throw error
         }
 
-        return res
-            .status(201)
-            .json({ message: 'Client updated successfully', data: data[0] })
+        return res.status(201).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -100,9 +97,7 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
         return res.status(404).json({ error: 'Client not found' })
     }
 
-    return res
-        .status(200)
-        .json({ message: 'Client deleted successfully', data })
+    return res.status(200).json(data)
 }
 
 export default { add, remove, edit, getAll, getIdBySlug }

@@ -15,9 +15,9 @@ const PORT = process.env.PORT || 3000
 app.use(bodyParser.json())
 
 // Routes
-app.use('/api/clients', clientsRouter)
-app.use('/api/newsletter', newsletterRouter)
-app.use('/api/cms', cmsRouter)
+app.use(clientsRouter)
+app.use(newsletterRouter)
+app.use(cmsRouter)
 
 // Error handling middleware
 app.use(

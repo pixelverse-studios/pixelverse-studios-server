@@ -5,10 +5,11 @@ import { validateRequest } from './middleware'
 import clients from '../controllers/clients'
 
 const clientsRouter: Router = Router()
+const BASE_ROUTE = '/api/clients'
 
-clientsRouter.get('/', clients.getAll)
+clientsRouter.get(BASE_ROUTE, clients.getAll)
 clientsRouter.post(
-    `/new`,
+    `${BASE_ROUTE}/new`,
     [
         body('client')
             .isString()
@@ -24,7 +25,7 @@ clientsRouter.post(
     clients.add
 )
 clientsRouter.put(
-    `/:id`,
+    `${BASE_ROUTE}/:id`,
     [
         param('id').isNumeric().withMessage('Client ID must be a number'),
         body().custom((_, { req }) => {
@@ -50,7 +51,7 @@ clientsRouter.put(
     clients.edit
 )
 clientsRouter.delete(
-    `/:id`,
+    `${BASE_ROUTE}/:id`,
     [
         param('id')
             .isNumeric()

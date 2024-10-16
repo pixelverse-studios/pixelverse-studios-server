@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 
-import { db, Tables } from '../lib/db'
+import { db, Tables, COLUMNS } from '../lib/db'
 import clients from './clients'
 import { handleGenericError } from '../utils/http'
 
@@ -11,7 +11,26 @@ const get = async (req: Request, res: Response): Promise<Response> => {
             throw error
         }
 
-        return res.status(200).json({ cms: data })
+        return res.status(200).json(data)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+const getOne = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { clientSlug } = req.params
+
+        const clientId = await clients.getIdBySlug(clientSlug)
+        const { data, error } = await db
+            .from(Tables.CMS)
+            .select()
+            .eq(COLUMNS.CLIENT_ID, clientId)
+        if (error) {
+            throw error
+        }
+
+        return res.status(200).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -36,10 +55,10 @@ const add = async (req: Request, res: Response): Promise<Response> => {
 
         if (error) throw error
 
-        return res.status(200).json({ message: 'CMS item added', data })
+        return res.status(200).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
 }
 
-export default { add, get }
+export default { add, get, getOne }

@@ -5,11 +5,11 @@ import { validateRequest } from './middleware'
 import newsletter from '../controllers/newsletter'
 
 const newsletterRouter: Router = Router()
+const BASE_ROUTE = '/api/newsletter'
 
-newsletterRouter.get('/all', newsletter.getAll)
-
+newsletterRouter.get(BASE_ROUTE, newsletter.getAll)
 newsletterRouter.post(
-    '/:clientSlug',
+    `${BASE_ROUTE}/:clientSlug`,
     [
         param('clientSlug')
             .isString()
