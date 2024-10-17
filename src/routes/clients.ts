@@ -24,7 +24,7 @@ clientsRouter.post(
     validateRequest,
     clients.add
 )
-clientsRouter.put(
+clientsRouter.patch(
     `${BASE_ROUTE}/:id`,
     [
         param('id').isNumeric().withMessage('Client ID must be a number'),

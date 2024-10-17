@@ -61,13 +61,12 @@ const getActiveById = async (
 const add = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { page, content, active } = req.body
-        const { clientSlug } = req.params
+        const { id } = req.params
 
-        const clientId = await clients.getIdBySlug(clientSlug)
         const { data, error } = await db
             .from(Tables.CMS)
             .insert({
-                client_id: clientId,
+                client_id: id,
                 page,
                 content,
                 active,
@@ -83,4 +82,21 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, get, getById, getActiveById }
+const edit = async (req: Request, res: Response): Promise<Response> => {
+    const { id } = req.params
+    try {
+        const { data, error } = await db
+            .from(Tables.CMS)
+            .update({ ...req.body, updated_at: new Date() })
+            .eq('id', id)
+            .select()
+            .single()
+
+        if (error) throw error
+        return res.status(200).json(data)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+export default { add, get, getById, getActiveById, edit }

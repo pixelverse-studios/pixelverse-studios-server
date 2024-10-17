@@ -24,15 +24,27 @@ cmsRouter.get(
 )
 
 cmsRouter.post(
-    `${BASE_ROUTE}/:clientSlug`,
+    `${BASE_ROUTE}/:id`,
     [
-        param('clientSlug').exists().withMessage('slug is required'),
+        param('id').exists().withMessage('slug is required'),
         body('page').isString().notEmpty().withMessage('"page" is required'),
         body('content').exists().withMessage('"content" is required'),
         body('active').exists().isBoolean()
     ],
     validateRequest,
     cms.add
+)
+
+cmsRouter.patch(
+    `${BASE_ROUTE}/:id`,
+    [
+        param('id').exists().withMessage('id is required'),
+        body('page').optional().isString().withMessage('page must be a string'),
+        body('content').optional(),
+        body('active').optional().isBoolean()
+    ],
+    validateRequest,
+    cms.edit
 )
 
 export default cmsRouter
