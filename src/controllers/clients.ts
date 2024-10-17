@@ -86,18 +86,24 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
 }
 
 const remove = async (req: Request, res: Response): Promise<Response> => {
-    const { id } = req.params
-    const { data, error } = await db
-        .from('clients')
-        .delete()
-        .eq('id', id)
-        .select()
+    try {
+        const { id } = req.params
+        const { data, error } = await db
+            .from('clients')
+            .delete()
+            .eq('id', id)
+            .select()
+            .single()
 
-    if (!data || data.length === 0) {
-        return res.status(404).json({ error: 'Client not found' })
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'Client not found' })
+        }
+
+        if (error) throw error
+        return res.status(200).json(data)
+    } catch (err) {
+        return handleGenericError(err, res)
     }
-
-    return res.status(200).json(data)
 }
 
 export default { add, remove, edit, getAll, getIdBySlug }

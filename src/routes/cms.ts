@@ -47,4 +47,11 @@ cmsRouter.patch(
     cms.edit
 )
 
+cmsRouter.delete(
+    `${BASE_ROUTE}/:id`,
+    [param('id').isNumeric().withMessage('id must be provided and a number')],
+    validateRequest,
+    cms.remove
+)
+
 export default cmsRouter

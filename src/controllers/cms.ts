@@ -99,4 +99,21 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, get, getById, getActiveById, edit }
+const remove = async (req: Request, res: Response): Promise<Response> => {
+    const { id } = req.params
+    try {
+        const { error } = await db
+            .from(Tables.CMS)
+            .delete()
+            .eq('id', id)
+            .select()
+            .single()
+
+        if (error) throw error
+        return res.status(200).json(true)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+export default { add, get, getById, getActiveById, edit, remove }
