@@ -32,12 +32,18 @@ const getIdBySlug = async (slug: string) => {
 }
 
 const add = async (req: Request, res: Response): Promise<Response> => {
-    const { active, client, client_slug } = req.body
+    const { active, client, client_slug, cms } = req.body
 
     try {
         const { data, error } = await db
             .from(Tables.CLIENTS)
-            .insert({ client, active, client_slug, updated_at: new Date() })
+            .insert({
+                client,
+                active,
+                client_slug,
+                updated_at: new Date(),
+                cms
+            })
             .select()
 
         if (error) {

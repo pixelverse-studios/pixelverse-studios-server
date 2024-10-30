@@ -19,7 +19,8 @@ clientsRouter.post(
             .isString()
             .notEmpty()
             .withMessage('"client slug" is required'),
-        body('active').isBoolean().withMessage('"active" is required')
+        body('active').isBoolean().withMessage('"active" is required'),
+        body('cms').isBoolean()
     ],
     validateRequest,
     clients.add

@@ -1,5 +1,6 @@
 import express, { Application } from 'express'
 import bodyParser from 'body-parser'
+import cors from 'cors'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
@@ -13,7 +14,7 @@ const PORT = process.env.PORT || 3000
 
 // Middleware
 app.use(bodyParser.json())
-
+app.use(cors())
 // Routes
 app.use(clientsRouter)
 app.use(newsletterRouter)
