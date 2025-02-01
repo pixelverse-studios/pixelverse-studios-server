@@ -56,6 +56,9 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+
+const test = false
+
 const edit = async (req: Request, res: Response): Promise<Response> => {
     const { id } = req.params
     const { client, active } = req.body
