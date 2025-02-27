@@ -5,6 +5,7 @@ import cors from 'cors'
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
 import cmsRouter from './routes/cms'
+import contactFormsRouter from './routes/contact-forms'
 
 import 'dotenv/config'
 
@@ -19,6 +20,7 @@ app.use(cors())
 app.use(clientsRouter)
 app.use(newsletterRouter)
 app.use(cmsRouter)
+app.use(contactFormsRouter)
 
 // Error handling middleware
 app.use(
