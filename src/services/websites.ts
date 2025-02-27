@@ -1,22 +1,22 @@
 import { COLUMNS, db, Tables } from '../lib/db'
 
-export const getWebsiteEmail = async (id: string) => {
+const getWebsiteEmail = async (id: string) => {
     try {
         const { data, error } = await db
             .from(Tables.WEBSITES)
-            .select('contact_email')
+            .select(COLUMNS.CONTACT_EMAIL)
             .eq('id', id)
             .single()
 
         if (error) throw new Error(error.message)
 
-        return data?.contact_email ?? ''
+        return data ?? ''
     } catch (error) {
         throw error
     }
 }
 
-export const getWebsiteDetailsForEmail = async (id: string) => {
+const getWebsiteDetailsForEmail = async (id: string) => {
     try {
         const {
             data: { contact_email, title },
@@ -30,3 +30,9 @@ export const getWebsiteDetailsForEmail = async (id: string) => {
         throw error
     }
 }
+
+const websitesDB = {
+    getWebsiteEmail,
+    getWebsiteDetailsForEmail
+}
+export default websitesDB
