@@ -18,11 +18,14 @@ const getAll = async (req: Request, res: Response): Promise<Response> => {
 
 const addRecord = async (req: Request, res: Response): Promise<Response> => {
     const { fullname, email, phone, data: reqData } = req.body
-    const { website_id } = req.params
+    const { website_slug } = req.params
 
     try {
-        const { contact_email: sendToEmail, title } =
-            await websitesDB.getWebsiteDetailsForEmail(website_id)
+        const {
+            contact_email: sendToEmail,
+            title,
+            id: website_id
+        } = await websitesDB.getWebsiteDetailsForEmail(website_slug)
 
         await contactFormDB.addFormSubmissionRecord({
             website_id,
@@ -40,7 +43,7 @@ const addRecord = async (req: Request, res: Response): Promise<Response> => {
             payload
         })
 
-        return res.status(201)
+        return res.status(201).json({})
     } catch (err) {
         return handleGenericError(err, res)
     }

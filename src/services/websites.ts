@@ -16,16 +16,20 @@ const getWebsiteEmail = async (id: string) => {
     }
 }
 
-const getWebsiteDetailsForEmail = async (id: string) => {
+const getWebsiteDetailsForEmail = async (slug: string) => {
     try {
         const {
-            data: { contact_email, title },
+            data: { contact_email, title, id },
             error
-        } = await db.from(Tables.WEBSITES).select().eq('id', id).single()
+        } = await db
+            .from(Tables.WEBSITES)
+            .select()
+            .eq(COLUMNS.WEBSITE_SLUG, slug)
+            .single()
 
         if (error) throw new Error(error.message)
 
-        return { contact_email, title }
+        return { contact_email, title, id }
     } catch (error) {
         throw error
     }
