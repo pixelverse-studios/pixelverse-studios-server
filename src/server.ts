@@ -6,6 +6,7 @@ import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
 import cmsRouter from './routes/cms'
 import contactFormsRouter from './routes/contact-forms'
+import leadsRouter from './routes/leads'
 
 import 'dotenv/config'
 
@@ -21,6 +22,7 @@ app.use(clientsRouter)
 app.use(newsletterRouter)
 app.use(cmsRouter)
 app.use(contactFormsRouter)
+app.use(leadsRouter)
 
 // Error handling middleware
 app.use(
