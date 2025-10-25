@@ -87,23 +87,24 @@ const getSupabaseRestConfig = () => {
     }
 }
 
-const resolveLogoDataUri = (): string | null => {
-    const configured = process.env.LEAD_NOTIFY_LOGO_URL
-    if (configured && configured.trim().length > 0) {
-        return configured.trim()
+const resolveLogoSource = (): string | null => {
+    const configured =
+        process.env.LEAD_NOTIFY_LOGO_URL?.trim() ||
+        'https://res.cloudinary.com/pixelverse-studios/image/upload/v1761333954/pvs/logo-black.png'
+    if (configured.length > 0) {
+        return configured
     }
 
     try {
-        const svgPath = path.resolve(__dirname, '../media/logo-email.svg')
-        const svg = readFileSync(svgPath, 'utf8')
-        const base64 = Buffer.from(svg, 'utf8').toString('base64')
-        return `data:image/svg+xml;base64,${base64}`
+        const pngPath = path.resolve(__dirname, '../media/logo-email.png')
+        const file = readFileSync(pngPath)
+        return `data:image/png;base64,${file.toString('base64')}`
     } catch {
         return null
     }
 }
 
-const LOGO_SOURCE = resolveLogoDataUri()
+const LOGO_SOURCE = resolveLogoSource()
 
 const BRAND = {
     primary: '#3f00e9',
@@ -183,10 +184,14 @@ const buildLeadHtml = (lead: LeadRecord): string => {
     `
 
     const logoMarkup = `
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:96px;height:96px;border-radius:24px;background:${BRAND.background};box-shadow:0 10px 26px rgba(34,0,112,0.24);margin-bottom:20px;">
-            ${LOGO_SOURCE
-                ? `<img src="${LOGO_SOURCE}" alt="PixelVerse Studios" style="max-width:72px;height:auto;display:block;" />`
-                : `<div style="font-size:32px;font-weight:700;color:${BRAND.primary};letter-spacing:0.02em;">PVS</div>`}
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:96px;height:96px;border-radius:24px;background:${
+            BRAND.background
+        };box-shadow:0 10px 26px rgba(34,0,112,0.24);margin-bottom:20px;">
+            ${
+                LOGO_SOURCE
+                    ? `<img src="${LOGO_SOURCE}" alt="PixelVerse Studios" style="height:auto;max-width:100%;display:block;" />`
+                    : `<div style="font-size:32px;font-weight:700;color:${BRAND.background};letter-spacing:0.02em;">PVS</div>`
+            }
         </div>
     `
 
@@ -196,47 +201,141 @@ const buildLeadHtml = (lead: LeadRecord): string => {
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width,initial-scale=1" />
-                <title>New Lead Submission</title>
+                <style>
+                    :root {
+                        color-scheme: light dark;
+                        supported-color-schemes: light dark;
+                    }
+                    @media (prefers-color-scheme: dark) {
+                        body {
+                            background: #050510 !important;
+                            color: #f7f7fb !important;
+                        }
+                        .pvs-card {
+                            background: #151529 !important;
+                            border-color: #27274b !important;
+                            box-shadow: none !important;
+                        }
+                        .pvs-detail td {
+                            border-color: #27274b !important;
+                            color: #f7f7fb !important;
+                        }
+                        .pvs-summary {
+                            background: #1c1c36 !important;
+                            border-color: #27274b !important;
+                            color: #f7f7fb !important;
+                        }
+                        .pvs-summary p {
+                            color: #f7f7fb !important;
+                        }
+                        .pvs-meta {
+                            border-top-color: #27274b !important;
+                        }
+                        .pvs-meta p {
+                            color: #c7c7dc !important;
+                        }
+                        .pvs-footer {
+                            background: #0f0f1f !important;
+                        }
+                        .pvs-footer p {
+                            color: #a8a8c0 !important;
+                        }
+                    }
+                </style>
             </head>
-            <body style="margin:0;padding:0;background:${BRAND.surface};font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:${BRAND.text};">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;background:${BRAND.surface};">
+            <body style="margin:0;padding:0;background:${
+                BRAND.surface
+            };font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:${
+        BRAND.text
+    };">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;background:${
+                    BRAND.surface
+                };">
                     <tr>
                         <td align="center">
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:${BRAND.background};border:1px solid ${BRAND.border};border-radius:20px;overflow:hidden;box-shadow:${BRAND.shadow};">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="pvs-card" style="max-width:640px;background:${
+                                BRAND.background
+                            };border:1px solid ${
+        BRAND.border
+    };border-radius:20px;overflow:hidden;box-shadow:${BRAND.shadow};">
                                 <tr>
-                                    <td style="padding:36px 28px;background:${BRAND.gradient};text-align:center;color:#ffffff;">
+                                    <td style="padding:36px 28px;background:${
+                                        BRAND.gradient
+                                    };text-align:center;color:#ffffff;">
                                         ${logoMarkup}
-                                        <h1 style="margin:0;font-size:28px;line-height:34px;color:#ffffff!important;text-shadow:0 2px 6px rgba(17,17,17,0.2);">New Lead Submission</h1>
-                                        <p style="margin:14px 0 0;font-size:16px;color:rgba(255,255,255,0.9)!important;text-shadow:0 1px 3px rgba(17,17,17,0.25);">
+                                        <h1 style="margin:0 0 12px;font-size:16px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.85);">PixelVerse Studios</h1>
+                                        <h2 style="margin:0;font-size:28px;line-height:34px;color:#ffffff!important;text-shadow:0 2px 6px rgba(17,17,17,0.2);">New Lead Submission</h2>
+                                        <p style="margin:14px 0 0;font-size:16px;color:#ffffff!important;opacity:0.9;text-shadow:0 1px 3px rgba(17,17,17,0.25);">
                                             Here's a quick look at the latest inquiry.
                                         </p>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="padding:28px;">
-                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${BRAND.border};border-radius:12px;overflow:hidden;">
-                                            ${detailRow('Name', escapeHtml(lead.name))}
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="pvs-detail" style="border-collapse:collapse;border:1px solid ${
+                                            BRAND.border
+                                        };border-radius:12px;overflow:hidden;">
+                                            ${detailRow(
+                                                'Name',
+                                                escapeHtml(lead.name)
+                                            )}
                                             ${detailRow(
                                                 'Email',
-                                                `<a href="${emailHref}" style="color:${BRAND.primary};text-decoration:none;font-weight:600;">${escapeHtml(lead.email)}</a>`
+                                                `<a href="${emailHref}" style="color:${
+                                                    BRAND.primary
+                                                };text-decoration:none;font-weight:600;">${escapeHtml(
+                                                    lead.email
+                                                )}</a>`
                                             )}
-                                            ${detailRow('Budget Range', escapeHtml(lead.budget))}
-                                            ${detailRow('Timeline', escapeHtml(lead.timeline))}
-                                            ${detailRow('Seen Packages', hasSeenPackages)}
+                                            ${detailRow(
+                                                'Budget Range',
+                                                escapeHtml(lead.budget)
+                                            )}
+                                            ${detailRow(
+                                                'Timeline',
+                                                escapeHtml(lead.timeline)
+                                            )}
+                                            ${detailRow(
+                                                'Seen Packages',
+                                                hasSeenPackages
+                                            )}
                                         </table>
-                                        <div style="margin-top:24px;padding:20px;border:1px solid ${BRAND.border};border-radius:12px;background:${BRAND.surface};">
-                                            <h2 style="margin:0 0 12px;font-size:18px;color:${BRAND.text};">Project Summary</h2>
-                                            <p style="margin:0;font-size:16px;line-height:1.6;color:${BRAND.text};">${summary}</p>
+                                        <div class="pvs-summary" style="margin-top:24px;padding:20px;border:1px solid ${
+                                            BRAND.border
+                                        };border-radius:12px;background:${
+        BRAND.surface
+    };">
+                                            <h2 style="margin:0 0 12px;font-size:18px;color:${
+                                                BRAND.text
+                                            };">Project Summary</h2>
+                                            <p style="margin:0;font-size:16px;line-height:1.6;color:${
+                                                BRAND.text
+                                            };">${summary}</p>
                                         </div>
-                                        <div style="margin-top:24px;padding-top:20px;border-top:1px solid ${BRAND.border};">
-                                            <h3 style="margin:0 0 12px;font-size:16px;color:${BRAND.muted};text-transform:uppercase;letter-spacing:0.08em;">Submission Details</h3>
-                                            ${metaRow('Lead ID', escapeHtml(lead.id))}
-                                            ${metaRow('Submitted At', escapeHtml(lead.created_at))}
+                                        <div class="pvs-meta" style="margin-top:24px;padding-top:20px;border-top:1px solid ${
+                                            BRAND.border
+                                        };">
+                                            <h3 style="margin:0 0 12px;font-size:16px;color:${
+                                                BRAND.muted
+                                            };text-transform:uppercase;letter-spacing:0.08em;">Submission Details</h3>
+                                            ${metaRow(
+                                                'Lead ID',
+                                                escapeHtml(lead.id)
+                                            )}
+                                            ${metaRow(
+                                                'Submitted At',
+                                                escapeHtml(lead.created_at)
+                                            )}
                                             ${metaRow(
                                                 'User Agent',
-                                                escapeHtml(lead.user_agent ?? 'n/a')
+                                                escapeHtml(
+                                                    lead.user_agent ?? 'n/a'
+                                                )
                                             )}
-                                            ${metaRow('IP', escapeHtml(lead.ip ?? 'n/a'))}
+                                            ${metaRow(
+                                                'IP',
+                                                escapeHtml(lead.ip ?? 'n/a')
+                                            )}
                                             ${metaRow(
                                                 'Acknowledged',
                                                 lead.acknowledged ? 'Yes' : 'No'
@@ -245,8 +344,12 @@ const buildLeadHtml = (lead: LeadRecord): string => {
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding:20px 28px;background:${BRAND.surface};text-align:center;">
-                                        <p style="margin:0;font-size:13px;color:${BRAND.muted};">
+                                    <td class="pvs-footer" style="padding:20px 28px;background:${
+                                        BRAND.surface
+                                    };text-align:center;">
+                                        <p style="margin:0;font-size:13px;color:${
+                                            BRAND.muted
+                                        };">
                                             You’re receiving this message because your address is listed as a lead notification recipient in PixelVerse Studios HQ.
                                         </p>
                                     </td>
@@ -375,8 +478,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
         if (existingLead) {
             return res.status(409).json({
                 error: 'Lead already submitted',
-                message:
-                    `Thanks for reaching out — we already have your inquiry on file. If you have any new details or questions, please email us directly at ${SUPPORT_EMAIL}.`,
+                message: `Thanks for reaching out — we already have your inquiry on file. If you have any new details or questions, please email us directly at ${SUPPORT_EMAIL}.`,
                 supportEmail: SUPPORT_EMAIL,
                 subjectLine: SUPPORT_SUBJECT
             })
