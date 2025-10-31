@@ -68,6 +68,24 @@ const getRecipients = (): string[] => {
 const getFromAddress = (): string =>
     process.env.LEAD_NOTIFY_FROM || DEFAULT_NOTIFY_FROM
 
+const shouldUseResend = (): boolean => {
+    const flag = process.env.LEAD_NOTIFY_USE_RESEND
+    if (typeof flag !== 'string') {
+        return false
+    }
+
+    const normalized = flag.trim().toLowerCase()
+    if (['false', '0', 'off', 'no'].includes(normalized)) {
+        return false
+    }
+
+    if (['true', '1', 'on', 'yes'].includes(normalized)) {
+        return true
+    }
+
+    return false
+}
+
 const getSupabaseRestConfig = () => {
     const supabaseUrl = process.env.SUPABASE_URL
     const supabaseKey =
@@ -425,6 +443,48 @@ const findPendingLeadByEmail = async (
     return data
 }
 
+const sendLeadAlertToDiscord = async (lead: LeadRecord) => {
+    const webhookUrl = process.env.LEAD_NOTIFY_DISCORD_WEBHOOK?.trim()
+
+    if (!webhookUrl) {
+        throw new Error('LEAD_NOTIFY_DISCORD_WEBHOOK is not configured')
+    }
+
+    const message = buildLeadText(lead)
+
+    if (message.length > 4096) {
+        throw new Error('Discord payload exceeds maximum embed length')
+    }
+
+    const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            username: 'PixelVerse Lead Alerts',
+            content: 'PixelVerse Studios — New Lead Submission',
+            embeds: [
+                {
+                    description: message,
+                    color: 0x3f00e9,
+                    timestamp: lead.created_at,
+                    footer: {
+                        text: 'Lead intake notifications'
+                    }
+                }
+            ]
+        })
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+            `Discord webhook failed (${response.status}): ${errorText}`
+        )
+    }
+}
+
 const sendLeadEmailViaResend = async (lead: LeadRecord) => {
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey) {
@@ -464,6 +524,15 @@ const sendLeadEmailViaResend = async (lead: LeadRecord) => {
     }
 }
 
+const notifyLead = async (lead: LeadRecord) => {
+    if (shouldUseResend()) {
+        await sendLeadEmailViaResend(lead)
+        return
+    }
+
+    await sendLeadAlertToDiscord(lead)
+}
+
 const createLead = async (req: Request, res: Response): Promise<Response> => {
     try {
         const parsed = leadSchema.parse(req.body)
@@ -496,7 +565,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             acknowledged: false
         })
 
-        await sendLeadEmailViaResend(lead)
+        await notifyLead(lead)
 
         console.log('Lead inserted', { id: lead.id, email: lead.email })
 

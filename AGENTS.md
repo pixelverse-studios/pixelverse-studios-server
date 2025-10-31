@@ -101,6 +101,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `RESEND_API_KEY` | Resend API token for lead notifications. |
 | `LEAD_NOTIFY_TO` | Comma-separated recipient list for lead notifications (defaults to ops@pixelversestudios.io). |
 | `LEAD_NOTIFY_FROM` | Optional override for the Resend “from” address. |
+| `LEAD_NOTIFY_USE_RESEND` | Toggle Resend lead notifications (`false` to route alerts to Discord). |
+| `LEAD_NOTIFY_DISCORD_WEBHOOK` | Discord webhook endpoint for lead alerts when Resend is disabled. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
