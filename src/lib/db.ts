@@ -17,7 +17,8 @@ export const Tables = {
     NEWSLETTER: 'newsletter',
     CONTACT_FORMS: 'contact_form_submissions',
     WEBSITES: 'websites',
-    LEADS: 'leads'
+    LEADS: 'leads',
+    AUDIT_REQUESTS: 'audit_requests'
 }
 
 export const COLUMNS = {

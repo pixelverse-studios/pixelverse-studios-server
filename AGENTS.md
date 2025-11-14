@@ -52,13 +52,14 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/cms/:id` | DELETE | Delete CMS entry. | `controllers/cms.remove` |
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
+| `/api/audit-requests` | POST | Capture Free Website Audit submissions, persist to Supabase, and email ops. | `controllers/audit.createAuditRequest` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -102,7 +103,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `LEAD_NOTIFY_TO` | Comma-separated recipient list for lead notifications (defaults to ops@pixelversestudios.io). |
 | `LEAD_NOTIFY_FROM` | Optional override for the Resend “from” address. |
 | `LEAD_NOTIFY_USE_RESEND` | Toggle Resend lead notifications (`false` to route alerts to Discord). |
-| `LEAD_NOTIFY_DISCORD_WEBHOOK` | Discord webhook endpoint for lead alerts when Resend is disabled. |
+| `LEAD_NOTIFY_DISCORD_WEBHOOK` | Discord webhook endpoint used for lead and audit alerts when Resend is disabled. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 

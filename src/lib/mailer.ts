@@ -2,7 +2,10 @@ import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
 import { convert } from 'html-to-text'
 
-import { generateContactFormSubmissionEmail } from '../utils/mailer/emails'
+import {
+    generateAuditRequestEmail,
+    generateContactFormSubmissionEmail
+} from '../utils/mailer/emails'
 
 const GMAIL_USER = process.env.GMAIL_USER!
 const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID!
@@ -13,7 +16,7 @@ const oAuth2Client = new OAuth2Client(GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET)
 oAuth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN })
 
 interface ContactSubmissionEmailParams {
-    to: string
+    to: string | string[]
     subject: string
     website: string
     payload: {
@@ -30,6 +33,76 @@ export async function sendContactSubmissionEmail({
     website,
     payload
 }: ContactSubmissionEmailParams): Promise<void> {
+    const html = generateContactFormSubmissionEmail({
+        website,
+        fullname: payload.fullname,
+        phone: payload.phone,
+        email: payload.email,
+        data: payload.additional
+    })
+
+    await sendMail({
+        to,
+        subject,
+        html,
+        meta: { website }
+    })
+}
+
+interface AuditRequestEmailPayload {
+    name: string
+    email: string
+    websiteUrl: string
+    phoneNumber?: string
+    specifics?: string
+    submittedAt: string
+}
+
+interface AuditSubmissionEmailParams {
+    to: string | string[]
+    subject?: string
+    payload: AuditRequestEmailPayload
+}
+
+const DEFAULT_AUDIT_SUBJECT = 'New Free Website Audit Request'
+
+export async function sendAuditRequestEmail({
+    to,
+    subject = DEFAULT_AUDIT_SUBJECT,
+    payload
+}: AuditSubmissionEmailParams): Promise<void> {
+    const html = generateAuditRequestEmail({
+        name: payload.name,
+        email: payload.email,
+        websiteUrl: payload.websiteUrl,
+        phoneNumber: payload.phoneNumber ?? null,
+        specifics: payload.specifics ?? null,
+        submittedAt: payload.submittedAt
+    })
+
+    await sendMail({
+        to,
+        subject,
+        html
+    })
+}
+
+interface SendMailOptions {
+    to: string | string[]
+    subject: string
+    html: string
+    meta?: Record<string, unknown>
+}
+
+const formatRecipients = (recipients: string | string[]): string =>
+    Array.isArray(recipients) ? recipients.join(', ') : recipients
+
+const sendMail = async ({
+    to,
+    subject,
+    html,
+    meta
+}: SendMailOptions): Promise<void> => {
     try {
         const accessToken = await oAuth2Client.getAccessToken()
 
@@ -45,19 +118,11 @@ export async function sendContactSubmissionEmail({
             }
         })
 
-        const html = generateContactFormSubmissionEmail({
-            website,
-            fullname: payload.fullname,
-            phone: payload.phone,
-            email: payload.email,
-            data: payload.additional
-        })
-
         const text = convert(html)
 
         const mailOptions = {
             from: GMAIL_USER,
-            to,
+            to: formatRecipients(to),
             subject,
             text,
             html
@@ -66,8 +131,8 @@ export async function sendContactSubmissionEmail({
         const result = await transporter.sendMail(mailOptions)
         console.log('✅ Email sent successfully:', {
             result: result.messageId,
-            sentTo: to,
-            website
+            sentTo: mailOptions.to,
+            ...meta
         })
     } catch (error) {
         console.error('❌ Error sending email:', error)
