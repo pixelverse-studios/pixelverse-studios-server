@@ -19,10 +19,14 @@ router.post(
         body('changed_urls.*')
             .isURL()
             .withMessage('Each URL must be valid'),
-        body('summary')
+        body('deploy_summary')
             .isString()
             .notEmpty()
-            .withMessage('summary is required and must be markdown')
+            .withMessage('deploy_summary is required and must be markdown'),
+        body('internal_notes')
+            .optional()
+            .isString()
+            .withMessage('internal_notes must be a string if provided')
     ],
     validateRequest,
     deployments.create
