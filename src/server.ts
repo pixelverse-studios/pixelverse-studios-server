@@ -8,6 +8,7 @@ import cmsRouter from './routes/cms'
 import contactFormsRouter from './routes/contact-forms'
 import leadsRouter from './routes/leads'
 import auditRouter from './routes/audit'
+import deploymentsRouter from './routes/deployments'
 
 import 'dotenv/config'
 
@@ -25,6 +26,7 @@ app.use(cmsRouter)
 app.use(contactFormsRouter)
 app.use(leadsRouter)
 app.use(auditRouter)
+app.use(deploymentsRouter)
 
 // Error handling middleware
 app.use(

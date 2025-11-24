@@ -8,6 +8,16 @@ const clientsRouter: Router = Router()
 const BASE_ROUTE = '/api/clients'
 
 clientsRouter.get(BASE_ROUTE, clients.getAll)
+clientsRouter.get(
+    `${BASE_ROUTE}/:id`,
+    [
+        param('id')
+            .isUUID()
+            .withMessage('Client ID must be a valid UUID')
+    ],
+    validateRequest,
+    clients.getById
+)
 clientsRouter.post(
     `${BASE_ROUTE}/new`,
     [

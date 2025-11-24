@@ -16,6 +16,40 @@ const getAll = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+const getById = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { id } = req.params
+
+        // Fetch client data with related websites
+        const { data: clientData, error: clientError } = await db
+            .from(Tables.CLIENTS)
+            .select(`
+                *,
+                websites (
+                    id,
+                    title,
+                    website_slug,
+                    domain,
+                    type
+                )
+            `)
+            .eq('id', id)
+            .single()
+
+        if (clientError) {
+            throw clientError
+        }
+
+        if (!clientData) {
+            return res.status(404).json({ error: 'Client not found' })
+        }
+
+        return res.status(200).json(clientData)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 const getIdBySlug = async (slug: string) => {
     try {
         const { data, error } = await db
@@ -115,4 +149,4 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, remove, edit, getAll, getIdBySlug }
+export default { add, remove, edit, getAll, getById, getIdBySlug }

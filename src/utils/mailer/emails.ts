@@ -125,3 +125,107 @@ export const generateAuditRequestEmail = ({
         </div>
     </div>`
 }
+
+interface DeploymentEmailParams {
+    websiteTitle: string
+    changedUrls: string[]
+    summary: string // markdown
+    deployedAt: Date
+}
+
+const markdownToHtml = (markdown: string): string => {
+    const lines = markdown.split('\n')
+    const htmlItems = lines
+        .filter(line => line.trim().startsWith('-'))
+        .map(line => {
+            const text = line.trim().substring(1).trim()
+            return `<li style="padding:8px 0;color:#374151;">${escapeHtml(text)}</li>`
+        })
+        .join('')
+
+    return htmlItems ? `<ul style="padding-left:20px;margin:16px 0;">${htmlItems}</ul>` : ''
+}
+
+export const generateDeploymentEmailHtml = ({
+    websiteTitle,
+    changedUrls,
+    summary,
+    deployedAt
+}: DeploymentEmailParams): string => {
+    const summaryHtml = markdownToHtml(summary)
+    const urlListHtml = changedUrls
+        .map(
+            url =>
+                `<li style="padding:6px 0;"><a href="${escapeHtml(url)}" style="color:#7c3aed;text-decoration:none;">${escapeHtml(url)}</a></li>`
+        )
+        .join('')
+
+    const formattedDate = deployedAt.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+
+    return `
+    <div style="max-width:640px;margin:24px auto;background:#ffffff;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,0.12);overflow:hidden;font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;">
+        <div style="background:linear-gradient(135deg,#7c3aed,#2563eb);padding:24px;color:#fff;text-align:center;">
+            <div style="font-size:28px;margin-bottom:4px;">🚀</div>
+            <div style="font-size:22px;font-weight:600;margin-bottom:4px;">New Deployment: ${escapeHtml(websiteTitle)}</div>
+            <div style="font-size:15px;opacity:0.9;">${formattedDate}</div>
+        </div>
+
+        <div style="padding:24px 28px;">
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:16px;color:#6b7280;margin:0 0 12px 0;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">📝 Changes Deployed</h3>
+                ${summaryHtml}
+            </div>
+
+            <div style="background:#f9fafb;padding:20px;border-radius:8px;border-left:4px solid #7c3aed;">
+                <h3 style="font-size:16px;color:#6b7280;margin:0 0 12px 0;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">🔗 Pages Updated</h3>
+                <p style="font-size:14px;color:#6b7280;margin-bottom:12px;">The following pages need to be re-indexed in Google Search Console:</p>
+                <ul style="padding-left:20px;margin:0;">${urlListHtml}</ul>
+            </div>
+        </div>
+
+        <div style="background:#f9fafb;padding:16px 24px;text-align:center;font-size:13px;color:#6b7280;">
+            This is an automated deployment notification from PixelVerse Studios.
+        </div>
+    </div>`
+}
+
+export const generateDeploymentEmailText = ({
+    websiteTitle,
+    changedUrls,
+    summary,
+    deployedAt
+}: DeploymentEmailParams): string => {
+    const formattedDate = deployedAt.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+
+    return [
+        '🚀 New Deployment',
+        '',
+        `Website: ${websiteTitle}`,
+        `Deployed: ${formattedDate}`,
+        '',
+        'Changes Deployed:',
+        summary,
+        '',
+        'Pages Updated (Re-index in Google Search Console):',
+        ...changedUrls.map(url => `- ${url}`),
+        '',
+        '---',
+        'This is an automated deployment notification from PixelVerse Studios.'
+    ]
+        .filter(Boolean)
+        .join('\n')
+}

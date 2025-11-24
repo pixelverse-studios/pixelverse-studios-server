@@ -138,3 +138,53 @@ const sendMail = async ({
         console.error('❌ Error sending email:', error)
     }
 }
+
+interface SendEmailParams {
+    to: string | string[]
+    subject: string
+    html: string
+    text?: string
+}
+
+export async function sendEmail({
+    to,
+    subject,
+    html,
+    text
+}: SendEmailParams): Promise<void> {
+    try {
+        const accessToken = await oAuth2Client.getAccessToken()
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                type: 'OAuth2',
+                user: GMAIL_USER,
+                clientId: GMAIL_CLIENT_ID,
+                clientSecret: GMAIL_CLIENT_SECRET,
+                refreshToken: GMAIL_REFRESH_TOKEN,
+                accessToken: accessToken.token || ''
+            }
+        })
+
+        const plainText = text || convert(html)
+
+        const mailOptions = {
+            from: GMAIL_USER,
+            to: formatRecipients(to),
+            subject,
+            text: plainText,
+            html
+        }
+
+        const result = await transporter.sendMail(mailOptions)
+        console.log('✅ Email sent successfully:', {
+            result: result.messageId,
+            sentTo: mailOptions.to,
+            subject
+        })
+    } catch (error) {
+        console.error('❌ Error sending email:', error)
+        throw error
+    }
+}

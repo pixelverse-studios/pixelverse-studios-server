@@ -1,0 +1,92 @@
+import { Router } from 'express'
+import { body, param, query } from 'express-validator'
+
+import { validateRequest } from './middleware'
+import deployments from '../controllers/deployments'
+
+const router = Router()
+
+// POST /api/deployments - Create a new deployment record
+router.post(
+    '/api/deployments',
+    [
+        body('website_id')
+            .isUUID()
+            .withMessage('website_id must be a valid UUID'),
+        body('changed_urls')
+            .isArray({ min: 1 })
+            .withMessage('changed_urls must be a non-empty array'),
+        body('changed_urls.*')
+            .isURL()
+            .withMessage('Each URL must be valid'),
+        body('summary')
+            .isString()
+            .notEmpty()
+            .withMessage('summary is required and must be markdown')
+    ],
+    validateRequest,
+    deployments.create
+)
+
+// GET /api/websites/:websiteId/deployments - Get deployment history for a website
+router.get(
+    '/api/websites/:websiteId/deployments',
+    [
+        param('websiteId')
+            .isUUID()
+            .withMessage('websiteId must be a valid UUID'),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 100 })
+            .withMessage('limit must be between 1 and 100'),
+        query('offset')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('offset must be a non-negative integer')
+    ],
+    validateRequest,
+    deployments.getByWebsite
+)
+
+// GET /api/deployments/unindexed - Get all deployments not yet indexed
+// IMPORTANT: This must come BEFORE /api/deployments/:id to avoid route collision
+router.get(
+    '/api/deployments/unindexed',
+    [
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 100 })
+            .withMessage('limit must be between 1 and 100')
+    ],
+    validateRequest,
+    deployments.getUnindexed
+)
+
+// GET /api/deployments/:id - Get a specific deployment by ID
+router.get(
+    '/api/deployments/:id',
+    [param('id').isUUID().withMessage('id must be a valid UUID')],
+    validateRequest,
+    deployments.getById
+)
+
+// PATCH /api/deployments/:id/indexed - Mark entire deployment as indexed in GSC
+router.patch(
+    '/api/deployments/:id/indexed',
+    [param('id').isUUID().withMessage('id must be a valid UUID')],
+    validateRequest,
+    deployments.markAsIndexed
+)
+
+// PATCH /api/deployments/:id/urls/indexed - Mark specific URL as indexed
+router.patch(
+    '/api/deployments/:id/urls/indexed',
+    [
+        param('id').isUUID().withMessage('id must be a valid UUID'),
+        body('url').isURL().withMessage('url must be a valid URL')
+    ],
+    validateRequest,
+    deployments.markUrlAsIndexed
+)
+
+export default router
