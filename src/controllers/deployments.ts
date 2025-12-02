@@ -41,8 +41,7 @@ const create = async (req: Request, res: Response): Promise<Response> => {
                     to: website.contact_email,
                     websiteTitle: website.title,
                     deploymentDate: new Date(deployment.created_at).toLocaleDateString(),
-                    summaryMarkdown: deploy_summary,
-                    changedUrls: changed_urls
+                    summaryMarkdown: deploy_summary
                 })
                 console.log(
                     '✅ Deployment email sent:',
@@ -128,7 +127,12 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const markAsIndexed = async (
+/**
+ * Update deployment status (bulk update all URLs)
+ * PATCH /api/deployments/:id/status
+ * Body: { status: 'requested' | 'indexed' }
+ */
+const updateDeploymentStatus = async (
     req: Request,
     res: Response
 ): Promise<Response> => {
@@ -139,6 +143,7 @@ const markAsIndexed = async (
         }
 
         const { id } = req.params
+        const { status } = req.body
 
         // Verify deployment exists
         const existing = await deploymentsService.getDeploymentById(id)
@@ -146,10 +151,74 @@ const markAsIndexed = async (
             return res.status(404).json({ error: 'Deployment not found' })
         }
 
-        // Mark as indexed with current timestamp
-        const updated = await deploymentsService.markAsIndexed(id, {
-            indexed_at: new Date()
-        })
+        // Update deployment status
+        const updated = await deploymentsService.updateDeploymentStatus(id, status)
+
+        return res.status(200).json(updated)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * Update a single URL's status within a deployment
+ * PATCH /api/deployments/:id/urls/status
+ * Body: { url: string, status: 'requested' | 'indexed' }
+ */
+const updateUrlStatus = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const { url, status } = req.body
+
+        // Verify deployment exists
+        const existing = await deploymentsService.getDeploymentById(id)
+        if (!existing) {
+            return res.status(404).json({ error: 'Deployment not found' })
+        }
+
+        // Update URL status
+        const updated = await deploymentsService.updateUrlStatus(id, url, status)
+
+        return res.status(200).json(updated)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * Batch update multiple URLs' status within a deployment
+ * PATCH /api/deployments/:id/urls/batch
+ * Body: { urls: string[], status: 'requested' | 'indexed' }
+ */
+const updateUrlsBatch = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const { urls, status } = req.body
+
+        // Verify deployment exists
+        const existing = await deploymentsService.getDeploymentById(id)
+        if (!existing) {
+            return res.status(404).json({ error: 'Deployment not found' })
+        }
+
+        // Batch update URL statuses
+        const updated = await deploymentsService.updateUrlsBatchStatus(id, urls, status)
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -176,6 +245,34 @@ const getUnindexed = async (
     }
 }
 
+// Legacy endpoints - redirect to new ones for backward compatibility
+const markAsIndexed = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+
+        // Verify deployment exists
+        const existing = await deploymentsService.getDeploymentById(id)
+        if (!existing) {
+            return res.status(404).json({ error: 'Deployment not found' })
+        }
+
+        // Mark all URLs as indexed
+        const updated = await deploymentsService.updateDeploymentStatus(id, 'indexed')
+
+        return res.status(200).json(updated)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 const markUrlAsIndexed = async (
     req: Request,
     res: Response
@@ -196,7 +293,7 @@ const markUrlAsIndexed = async (
         }
 
         // Mark specific URL as indexed
-        const updated = await deploymentsService.markUrlAsIndexed(id, url)
+        const updated = await deploymentsService.updateUrlStatus(id, url, 'indexed')
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -208,7 +305,11 @@ export default {
     create,
     getByWebsite,
     getById,
+    updateDeploymentStatus,
+    updateUrlStatus,
+    updateUrlsBatch,
+    getUnindexed,
+    // Legacy endpoints for backward compatibility
     markAsIndexed,
-    markUrlAsIndexed,
-    getUnindexed
+    markUrlAsIndexed
 }

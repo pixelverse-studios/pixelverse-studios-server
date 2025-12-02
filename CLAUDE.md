@@ -434,7 +434,26 @@ throw error
 
 ## Deployment Tracking API
 
-The deployment tracking system records website deployments, tracks changed URLs needing Google Search Console re-indexing, and sends email notifications to clients.
+The deployment tracking system records website deployments, tracks changed URLs needing Google Search Console re-indexing with a three-state workflow, and sends email notifications to clients.
+
+### Three-State Indexing System
+
+The system uses a three-state workflow to properly track the GSC indexing process:
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Fresh deployment, needs indexing request |
+| `requested` | Submitted to Google Search Console, awaiting indexing |
+| `indexed` | Confirmed indexed by Google |
+
+**Status Progression:**
+- Status can only progress forward: `pending` → `requested` → `indexed`
+- Cannot go backward (e.g., from `indexed` back to `requested`)
+
+**Deployment-level status is calculated from URLs:**
+- `pending` if ANY URL is pending
+- `requested` if no pending URLs but ANY URL is requested
+- `indexed` only if ALL URLs are indexed
 
 ### Database Schema
 
@@ -444,10 +463,24 @@ The deployment tracking system records website deployments, tracks changed URLs 
 |--------|------|-------------|
 | id | UUID | Primary key (auto-generated) |
 | website_id | UUID | Foreign key to websites table (CASCADE delete) |
-| changed_urls | TEXT[] | Array of URLs needing re-indexing |
-| summary | TEXT | Markdown summary of changes |
+| changed_urls | JSONB | Array of URL objects with status |
+| deploy_summary | TEXT | Markdown summary of changes |
+| internal_notes | TEXT | Optional internal notes |
 | created_at | TIMESTAMPTZ | Deployment timestamp (auto-set) |
-| indexed_at | TIMESTAMPTZ | When re-indexed in GSC (nullable) |
+| indexing_status | TEXT | 'pending' \| 'requested' \| 'indexed' |
+| indexing_requested_at | TIMESTAMPTZ | When submitted to GSC (nullable) |
+| indexed_at | TIMESTAMPTZ | When confirmed indexed (nullable) |
+
+**Per-URL Structure (in changed_urls JSONB):**
+
+```typescript
+interface ChangedUrl {
+    url: string
+    indexing_status: 'pending' | 'requested' | 'indexed'
+    indexing_requested_at: string | null  // ISO timestamp
+    indexed_at: string | null              // ISO timestamp
+}
+```
 
 ### Endpoints
 
@@ -464,41 +497,46 @@ Records a new deployment and sends email notification to the website's contact e
     "https://example.com/page1",
     "https://example.com/page2"
   ],
-  "summary": "- Updated homepage hero\n- Added new features section"
+  "deploy_summary": "- Updated homepage hero\n- Added new features section",
+  "internal_notes": "Optional internal notes"
 }
 ```
 
 **Validation:**
 - `website_id`: Must be a valid UUID of an existing website
 - `changed_urls`: Non-empty array of valid URLs
-- `summary`: Non-empty string (markdown format)
+- `deploy_summary`: Non-empty string (markdown format)
+- `internal_notes`: Optional string
 
 **Response:** `201 Created`
 ```json
 {
   "id": "deployment-uuid",
   "website_id": "website-uuid",
-  "changed_urls": ["https://..."],
-  "summary": "...",
+  "changed_urls": [
+    {
+      "url": "https://example.com/page1",
+      "indexing_status": "pending",
+      "indexing_requested_at": null,
+      "indexed_at": null
+    }
+  ],
+  "deploy_summary": "...",
   "created_at": "2025-11-24T00:17:37.328336+00:00",
+  "indexing_status": "pending",
+  "indexing_requested_at": null,
   "indexed_at": null
 }
 ```
 
-**Behavior:**
-- Verifies website exists (returns 404 if not found)
-- Creates deployment record
-- Sends email to `website.contact_email` if set (fails gracefully if email errors)
-- Email includes markdown summary (converted to HTML) and list of changed URLs
-
-**Implementation:** `src/controllers/deployments.ts:13`
+**Implementation:** `src/controllers/deployments.ts:9`
 
 ---
 
 #### 2. Get Deployment History by Website
 **GET /api/websites/:websiteId/deployments**
 
-Retrieves all deployments for a specific website with pagination.
+Retrieves all deployments for a specific website with pagination. Returns non-indexed deployments (any age) OR indexed deployments from past 3 months.
 
 **Query Parameters:**
 - `limit` (optional): 1-100, defaults to 20
@@ -516,16 +554,25 @@ Retrieves all deployments for a specific website with pagination.
     {
       "id": "uuid",
       "website_id": "uuid",
-      "changed_urls": ["..."],
-      "summary": "...",
+      "changed_urls": [
+        {
+          "url": "https://example.com/page1",
+          "indexing_status": "indexed",
+          "indexing_requested_at": "2025-12-01T15:30:00Z",
+          "indexed_at": "2025-12-02T10:00:00Z"
+        }
+      ],
+      "deploy_summary": "...",
       "created_at": "...",
-      "indexed_at": "..."
+      "indexing_status": "indexed",
+      "indexing_requested_at": "2025-12-01T15:30:00Z",
+      "indexed_at": "2025-12-02T10:00:00Z"
     }
   ]
 }
 ```
 
-**Implementation:** `src/controllers/deployments.ts:78`
+**Implementation:** `src/controllers/deployments.ts:66`
 
 ---
 
@@ -535,46 +582,120 @@ Retrieves all deployments for a specific website with pagination.
 Retrieves a specific deployment by ID.
 
 **Response:** `200 OK` or `404 Not Found`
+
+**Implementation:** `src/controllers/deployments.ts:111`
+
+---
+
+#### 4. Update Deployment Status (Bulk)
+**PATCH /api/deployments/:id/status**
+
+Bulk updates ALL URLs in a deployment to the specified status.
+
+**Request Body:**
 ```json
 {
-  "id": "uuid",
-  "website_id": "uuid",
-  "changed_urls": ["..."],
-  "summary": "...",
-  "created_at": "...",
+  "status": "requested"
+}
+```
+
+**Valid status values:** `"requested"` or `"indexed"`
+
+**Behavior:**
+- Updates all URLs to the target status
+- Sets appropriate timestamps on all URLs
+- Recalculates deployment-level status and timestamps
+- Skips URLs that are already `indexed` (cannot go backward)
+
+**Response:** `200 OK`
+```json
+{
+  "id": "deployment-uuid",
+  "changed_urls": [
+    {
+      "url": "https://example.com/page1",
+      "indexing_status": "requested",
+      "indexing_requested_at": "2025-12-02T15:30:00Z",
+      "indexed_at": null
+    }
+  ],
+  "indexing_status": "requested",
+  "indexing_requested_at": "2025-12-02T15:30:00Z",
   "indexed_at": null
 }
 ```
 
-**Implementation:** `src/controllers/deployments.ts:123`
+**Implementation:** `src/controllers/deployments.ts:131`
 
 ---
 
-#### 4. Mark Deployment as Indexed
-**PATCH /api/deployments/:id/indexed**
+#### 5. Update Single URL Status
+**PATCH /api/deployments/:id/urls/status**
 
-Marks a deployment as indexed in Google Search Console by setting `indexed_at` to current timestamp.
+Updates a single URL's status within a deployment.
 
-**Response:** `200 OK` or `404 Not Found`
+**Request Body:**
 ```json
 {
-  "id": "uuid",
-  "website_id": "uuid",
-  "changed_urls": ["..."],
-  "summary": "...",
-  "created_at": "...",
-  "indexed_at": "2025-11-24T00:18:59.087+00:00"
+  "url": "https://example.com/page1",
+  "status": "indexed"
 }
 ```
 
-**Implementation:** `src/controllers/deployments.ts:143`
+**Valid status values:** `"requested"` or `"indexed"`
+
+**Behavior:**
+- If `status: "requested"`: Sets URL's `indexing_status` to 'requested', sets `indexing_requested_at` to now
+- If `status: "indexed"`: Sets URL's `indexing_status` to 'indexed', sets `indexed_at` to now
+- Recalculates deployment-level `indexing_status` based on all URLs
+- Updates deployment-level timestamps accordingly
+
+**Response:** `200 OK` with updated deployment
+
+**Error Responses:**
+- `404`: URL not found in deployment
+- `400`: Cannot change status: URL is already indexed
+
+**Implementation:** `src/controllers/deployments.ts:164`
 
 ---
 
-#### 5. Get Unindexed Deployments
+#### 6. Batch Update URL Statuses
+**PATCH /api/deployments/:id/urls/batch**
+
+Updates multiple specific URLs' status within a deployment.
+
+**Request Body:**
+```json
+{
+  "urls": [
+    "https://example.com/page1",
+    "https://example.com/page2"
+  ],
+  "status": "requested"
+}
+```
+
+**Valid status values:** `"requested"` or `"indexed"`
+
+**Behavior:**
+- Updates only the specified URLs to the target status
+- Skips URLs that are already `indexed`
+- Recalculates deployment-level status and timestamps
+
+**Response:** `200 OK` with updated deployment
+
+**Error Responses:**
+- `404`: One or more URLs not found in deployment
+
+**Implementation:** `src/controllers/deployments.ts:197`
+
+---
+
+#### 7. Get Unindexed Deployments
 **GET /api/deployments/unindexed**
 
-Retrieves all deployments where `indexed_at` is null (pages not yet re-indexed in GSC).
+Retrieves all deployments where `indexing_status` is not 'indexed' (pending or requested).
 
 **Query Parameters:**
 - `limit` (optional): 1-100, defaults to 50
@@ -587,46 +708,52 @@ Retrieves all deployments where `indexed_at` is null (pages not yet re-indexed i
     {
       "id": "uuid",
       "website_id": "uuid",
-      "changed_urls": ["..."],
-      "summary": "...",
+      "changed_urls": [...],
+      "deploy_summary": "...",
       "created_at": "...",
+      "indexing_status": "requested",
+      "indexing_requested_at": "2025-12-01T15:30:00Z",
       "indexed_at": null
     }
   ]
 }
 ```
 
-**Implementation:** `src/controllers/deployments.ts:172`
+**Implementation:** `src/controllers/deployments.ts:230`
 
 **Important:** This route must come BEFORE `/api/deployments/:id` in route definitions to avoid "unindexed" being treated as a UUID parameter.
 
 ---
 
-### Email Templates
+### Legacy Endpoints (Deprecated)
 
-Deployment emails are sent using the existing Gmail OAuth2 infrastructure.
+These endpoints are maintained for backward compatibility:
 
-**Template Location:** `src/utils/mailer/emails.ts`
+**PATCH /api/deployments/:id/indexed**
+- @deprecated Use `PATCH /api/deployments/:id/status` with `{ status: 'indexed' }`
+- Marks entire deployment as indexed
 
-**Functions:**
-- `generateDeploymentEmailHtml()`: HTML version with styled layout
-- `generateDeploymentEmailText()`: Plain text fallback
+**PATCH /api/deployments/:id/urls/indexed**
+- @deprecated Use `PATCH /api/deployments/:id/urls/status` with `{ url, status: 'indexed' }`
+- Marks specific URL as indexed
 
-**Email Content:**
-- Website title
-- Deployment timestamp
-- Markdown summary (converted to HTML list)
-- Changed URLs list (clickable links in HTML version)
-- Branded styling using BRAND constants
+---
 
-**Example Usage:**
+### Backward Compatibility
+
+The service layer automatically normalizes legacy URL data (old format with only `indexed_at`) to the new three-state format:
+
 ```typescript
-await sendEmail({
-    to: website.contact_email,
-    subject: `New Deployment: ${website.title} - ${date}`,
-    html: generateDeploymentEmailHtml({ websiteTitle, changedUrls, summary, deployedAt }),
-    text: generateDeploymentEmailText({ websiteTitle, changedUrls, summary, deployedAt })
-})
+// Old format
+{ url: "https://...", indexed_at: null }
+
+// Normalized to new format
+{
+    url: "https://...",
+    indexing_status: "pending",
+    indexing_requested_at: null,
+    indexed_at: null
+}
 ```
 
 ---
@@ -636,17 +763,19 @@ await sendEmail({
 **Location:** `src/services/deployments.ts`
 
 **Methods:**
-- `createDeployment(payload)`: Insert new deployment
-- `getDeploymentsByWebsiteId(websiteId, limit, offset)`: Get paginated history
-- `getDeploymentById(id)`: Get single deployment
-- `markAsIndexed(id, updates)`: Update indexed_at timestamp
+- `createDeployment(payload)`: Insert new deployment with three-state tracking
+- `getDeploymentsByWebsiteId(websiteId, limit, offset)`: Get paginated history (auto-normalized)
+- `getDeploymentById(id)`: Get single deployment (auto-normalized)
+- `updateDeploymentStatus(id, status)`: Bulk update all URLs to status
+- `updateUrlStatus(deploymentId, url, status)`: Update single URL status
+- `updateUrlsBatchStatus(deploymentId, urls, status)`: Batch update multiple URLs
 - `getUnindexedDeployments(limit)`: Get deployments needing indexing
 
 **Pattern:**
 ```typescript
 const { data, error } = await db.from(Tables.DEPLOYMENTS).select()
 if (error) throw error
-return data
+return normalizeDeployment(data)  // Auto-normalizes legacy data
 ```
 
 ---
@@ -656,7 +785,7 @@ return data
 **Typical workflow from GitHub Actions / Netlify webhook:**
 
 ```bash
-# After deployment succeeds, POST to API
+# 1. After deployment succeeds, POST to API
 curl -X POST https://api.pixelversestudios.io/api/deployments \
   -H "Content-Type: application/json" \
   -d '{
@@ -665,15 +794,25 @@ curl -X POST https://api.pixelversestudios.io/api/deployments \
       "https://example.com/updated-page-1",
       "https://example.com/updated-page-2"
     ],
-    "summary": "- Fixed bug in contact form\n- Updated team photos\n- Added new service offering"
+    "deploy_summary": "- Fixed bug in contact form\n- Updated team photos"
   }'
+
+# 2. After submitting URLs to GSC, mark as requested
+curl -X PATCH https://api.pixelversestudios.io/api/deployments/{id}/status \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "requested" }'
+
+# 3. After GSC confirms indexing, mark as indexed
+curl -X PATCH https://api.pixelversestudios.io/api/deployments/{id}/status \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "indexed" }'
 ```
 
 **Result:**
-1. Deployment record created in database
+1. Deployment record created with all URLs in `pending` status
 2. Email sent to client with deployment summary
-3. Changed URLs tracked for manual Google Search Console re-indexing
-4. Deployment appears in unindexed list until marked as indexed
+3. URLs tracked through `pending` → `requested` → `indexed` workflow
+4. Deployment appears in unindexed list until all URLs are indexed
 
 ---
 

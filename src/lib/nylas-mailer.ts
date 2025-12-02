@@ -44,7 +44,10 @@ export async function sendEmail({
             subject,
             body: html,
             to: recipients.map(email => ({ email })),
-            cc: [{ email: 'sami@pixelversestudios.io' }]
+            cc: [
+                { email: 'sami@pixelversestudios.io' },
+                { email: 'phil@pixelversestudios.io' }
+            ]
         }
 
         await nylas.messages.send({
@@ -54,7 +57,7 @@ export async function sendEmail({
 
         console.log('✅ Email sent successfully via Nylas:', {
             sentTo: recipients.join(', '),
-            cc: 'sami@pixelversestudios.io',
+            cc: 'sami@pixelversestudios.io, phil@pixelversestudios.io',
             subject
         })
     } catch (error) {
@@ -68,15 +71,13 @@ interface DeploymentEmailParams {
     websiteTitle: string
     deploymentDate: string
     summaryMarkdown: string
-    changedUrls: string[]
 }
 
 export async function sendDeploymentEmail({
     to,
     websiteTitle,
     deploymentDate,
-    summaryMarkdown,
-    changedUrls
+    summaryMarkdown
 }: DeploymentEmailParams): Promise<void> {
     const summaryHtml = markdownToHtml(summaryMarkdown)
 
@@ -124,24 +125,6 @@ export async function sendDeploymentEmail({
             color: #667eea;
             font-size: 18px;
         }
-        .url-list {
-            list-style: none;
-            padding: 0;
-        }
-        .url-list li {
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .url-list li:last-child {
-            border-bottom: none;
-        }
-        .url-list a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        .url-list a:hover {
-            text-decoration: underline;
-        }
         .footer {
             text-align: center;
             margin-top: 30px;
@@ -149,18 +132,6 @@ export async function sendDeploymentEmail({
             border-top: 2px solid #eee;
             color: #999;
             font-size: 14px;
-        }
-        .cta-button {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 6px;
-            margin-top: 20px;
-        }
-        .cta-button:hover {
-            background: #5568d3;
         }
     </style>
 </head>
@@ -179,15 +150,6 @@ export async function sendDeploymentEmail({
         <div class="section">
             <h2>📝 Changes Summary</h2>
             ${summaryHtml}
-        </div>
-
-        <div class="section">
-            <h2>🔗 Changed URLs</h2>
-            <p>The following pages have been updated and need to be re-indexed in Google Search Console:</p>
-            <ul class="url-list">
-                ${changedUrls.map(url => `<li><a href="${url}">${url}</a></li>`).join('')}
-            </ul>
-            <a href="https://search.google.com/search-console" class="cta-button">Open Google Search Console</a>
         </div>
     </div>
 
