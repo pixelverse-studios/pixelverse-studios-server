@@ -30,7 +30,8 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
                     title,
                     website_slug,
                     domain,
-                    type
+                    type,
+                    seo_focus
                 )
             `)
             .eq('id', id)

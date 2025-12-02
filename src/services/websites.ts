@@ -35,8 +35,21 @@ const getWebsiteDetailsForEmail = async (slug: string) => {
     }
 }
 
+const updateSeoFocus = async (id: string, seo_focus: string) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .update({ seo_focus })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
 const websitesDB = {
     getWebsiteEmail,
-    getWebsiteDetailsForEmail
+    getWebsiteDetailsForEmail,
+    updateSeoFocus
 }
 export default websitesDB
