@@ -50,10 +50,17 @@ const getDeploymentsByWebsiteId = async (
     offset: number = 0
 ) => {
     try {
+        // Calculate date 3 months ago
+        const threeMonthsAgo = new Date()
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+        const threeMonthsAgoISO = threeMonthsAgo.toISOString()
+
+        // Return unindexed deployments (any age) OR indexed deployments from past 3 months
         const { data, error, count } = await db
             .from(Tables.DEPLOYMENTS)
             .select('*', { count: 'exact' })
             .eq('website_id', websiteId)
+            .or(`indexed_at.is.null,created_at.gte.${threeMonthsAgoISO}`)
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1)
 
