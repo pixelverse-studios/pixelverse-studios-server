@@ -2,3 +2,4 @@ node_modules
 .env
 config.ts
 /repomix-output.txt
+.mcp.json

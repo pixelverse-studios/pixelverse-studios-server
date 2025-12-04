@@ -19,7 +19,8 @@ export const Tables = {
     WEBSITES: 'websites',
     LEADS: 'leads',
     AUDIT_REQUESTS: 'audit_requests',
-    DEPLOYMENTS: 'website_deployments'
+    DEPLOYMENTS: 'website_deployments',
+    CLIENT_WEBSITE_SUMMARY: 'client_website_summary'
 }
 
 export const COLUMNS = {

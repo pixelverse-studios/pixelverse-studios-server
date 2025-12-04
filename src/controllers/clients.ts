@@ -5,11 +5,12 @@ import { handleGenericError } from '../utils/http'
 
 const getAll = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { data, error } = await db.from(Tables.CLIENTS).select('*')
+        const { data, error } = await db
+            .from(Tables.CLIENT_WEBSITE_SUMMARY)
+            .select('*')
         if (error) {
             throw error
         }
-
         return res.status(200).json(data)
     } catch (err) {
         return handleGenericError(err, res)
@@ -23,7 +24,8 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
         // Fetch client data with related websites
         const { data: clientData, error: clientError } = await db
             .from(Tables.CLIENTS)
-            .select(`
+            .select(
+                `
                 *,
                 websites (
                     id,
@@ -33,7 +35,8 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
                     type,
                     seo_focus
                 )
-            `)
+            `
+            )
             .eq('id', id)
             .single()
 
@@ -90,7 +93,6 @@ const add = async (req: Request, res: Response): Promise<Response> => {
         return handleGenericError(err, res)
     }
 }
-
 
 const test = false
 
