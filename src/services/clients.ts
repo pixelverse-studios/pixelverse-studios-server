@@ -1,4 +1,4 @@
-import { COLUMNS, db, Tables } from '../lib/db'
+import { db, Tables } from '../lib/db'
 
 export const getClientEmail = async (id: string) => {
     try {
@@ -15,4 +15,15 @@ export const getClientEmail = async (id: string) => {
     } catch (error) {
         throw error
     }
+}
+
+export const findById = async (id: string) => {
+    const { data, error } = await db
+        .from(Tables.CLIENTS)
+        .select('id')
+        .eq('id', id)
+        .maybeSingle()
+
+    if (error) throw error
+    return data
 }

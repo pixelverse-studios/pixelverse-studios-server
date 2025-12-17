@@ -78,4 +78,39 @@ websitesRouter.patch(
     websites.edit
 )
 
+websitesRouter.post(
+    `${BASE_ROUTE}/new`,
+    [
+        body('title')
+            .isString()
+            .withMessage('title must be a string')
+            .notEmpty()
+            .withMessage('title is required'),
+        body('domain').isURL().withMessage('domain must be a valid URL'),
+        body('website_slug')
+            .isString()
+            .withMessage('website_slug must be a string')
+            .notEmpty()
+            .withMessage('website_slug is required'),
+        body('client_id')
+            .isUUID()
+            .withMessage('client_id must be a valid UUID'),
+        body('type').optional().isString().withMessage('type must be a string'),
+        body('features')
+            .optional()
+            .isString()
+            .withMessage('features must be a string'),
+        body('contact_email')
+            .optional()
+            .isEmail()
+            .withMessage('contact_email must be a valid email'),
+        body('seo_focus')
+            .optional()
+            .isObject()
+            .withMessage('seo_focus must be an object')
+    ],
+    validateRequest,
+    websites.create
+)
+
 export default websitesRouter
