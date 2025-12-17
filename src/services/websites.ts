@@ -57,6 +57,28 @@ interface WebsiteUpdatePayload {
     seo_focus?: object
 }
 
+interface WebsiteInsertPayload {
+    title: string
+    domain: string
+    website_slug: string
+    client_id: string
+    type?: string
+    features?: string
+    contact_email?: string
+    seo_focus?: object
+}
+
+const insert = async (payload: WebsiteInsertPayload) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .insert([payload])
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
 const update = async (id: string, payload: WebsiteUpdatePayload) => {
     const { data, error } = await db
         .from(Tables.WEBSITES)
@@ -101,6 +123,7 @@ const websitesDB = {
     getWebsiteDetailsForEmail,
     updateSeoFocus,
     update,
+    insert,
     findByDomain,
     findBySlug
 }
