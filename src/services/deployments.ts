@@ -35,11 +35,31 @@ interface DeploymentRecord {
     indexed_at: string | null
 }
 
+// Enhanced response with website and client context
+interface WebsiteContext {
+    id: string
+    title: string
+    domain: string
+}
+
+interface ClientContext {
+    id: string
+    firstname: string | null
+    lastname: string | null
+}
+
+interface DeploymentDetailResponse extends DeploymentRecord {
+    website: WebsiteContext
+    client: ClientContext
+}
+
 /**
  * Normalize legacy URL format to new three-state format
  * Handles both old format (just indexed_at) and new format (full three-state)
  */
-const normalizeChangedUrls = (urls: (ChangedUrl | LegacyUrlFormat)[]): ChangedUrl[] => {
+const normalizeChangedUrls = (
+    urls: (ChangedUrl | LegacyUrlFormat)[]
+): ChangedUrl[] => {
     return urls.map(urlObj => {
         // Check if already in new format
         if ('indexing_status' in urlObj) {
@@ -76,7 +96,9 @@ const calculateDeploymentStatus = (urls: ChangedUrl[]): IndexingStatus => {
 /**
  * Calculate deployment-level timestamps from URLs
  */
-const calculateDeploymentTimestamps = (urls: ChangedUrl[]): {
+const calculateDeploymentTimestamps = (
+    urls: ChangedUrl[]
+): {
     indexing_requested_at: string | null
     indexed_at: string | null
 } => {
@@ -96,9 +118,10 @@ const calculateDeploymentTimestamps = (urls: ChangedUrl[]): {
         // First requested timestamp
         indexing_requested_at: requestedDates[0] || null,
         // Only set indexed_at if ALL URLs are indexed, use latest timestamp
-        indexed_at: allIndexed && indexedDates.length > 0
-            ? indexedDates[indexedDates.length - 1]
-            : null
+        indexed_at:
+            allIndexed && indexedDates.length > 0
+                ? indexedDates[indexedDates.length - 1]
+                : null
     }
 }
 
@@ -106,7 +129,9 @@ const calculateDeploymentTimestamps = (urls: ChangedUrl[]): {
  * Normalize a deployment record from the database
  * Ensures changed_urls are in the new format and deployment-level fields are present
  */
-const normalizeDeployment = (deployment: DeploymentRecord): DeploymentRecord => {
+const normalizeDeployment = (
+    deployment: DeploymentRecord
+): DeploymentRecord => {
     const normalizedUrls = normalizeChangedUrls(deployment.changed_urls)
     const status = calculateDeploymentStatus(normalizedUrls)
     const timestamps = calculateDeploymentTimestamps(normalizedUrls)
@@ -115,7 +140,9 @@ const normalizeDeployment = (deployment: DeploymentRecord): DeploymentRecord => 
         ...deployment,
         changed_urls: normalizedUrls,
         indexing_status: deployment.indexing_status || status,
-        indexing_requested_at: deployment.indexing_requested_at || timestamps.indexing_requested_at,
+        indexing_requested_at:
+            deployment.indexing_requested_at ||
+            timestamps.indexing_requested_at,
         indexed_at: deployment.indexed_at || timestamps.indexed_at
     }
 }
@@ -176,15 +203,69 @@ const getDeploymentsByWebsiteId = async (
     return { deployments: normalizedDeployments, total: count }
 }
 
-const getDeploymentById = async (id: string) => {
+const getDeploymentById = async (
+    id: string
+): Promise<DeploymentDetailResponse | null> => {
     const { data, error } = await db
         .from(Tables.DEPLOYMENTS)
-        .select('*')
+        .select(
+            `
+            *,
+            websites!inner (
+                id,
+                title,
+                domain,
+                clients!inner (
+                    id,
+                    firstname,
+                    lastname
+                )
+            )
+        `
+        )
         .eq('id', id)
         .single()
 
-    if (error) throw error
-    return data ? normalizeDeployment(data) : null
+    // Handle "no rows returned" as null, not an error
+    if (error) {
+        if (error.code === 'PGRST116') {
+            return null
+        }
+        throw error
+    }
+    if (!data) return null
+
+    // Extract nested data from Supabase response
+    const { websites, ...deploymentFields } = data
+    const websiteData = websites as {
+        id: string
+        title: string
+        domain: string
+        clients: {
+            id: string
+            firstname: string | null
+            lastname: string | null
+        }
+    }
+
+    // Normalize deployment and add website/client context
+    const normalizedDeployment = normalizeDeployment(
+        deploymentFields as DeploymentRecord
+    )
+
+    return {
+        ...normalizedDeployment,
+        website: {
+            id: websiteData.id,
+            title: websiteData.title,
+            domain: websiteData.domain
+        },
+        client: {
+            id: websiteData.clients.id,
+            firstname: websiteData.clients.firstname,
+            lastname: websiteData.clients.lastname
+        }
+    }
 }
 
 /**
@@ -281,7 +362,10 @@ const updateUrlStatus = async (
 
     // Validate status progression
     if (currentUrl.indexing_status === 'indexed') {
-        throw { status: 400, message: 'Cannot change status: URL is already indexed' }
+        throw {
+            status: 400,
+            message: 'Cannot change status: URL is already indexed'
+        }
     }
     if (currentUrl.indexing_status === 'requested' && status === 'requested') {
         // Already requested, return current state
@@ -442,4 +526,9 @@ export default {
 }
 
 // Export types for use in controller
-export type { IndexingStatus, ChangedUrl, DeploymentRecord }
+export type {
+    IndexingStatus,
+    ChangedUrl,
+    DeploymentRecord,
+    DeploymentDetailResponse
+}

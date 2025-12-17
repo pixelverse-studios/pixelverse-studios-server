@@ -579,11 +579,48 @@ Retrieves all deployments for a specific website with pagination. Returns non-in
 #### 3. Get Single Deployment
 **GET /api/deployments/:id**
 
-Retrieves a specific deployment by ID.
+Retrieves a specific deployment by ID with website and client context.
 
-**Response:** `200 OK` or `404 Not Found`
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "website_id": "uuid",
+  "changed_urls": [
+    {
+      "url": "https://example.com/page1",
+      "indexing_status": "pending",
+      "indexing_requested_at": null,
+      "indexed_at": null
+    }
+  ],
+  "deploy_summary": "- Updated content",
+  "internal_notes": null,
+  "created_at": "2025-12-01T14:00:00.000Z",
+  "indexing_status": "pending",
+  "indexing_requested_at": null,
+  "indexed_at": null,
+  "website": {
+    "id": "uuid",
+    "title": "Website Name",
+    "domain": "example.com"
+  },
+  "client": {
+    "id": "uuid",
+    "firstname": "John",
+    "lastname": "Doe"
+  }
+}
+```
 
-**Implementation:** `src/controllers/deployments.ts:111`
+**Error Response:** `404 Not Found`
+```json
+{
+  "error": "Deployment not found"
+}
+```
+
+**Implementation:** `src/controllers/deployments.ts:110`, `src/services/deployments.ts:206`
 
 ---
 
@@ -1292,6 +1329,30 @@ lsof -ti:5002 | xargs kill -9
 ```
 
 ---
+
+## Linear Ticket Creation
+
+When creating Linear tickets for this project:
+
+| Field    | Value               |
+| -------- | ------------------- |
+| Team     | PixelVerse Studios              |
+| Assignee | `me`                |
+| Project  | PVS Website |
+| Priority | Medium (3)          |
+
+**Labels:** Always apply one from each sub-label group:
+
+- **Environment:** `Front End`, `Fullstack`, `Server`
+- **Scope:** `Ticket`, `Epic`
+- **Task:** `Feature`, `Bug`, `Improvement`, `Refactor`, `Maintenance`, `Research`
+
+**Description format:**
+
+- `## Summary` - what and why
+- `## Current State` / `## Target State` - when applicable
+- `## Implementation` - files to modify, code snippets
+- `## Acceptance Criteria` - checkbox list
 
 ## Best Practices
 
