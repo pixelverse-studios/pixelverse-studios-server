@@ -38,7 +38,7 @@ clientsRouter.post(
 clientsRouter.patch(
     `${BASE_ROUTE}/:id`,
     [
-        param('id').isNumeric().withMessage('Client ID must be a number'),
+        param('id').isUUID().withMessage('Client ID must be a valid UUID'),
         body().custom((_, { req }) => {
             if (!req.body.client && req.body.active === undefined) {
                 throw new Error(
@@ -65,8 +65,8 @@ clientsRouter.delete(
     `${BASE_ROUTE}/:id`,
     [
         param('id')
-            .isNumeric()
-            .withMessage('Client ID must be provided and a number')
+            .isUUID()
+            .withMessage('Client ID must be a valid UUID')
     ],
     validateRequest,
     clients.remove

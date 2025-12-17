@@ -47,9 +47,61 @@ const updateSeoFocus = async (id: string, seo_focus: string) => {
     return data
 }
 
+interface WebsiteUpdatePayload {
+    title?: string
+    domain?: string
+    website_slug?: string
+    type?: string
+    features?: string
+    contact_email?: string
+    seo_focus?: object
+}
+
+const update = async (id: string, payload: WebsiteUpdatePayload) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
+const findByDomain = async (domain: string, excludeId?: string) => {
+    let query = db.from(Tables.WEBSITES).select('id').eq('domain', domain)
+
+    if (excludeId) {
+        query = query.neq('id', excludeId)
+    }
+
+    const { data, error } = await query.maybeSingle()
+    if (error) throw error
+    return data
+}
+
+const findBySlug = async (slug: string, excludeId?: string) => {
+    let query = db
+        .from(Tables.WEBSITES)
+        .select('id')
+        .eq(COLUMNS.WEBSITE_SLUG, slug)
+
+    if (excludeId) {
+        query = query.neq('id', excludeId)
+    }
+
+    const { data, error } = await query.maybeSingle()
+    if (error) throw error
+    return data
+}
+
 const websitesDB = {
     getWebsiteEmail,
     getWebsiteDetailsForEmail,
-    updateSeoFocus
+    updateSeoFocus,
+    update,
+    findByDomain,
+    findBySlug
 }
 export default websitesDB
