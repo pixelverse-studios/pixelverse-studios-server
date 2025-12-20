@@ -20,12 +20,16 @@ export const Tables = {
     LEADS: 'leads',
     AUDIT_REQUESTS: 'audit_requests',
     DEPLOYMENTS: 'website_deployments',
-    CLIENT_WEBSITE_SUMMARY: 'client_website_summary'
+    CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
+    APPS: 'apps',
+    APP_DEPLOYMENTS: 'app_deployments'
 }
 
 export const COLUMNS = {
     CLIENT_ID: 'client_id',
     CONTACT_EMAIL: 'contact_email',
     SLUG: 'client_slug',
-    WEBSITE_SLUG: 'website_slug'
+    WEBSITE_SLUG: 'website_slug',
+    APP_SLUG: 'app_slug',
+    APP_ID: 'app_id'
 }

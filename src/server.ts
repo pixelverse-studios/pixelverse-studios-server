@@ -10,6 +10,8 @@ import leadsRouter from './routes/leads'
 import auditRouter from './routes/audit'
 import deploymentsRouter from './routes/deployments'
 import websitesRouter from './routes/websites'
+import appsRouter from './routes/apps'
+import appDeploymentsRouter from './routes/app-deployments'
 
 import 'dotenv/config'
 
@@ -29,6 +31,8 @@ app.use(leadsRouter)
 app.use(auditRouter)
 app.use(deploymentsRouter)
 app.use(websitesRouter)
+app.use(appsRouter)
+app.use(appDeploymentsRouter)
 
 // Error handling middleware
 app.use(
