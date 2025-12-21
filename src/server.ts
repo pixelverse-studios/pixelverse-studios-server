@@ -12,6 +12,7 @@ import deploymentsRouter from './routes/deployments'
 import websitesRouter from './routes/websites'
 import appsRouter from './routes/apps'
 import appDeploymentsRouter from './routes/app-deployments'
+import agendaRouter from './routes/agenda'
 
 import 'dotenv/config'
 
@@ -33,6 +34,7 @@ app.use(deploymentsRouter)
 app.use(websitesRouter)
 app.use(appsRouter)
 app.use(appDeploymentsRouter)
+app.use(agendaRouter)
 
 // Error handling middleware
 app.use(

@@ -22,7 +22,8 @@ export const Tables = {
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
     APPS: 'apps',
-    APP_DEPLOYMENTS: 'app_deployments'
+    APP_DEPLOYMENTS: 'app_deployments',
+    AGENDA_ITEMS: 'agenda_items'
 }
 
 export const COLUMNS = {
