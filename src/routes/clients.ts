@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { body, param } from 'express-validator'
+import { body, param, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import clients from '../controllers/clients'
@@ -7,7 +7,21 @@ import clients from '../controllers/clients'
 const clientsRouter: Router = Router()
 const BASE_ROUTE = '/api/clients'
 
-clientsRouter.get(BASE_ROUTE, clients.getAll)
+clientsRouter.get(
+    BASE_ROUTE,
+    [
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 100 })
+            .withMessage('limit must be an integer between 1 and 100'),
+        query('offset')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('offset must be a non-negative integer')
+    ],
+    validateRequest,
+    clients.getAll
+)
 clientsRouter.get(
     `${BASE_ROUTE}/:id`,
     [param('id').isUUID().withMessage('Client ID must be a valid UUID')],
