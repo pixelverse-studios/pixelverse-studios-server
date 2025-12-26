@@ -1,7 +1,6 @@
 import { Request, Response } from 'express'
 
 import { db, Tables } from '../lib/db'
-import clients from './clients'
 import { handleGenericError } from '../utils/http'
 
 const getAll = async (req: Request, res: Response): Promise<Response> => {
@@ -16,16 +15,14 @@ const getAll = async (req: Request, res: Response): Promise<Response> => {
 
 const add = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { clientSlug } = req.params
+        const { clientId } = req.params
         const { firstName, lastName, email } = req.body
-
-        const clientId = await clients.getIdBySlug(clientSlug)
 
         const { data: existingUser, error: selectError } = await db
             .from(Tables.NEWSLETTER)
             .select('*')
             .eq('email', email)
-            .eq('client_id', clientId) // Optional if emails need to be unique per client
+            .eq('client_id', clientId)
             .single()
 
         if (selectError && selectError.code !== 'PGRST116') {
@@ -37,7 +34,6 @@ const add = async (req: Request, res: Response): Promise<Response> => {
                 status: 409,
                 message: 'Subscriber already exists'
             }
-            // res.status(409).json({ message: 'Subscriber already exists' })
         }
 
         const { error, data } = await db
