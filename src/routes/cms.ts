@@ -10,17 +10,17 @@ const BASE_ROUTE = '/api/cms'
 cmsRouter.get(BASE_ROUTE, cms.get)
 
 cmsRouter.get(
-    `${BASE_ROUTE}/:clientSlug`,
-    [param('clientSlug').exists().withMessage('slug is required')],
+    `${BASE_ROUTE}/client/:clientId`,
+    [param('clientId').isUUID().withMessage('clientId must be a valid UUID')],
     validateRequest,
-    cms.getById
+    cms.getByClientId
 )
 
 cmsRouter.get(
-    `${BASE_ROUTE}/:clientSlug/active`,
-    [param('clientSlug').exists().withMessage('slug is required')],
+    `${BASE_ROUTE}/client/:clientId/active`,
+    [param('clientId').isUUID().withMessage('clientId must be a valid UUID')],
     validateRequest,
-    cms.getActiveById
+    cms.getActiveByClientId
 )
 
 cmsRouter.post(

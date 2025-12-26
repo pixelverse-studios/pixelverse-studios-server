@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 
-import { COLUMNS, db, Tables } from '../lib/db'
+import { db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 
 const getAll = async (req: Request, res: Response): Promise<Response> => {
@@ -54,35 +54,37 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const getIdBySlug = async (slug: string) => {
+const getByEmail = async (email: string) => {
     try {
         const { data, error } = await db
             .from(Tables.CLIENTS)
-            .select()
-            .eq(COLUMNS.SLUG, slug)
+            .select('*')
+            .eq('email', email)
             .single()
 
         if (error) throw new Error(error.message)
-        return data.id
+        return data
     } catch (err) {
         throw err
     }
 }
 
 const add = async (req: Request, res: Response): Promise<Response> => {
-    const { active, client, client_slug, cms } = req.body
+    const { firstname, lastname, email, phone, active } = req.body
 
     try {
         const { data, error } = await db
             .from(Tables.CLIENTS)
             .insert({
-                client,
-                active,
-                client_slug,
-                updated_at: new Date(),
-                cms
+                firstname,
+                lastname,
+                email: email || null,
+                phone: phone || null,
+                active: active ?? true,
+                updated_at: new Date()
             })
             .select()
+            .single()
 
         if (error) {
             throw error
@@ -94,22 +96,40 @@ const add = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const test = false
+interface ClientUpdatePayload {
+    firstname?: string
+    lastname?: string
+    email?: string | null
+    phone?: string | null
+    active?: boolean
+    updated_at: Date
+}
 
 const edit = async (req: Request, res: Response): Promise<Response> => {
     const { id } = req.params
-    const { client, active } = req.body
+    const { firstname, lastname, email, phone, active } = req.body
 
     try {
-        const payload = {
+        const payload: ClientUpdatePayload = {
             updated_at: new Date()
-        } as { client?: string; active?: boolean; updated_at: Date }
-        if (client != undefined) {
-            payload.client = client
         }
-        if (active != undefined) {
+
+        if (firstname !== undefined) {
+            payload.firstname = firstname
+        }
+        if (lastname !== undefined) {
+            payload.lastname = lastname
+        }
+        if (email !== undefined) {
+            payload.email = email || null
+        }
+        if (phone !== undefined) {
+            payload.phone = phone || null
+        }
+        if (active !== undefined) {
             payload.active = active
         }
+
         const { data, error } = await db
             .from(Tables.CLIENTS)
             .update(payload)
@@ -125,7 +145,7 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
             throw error
         }
 
-        return res.status(201).json(data)
+        return res.status(200).json(data)
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -135,13 +155,13 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { id } = req.params
         const { data, error } = await db
-            .from('clients')
+            .from(Tables.CLIENTS)
             .delete()
             .eq('id', id)
             .select()
             .single()
 
-        if (!data || data.length === 0) {
+        if (!data) {
             return res.status(404).json({ error: 'Client not found' })
         }
 
@@ -152,4 +172,4 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, remove, edit, getAll, getById, getIdBySlug }
+export default { add, remove, edit, getAll, getById, getByEmail }

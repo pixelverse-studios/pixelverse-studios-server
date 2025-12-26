@@ -1,7 +1,6 @@
 import { Request, Response } from 'express'
 
 import { db, Tables, COLUMNS } from '../lib/db'
-import clients from './clients'
 import { handleGenericError } from '../utils/http'
 
 const get = async (req: Request, res: Response): Promise<Response> => {
@@ -17,11 +16,13 @@ const get = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const getById = async (req: Request, res: Response): Promise<Response> => {
+const getByClientId = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
     try {
-        const { clientSlug } = req.params
+        const { clientId } = req.params
 
-        const clientId = await clients.getIdBySlug(clientSlug)
         const { data, error } = await db
             .from(Tables.CMS)
             .select()
@@ -36,13 +37,12 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const getActiveById = async (
+const getActiveByClientId = async (
     req: Request,
     res: Response
 ): Promise<Response> => {
     try {
-        const { clientSlug } = req.params
-        const clientId = await clients.getIdBySlug(clientSlug)
+        const { clientId } = req.params
         const { data, error } = await db
             .from(Tables.CMS)
             .select()
@@ -116,4 +116,4 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { add, get, getById, getActiveById, edit, remove }
+export default { add, get, getByClientId, getActiveByClientId, edit, remove }

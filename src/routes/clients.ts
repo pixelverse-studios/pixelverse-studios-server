@@ -10,27 +10,33 @@ const BASE_ROUTE = '/api/clients'
 clientsRouter.get(BASE_ROUTE, clients.getAll)
 clientsRouter.get(
     `${BASE_ROUTE}/:id`,
-    [
-        param('id')
-            .isUUID()
-            .withMessage('Client ID must be a valid UUID')
-    ],
+    [param('id').isUUID().withMessage('Client ID must be a valid UUID')],
     validateRequest,
     clients.getById
 )
 clientsRouter.post(
     `${BASE_ROUTE}/new`,
     [
-        body('client')
+        body('firstname')
             .isString()
             .notEmpty()
-            .withMessage('"client" is required'),
-        body('client_slug')
+            .withMessage('"firstname" is required'),
+        body('lastname')
             .isString()
             .notEmpty()
-            .withMessage('"client slug" is required'),
-        body('active').isBoolean().withMessage('"active" is required'),
-        body('cms').isBoolean()
+            .withMessage('"lastname" is required'),
+        body('email')
+            .optional()
+            .isEmail()
+            .withMessage('"email" must be a valid email address'),
+        body('phone')
+            .optional()
+            .isString()
+            .withMessage('"phone" must be a string'),
+        body('active')
+            .optional()
+            .isBoolean()
+            .withMessage('"active" must be a boolean')
     ],
     validateRequest,
     clients.add
@@ -40,19 +46,40 @@ clientsRouter.patch(
     [
         param('id').isUUID().withMessage('Client ID must be a valid UUID'),
         body().custom((_, { req }) => {
-            if (!req.body.client && req.body.active === undefined) {
+            const { firstname, lastname, email, phone, active } = req.body
+            if (
+                firstname === undefined &&
+                lastname === undefined &&
+                email === undefined &&
+                phone === undefined &&
+                active === undefined
+            ) {
                 throw new Error(
-                    'At least one of "client" or "active" is required'
+                    'At least one field (firstname, lastname, email, phone, active) is required'
                 )
             }
             return true
         }),
-        body('client')
+        body('firstname')
             .optional()
             .isString()
-            .withMessage('client must be a string')
+            .withMessage('firstname must be a string')
             .notEmpty()
-            .withMessage('client cannot be empty'),
+            .withMessage('firstname cannot be empty'),
+        body('lastname')
+            .optional()
+            .isString()
+            .withMessage('lastname must be a string')
+            .notEmpty()
+            .withMessage('lastname cannot be empty'),
+        body('email')
+            .optional({ values: 'null' })
+            .isEmail()
+            .withMessage('email must be a valid email address'),
+        body('phone')
+            .optional({ values: 'null' })
+            .isString()
+            .withMessage('phone must be a string'),
         body('active')
             .optional()
             .isBoolean()
@@ -63,11 +90,7 @@ clientsRouter.patch(
 )
 clientsRouter.delete(
     `${BASE_ROUTE}/:id`,
-    [
-        param('id')
-            .isUUID()
-            .withMessage('Client ID must be a valid UUID')
-    ],
+    [param('id').isUUID().withMessage('Client ID must be a valid UUID')],
     validateRequest,
     clients.remove
 )

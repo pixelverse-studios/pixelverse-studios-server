@@ -9,12 +9,9 @@ const BASE_ROUTE = '/api/newsletter'
 
 newsletterRouter.get(BASE_ROUTE, newsletter.getAll)
 newsletterRouter.post(
-    `${BASE_ROUTE}/:clientSlug`,
+    `${BASE_ROUTE}/:clientId`,
     [
-        param('clientSlug')
-            .isString()
-            .notEmpty()
-            .withMessage('Client identifier is required'),
+        param('clientId').isUUID().withMessage('clientId must be a valid UUID'),
         body('firstName')
             .isString()
             .notEmpty()
@@ -22,7 +19,7 @@ newsletterRouter.post(
         body('lastName')
             .isString()
             .notEmpty()
-            .withMessage('First name is required'),
+            .withMessage('Last name is required'),
         body('email').isEmail().withMessage('Valid email is required')
     ],
     validateRequest,

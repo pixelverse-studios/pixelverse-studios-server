@@ -26,6 +26,5 @@ export const Tables = {
 export const COLUMNS = {
     CLIENT_ID: 'client_id',
     CONTACT_EMAIL: 'contact_email',
-    SLUG: 'client_slug',
     WEBSITE_SLUG: 'website_slug'
 }
