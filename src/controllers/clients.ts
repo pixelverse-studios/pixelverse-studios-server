@@ -5,13 +5,37 @@ import { handleGenericError } from '../utils/http'
 
 const getAll = async (req: Request, res: Response): Promise<Response> => {
     try {
+        const limit = Math.min(
+            Math.max(parseInt(req.query.limit as string) || 20, 1),
+            100
+        )
+        const offset = Math.max(parseInt(req.query.offset as string) || 0, 0)
+
+        // Get total count
+        const { count, error: countError } = await db
+            .from(Tables.CLIENT_WEBSITE_SUMMARY)
+            .select('*', { count: 'exact', head: true })
+
+        if (countError) {
+            throw countError
+        }
+
+        // Get paginated data
         const { data, error } = await db
             .from(Tables.CLIENT_WEBSITE_SUMMARY)
             .select('*')
+            .range(offset, offset + limit - 1)
+
         if (error) {
             throw error
         }
-        return res.status(200).json(data)
+
+        return res.status(200).json({
+            total: count ?? 0,
+            limit,
+            offset,
+            clients: data
+        })
     } catch (err) {
         return handleGenericError(err, res)
     }
