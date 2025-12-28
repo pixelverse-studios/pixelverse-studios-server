@@ -3,6 +3,7 @@ import { body, param } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import websites from '../controllers/websites'
+import { PROJECT_STATUSES } from '../lib/db'
 
 const websitesRouter: Router = Router()
 const BASE_ROUTE = '/api/websites'
@@ -111,6 +112,22 @@ websitesRouter.post(
     ],
     validateRequest,
     websites.create
+)
+
+websitesRouter.patch(
+    `${BASE_ROUTE}/:id/status`,
+    [
+        param('id').isUUID().withMessage('Website ID must be a valid UUID'),
+        body('status')
+            .isString()
+            .withMessage('status is required')
+            .isIn(PROJECT_STATUSES)
+            .withMessage(
+                `status must be one of: ${PROJECT_STATUSES.join(', ')}`
+            )
+    ],
+    validateRequest,
+    websites.updateStatus
 )
 
 export default websitesRouter

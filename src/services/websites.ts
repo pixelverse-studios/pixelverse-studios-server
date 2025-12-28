@@ -1,4 +1,4 @@
-import { COLUMNS, db, Tables } from '../lib/db'
+import { COLUMNS, db, Tables, ProjectStatus } from '../lib/db'
 
 const getWebsiteEmail = async (id: string) => {
     try {
@@ -55,6 +55,8 @@ interface WebsiteUpdatePayload {
     features?: string
     contact_email?: string
     seo_focus?: object
+    status?: ProjectStatus
+    priority?: number
 }
 
 interface WebsiteInsertPayload {
@@ -66,6 +68,8 @@ interface WebsiteInsertPayload {
     features?: string
     contact_email?: string
     seo_focus?: object
+    status?: ProjectStatus
+    priority?: number
 }
 
 const insert = async (payload: WebsiteInsertPayload) => {
@@ -118,6 +122,41 @@ const findBySlug = async (slug: string, excludeId?: string) => {
     return data
 }
 
+const findById = async (id: string) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .select('id')
+        .eq('id', id)
+        .maybeSingle()
+
+    if (error) throw error
+    return data
+}
+
+const updateStatus = async (id: string, status: ProjectStatus) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
+const updatePriority = async (id: string, priority: number) => {
+    const { data, error } = await db
+        .from(Tables.WEBSITES)
+        .update({ priority })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
 const websitesDB = {
     getWebsiteEmail,
     getWebsiteDetailsForEmail,
@@ -125,6 +164,9 @@ const websitesDB = {
     update,
     insert,
     findByDomain,
-    findBySlug
+    findBySlug,
+    findById,
+    updateStatus,
+    updatePriority
 }
 export default websitesDB
