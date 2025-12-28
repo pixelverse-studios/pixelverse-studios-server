@@ -17,11 +17,33 @@ export const Tables = {
     NEWSLETTER: 'newsletter',
     CONTACT_FORMS: 'contact_form_submissions',
     WEBSITES: 'websites',
+    APPS: 'apps',
     LEADS: 'leads',
     AUDIT_REQUESTS: 'audit_requests',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary'
 }
+
+// Valid project status values for websites and apps
+export const PROJECT_STATUSES = [
+    'lead',
+    'discovery',
+    'proposal',
+    'negotiation',
+    'won',
+    'lost',
+    'planning',
+    'development',
+    'review',
+    'qa',
+    'staging',
+    'deployed',
+    'maintenance',
+    'on_hold',
+    'archived'
+] as const
+
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
 export const COLUMNS = {
     CLIENT_ID: 'client_id',

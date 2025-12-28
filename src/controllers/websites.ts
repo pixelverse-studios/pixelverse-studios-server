@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator'
 import websitesDB from '../services/websites'
 import { findById as findClientById } from '../services/clients'
 import { handleGenericError } from '../utils/http'
+import { PROJECT_STATUSES, ProjectStatus } from '../lib/db'
 
 const updateSeoFocus = async (
     req: Request,
@@ -176,4 +177,31 @@ const create = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { updateSeoFocus, edit, create }
+const updateStatus = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { id } = req.params
+        const { status } = req.body
+
+        // Validate status value
+        if (!PROJECT_STATUSES.includes(status)) {
+            return res.status(400).json({
+                error: 'Invalid status',
+                message: `Status must be one of: ${PROJECT_STATUSES.join(', ')}`
+            })
+        }
+
+        // Check if website exists
+        const existing = await websitesDB.findById(id)
+        if (!existing) {
+            return res.status(404).json({ error: 'Website not found' })
+        }
+
+        const data = await websitesDB.updateStatus(id, status as ProjectStatus)
+
+        return res.status(200).json(data)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+export default { updateSeoFocus, edit, create, updateStatus }

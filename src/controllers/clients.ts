@@ -45,7 +45,7 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { id } = req.params
 
-        // Fetch client data with related websites
+        // Fetch client data with related websites and apps
         const { data: clientData, error: clientError } = await db
             .from(Tables.CLIENTS)
             .select(
@@ -57,7 +57,21 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
                     website_slug,
                     domain,
                     type,
-                    seo_focus
+                    seo_focus,
+                    status,
+                    priority
+                ),
+                apps (
+                    id,
+                    name,
+                    app_slug,
+                    description,
+                    repository_url,
+                    tech_stack,
+                    contact_email,
+                    active,
+                    status,
+                    priority
                 )
             `
             )
