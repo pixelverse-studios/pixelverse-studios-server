@@ -46,7 +46,9 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
             type,
             features,
             contact_email,
-            seo_focus
+            seo_focus,
+            status,
+            priority
         } = req.body
 
         // Check for duplicate domain (excluding current website)
@@ -80,6 +82,8 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
             features?: string
             contact_email?: string
             seo_focus?: object
+            status?: ProjectStatus
+            priority?: number
         } = {}
 
         if (title !== undefined) payload.title = title
@@ -89,6 +93,8 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
         if (features !== undefined) payload.features = features
         if (contact_email !== undefined) payload.contact_email = contact_email
         if (seo_focus !== undefined) payload.seo_focus = seo_focus
+        if (status !== undefined) payload.status = status
+        if (priority !== undefined) payload.priority = priority
 
         const data = await websitesDB.update(id, payload)
 
