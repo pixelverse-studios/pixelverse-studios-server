@@ -13,7 +13,8 @@ const create = async (req: Request, res: Response): Promise<Response> => {
             return res.status(400).json({ errors: errors.array() })
         }
 
-        const { website_id, changed_urls, deploy_summary, internal_notes } = req.body
+        const { website_id, changed_urls, deploy_summary, internal_notes } =
+            req.body
 
         // 1. Verify website exists
         const { data: website, error: websiteError } = await db
@@ -40,7 +41,9 @@ const create = async (req: Request, res: Response): Promise<Response> => {
                 await sendDeploymentEmail({
                     to: website.contact_email,
                     websiteTitle: website.title,
-                    deploymentDate: new Date(deployment.created_at).toLocaleDateString(),
+                    deploymentDate: new Date(
+                        deployment.created_at
+                    ).toLocaleDateString(),
                     summaryMarkdown: deploy_summary
                 })
                 console.log(
@@ -62,10 +65,7 @@ const create = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-const getByWebsite = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
+const getByWebsite = async (req: Request, res: Response): Promise<Response> => {
     try {
         const errors = validationResult(req)
         if (!errors.isEmpty()) {
@@ -152,7 +152,10 @@ const updateDeploymentStatus = async (
         }
 
         // Update deployment status
-        const updated = await deploymentsService.updateDeploymentStatus(id, status)
+        const updated = await deploymentsService.updateDeploymentStatus(
+            id,
+            status
+        )
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -185,7 +188,11 @@ const updateUrlStatus = async (
         }
 
         // Update URL status
-        const updated = await deploymentsService.updateUrlStatus(id, url, status)
+        const updated = await deploymentsService.updateUrlStatus(
+            id,
+            url,
+            status
+        )
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -218,7 +225,11 @@ const updateUrlsBatch = async (
         }
 
         // Batch update URL statuses
-        const updated = await deploymentsService.updateUrlsBatchStatus(id, urls, status)
+        const updated = await deploymentsService.updateUrlsBatchStatus(
+            id,
+            urls,
+            status
+        )
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -226,10 +237,7 @@ const updateUrlsBatch = async (
     }
 }
 
-const getUnindexed = async (
-    req: Request,
-    res: Response
-): Promise<Response> => {
+const getUnindexed = async (req: Request, res: Response): Promise<Response> => {
     try {
         const limit = parseInt(req.query.limit as string) || 50
 
@@ -265,7 +273,10 @@ const markAsIndexed = async (
         }
 
         // Mark all URLs as indexed
-        const updated = await deploymentsService.updateDeploymentStatus(id, 'indexed')
+        const updated = await deploymentsService.updateDeploymentStatus(
+            id,
+            'indexed'
+        )
 
         return res.status(200).json(updated)
     } catch (err) {
@@ -293,7 +304,11 @@ const markUrlAsIndexed = async (
         }
 
         // Mark specific URL as indexed
-        const updated = await deploymentsService.updateUrlStatus(id, url, 'indexed')
+        const updated = await deploymentsService.updateUrlStatus(
+            id,
+            url,
+            'indexed'
+        )
 
         return res.status(200).json(updated)
     } catch (err) {

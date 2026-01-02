@@ -76,7 +76,10 @@ export const generateAuditRequestEmail = ({
 }: AuditRequestEmailProps) => {
     const details = [
         { label: 'Name', value: escapeHtml(name) },
-        { label: 'Email', value: `<a href="mailto:${escapeHtml(email)}" style="color:#7c3aed;">${escapeHtml(email)}</a>` },
+        {
+            label: 'Email',
+            value: `<a href="mailto:${escapeHtml(email)}" style="color:#7c3aed;">${escapeHtml(email)}</a>`
+        },
         {
             label: 'Website URL',
             value: `<a href="${escapeHtml(websiteUrl)}" style="color:#7c3aed;">${escapeHtml(websiteUrl)}</a>`
@@ -143,7 +146,9 @@ const markdownToHtml = (markdown: string): string => {
         })
         .join('')
 
-    return htmlItems ? `<ul style="padding-left:20px;margin:16px 0;">${htmlItems}</ul>` : ''
+    return htmlItems
+        ? `<ul style="padding-left:20px;margin:16px 0;">${htmlItems}</ul>`
+        : ''
 }
 
 export const generateDeploymentEmailHtml = ({

@@ -65,7 +65,9 @@ const sendAuditAlertToDiscord = async (
 
     if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`Discord webhook failed (${response.status}): ${errorText}`)
+        throw new Error(
+            `Discord webhook failed (${response.status}): ${errorText}`
+        )
     }
 }
 
@@ -88,7 +90,11 @@ const createAuditRequest = async (
 
         return res
             .status(201)
-            .json({ id: record.id, status: record.status, created_at: record.created_at })
+            .json({
+                id: record.id,
+                status: record.status,
+                created_at: record.created_at
+            })
     } catch (err) {
         return handleGenericError(err, res)
     }

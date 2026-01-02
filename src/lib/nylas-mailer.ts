@@ -13,7 +13,7 @@ function markdownToHtml(markdown: string): string {
         .join('<br>')
 
     // Wrap consecutive list items in ul tags
-    html = html.replace(/(<li>.*?<\/li>(<br>)?)+/g, (match) => {
+    html = html.replace(/(<li>.*?<\/li>(<br>)?)+/g, match => {
         return '<ul>' + match.replace(/<br>/g, '') + '</ul>'
     })
 
