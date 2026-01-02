@@ -21,9 +21,7 @@ router.post(
         body('changed_urls')
             .isArray({ min: 1 })
             .withMessage('changed_urls must be a non-empty array'),
-        body('changed_urls.*')
-            .isURL()
-            .withMessage('Each URL must be valid'),
+        body('changed_urls.*').isURL().withMessage('Each URL must be valid'),
         body('deploy_summary')
             .isString()
             .notEmpty()
@@ -117,9 +115,7 @@ router.patch(
         body('urls')
             .isArray({ min: 1 })
             .withMessage('urls must be a non-empty array'),
-        body('urls.*')
-            .isURL()
-            .withMessage('Each URL must be valid'),
+        body('urls.*').isURL().withMessage('Each URL must be valid'),
         statusValidator
     ],
     validateRequest,

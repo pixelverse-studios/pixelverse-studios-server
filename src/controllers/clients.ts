@@ -108,7 +108,7 @@ const getByEmail = async (email: string) => {
 }
 
 const add = async (req: Request, res: Response): Promise<Response> => {
-    const { firstname, lastname, email, phone, active } = req.body
+    const { firstname, lastname, company_name, email, phone, active } = req.body
 
     try {
         const { data, error } = await db
@@ -116,6 +116,7 @@ const add = async (req: Request, res: Response): Promise<Response> => {
             .insert({
                 firstname,
                 lastname,
+                company_name: company_name || null,
                 email: email || null,
                 phone: phone || null,
                 active: active ?? true,
@@ -137,6 +138,7 @@ const add = async (req: Request, res: Response): Promise<Response> => {
 interface ClientUpdatePayload {
     firstname?: string
     lastname?: string
+    company_name?: string | null
     email?: string | null
     phone?: string | null
     active?: boolean
@@ -145,7 +147,7 @@ interface ClientUpdatePayload {
 
 const edit = async (req: Request, res: Response): Promise<Response> => {
     const { id } = req.params
-    const { firstname, lastname, email, phone, active } = req.body
+    const { firstname, lastname, company_name, email, phone, active } = req.body
 
     try {
         const payload: ClientUpdatePayload = {
@@ -157,6 +159,9 @@ const edit = async (req: Request, res: Response): Promise<Response> => {
         }
         if (lastname !== undefined) {
             payload.lastname = lastname
+        }
+        if (company_name !== undefined) {
+            payload.company_name = company_name || null
         }
         if (email !== undefined) {
             payload.email = email || null

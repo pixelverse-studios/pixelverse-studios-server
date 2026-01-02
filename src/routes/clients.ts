@@ -39,6 +39,10 @@ clientsRouter.post(
             .isString()
             .notEmpty()
             .withMessage('"lastname" is required'),
+        body('company_name')
+            .optional()
+            .isString()
+            .withMessage('"company_name" must be a string'),
         body('email')
             .optional()
             .isEmail()
@@ -60,16 +64,18 @@ clientsRouter.patch(
     [
         param('id').isUUID().withMessage('Client ID must be a valid UUID'),
         body().custom((_, { req }) => {
-            const { firstname, lastname, email, phone, active } = req.body
+            const { firstname, lastname, company_name, email, phone, active } =
+                req.body
             if (
                 firstname === undefined &&
                 lastname === undefined &&
+                company_name === undefined &&
                 email === undefined &&
                 phone === undefined &&
                 active === undefined
             ) {
                 throw new Error(
-                    'At least one field (firstname, lastname, email, phone, active) is required'
+                    'At least one field (firstname, lastname, company_name, email, phone, active) is required'
                 )
             }
             return true
@@ -86,6 +92,10 @@ clientsRouter.patch(
             .withMessage('lastname must be a string')
             .notEmpty()
             .withMessage('lastname cannot be empty'),
+        body('company_name')
+            .optional({ values: 'null' })
+            .isString()
+            .withMessage('company_name must be a string'),
         body('email')
             .optional({ values: 'null' })
             .isEmail()

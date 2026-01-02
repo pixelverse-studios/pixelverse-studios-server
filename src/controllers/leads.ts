@@ -264,8 +264,8 @@ const buildLeadHtml = (lead: LeadRecord): string => {
             <body style="margin:0;padding:0;background:${
                 BRAND.surface
             };font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:${
-        BRAND.text
-    };">
+                BRAND.text
+            };">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;background:${
                     BRAND.surface
                 };">
@@ -274,8 +274,8 @@ const buildLeadHtml = (lead: LeadRecord): string => {
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="pvs-card" style="max-width:640px;background:${
                                 BRAND.background
                             };border:1px solid ${
-        BRAND.border
-    };border-radius:20px;overflow:hidden;box-shadow:${BRAND.shadow};">
+                                BRAND.border
+                            };border-radius:20px;overflow:hidden;box-shadow:${BRAND.shadow};">
                                 <tr>
                                     <td style="padding:36px 28px;background:${
                                         BRAND.gradient
@@ -321,8 +321,8 @@ const buildLeadHtml = (lead: LeadRecord): string => {
                                         <div class="pvs-summary" style="margin-top:24px;padding:20px;border:1px solid ${
                                             BRAND.border
                                         };border-radius:12px;background:${
-        BRAND.surface
-    };">
+                                            BRAND.surface
+                                        };">
                                             <h2 style="margin:0 0 12px;font-size:18px;color:${
                                                 BRAND.text
                                             };">Project Summary</h2>

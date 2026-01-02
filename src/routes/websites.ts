@@ -30,7 +30,9 @@ websitesRouter.patch(
                 type,
                 features,
                 contact_email,
-                seo_focus
+                seo_focus,
+                status,
+                priority
             } = req.body
             if (
                 title === undefined &&
@@ -39,7 +41,9 @@ websitesRouter.patch(
                 type === undefined &&
                 features === undefined &&
                 contact_email === undefined &&
-                seo_focus === undefined
+                seo_focus === undefined &&
+                status === undefined &&
+                priority === undefined
             ) {
                 throw new Error('At least one field is required')
             }
@@ -73,7 +77,19 @@ websitesRouter.patch(
         body('seo_focus')
             .optional()
             .isObject()
-            .withMessage('seo_focus must be an object')
+            .withMessage('seo_focus must be an object'),
+        body('status')
+            .optional()
+            .isString()
+            .withMessage('status must be a string')
+            .isIn(PROJECT_STATUSES)
+            .withMessage(
+                `status must be one of: ${PROJECT_STATUSES.join(', ')}`
+            ),
+        body('priority')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('priority must be a non-negative integer')
     ],
     validateRequest,
     websites.edit

@@ -15,9 +15,7 @@ export const handleGenericError = (err: any, res: Response) => {
     }
     // Custom error handling
     const status =
-        typeof err?.status === 'number' && err.status >= 400
-            ? err.status
-            : 500
+        typeof err?.status === 'number' && err.status >= 400 ? err.status : 500
     const message =
         typeof err?.message === 'string' && err.message.length > 0
             ? err.message
