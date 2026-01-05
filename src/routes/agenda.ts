@@ -48,6 +48,21 @@ router.get(
     agenda.list
 )
 
+// PATCH /api/agenda/reorder - Bulk reorder items (must be before :id routes)
+router.patch(
+    '/api/agenda/reorder',
+    [
+        body('item_ids')
+            .isArray({ min: 1 })
+            .withMessage('item_ids must be a non-empty array'),
+        body('item_ids.*')
+            .isUUID()
+            .withMessage('each item_id must be a valid UUID')
+    ],
+    validateRequest,
+    agenda.reorder
+)
+
 // GET /api/agenda/:id - Get a single agenda item by ID
 router.get(
     '/api/agenda/:id',
