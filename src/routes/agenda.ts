@@ -80,4 +80,36 @@ router.post(
     agenda.create
 )
 
+// PATCH /api/agenda/:id - Update item details (not status or priority)
+router.patch(
+    '/api/agenda/:id',
+    [
+        param('id').isUUID().withMessage('id must be a valid UUID'),
+        body('name')
+            .optional()
+            .isString()
+            .notEmpty()
+            .withMessage('name must be a non-empty string'),
+        body('description')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('description must be a string'),
+        body('category')
+            .optional({ nullable: true })
+            .isIn([...validCategories, null])
+            .withMessage(
+                `category must be one of: ${validCategories.join(', ')} or null`
+            ),
+        body('due_date')
+            .optional({ nullable: true })
+            .custom((value) => {
+                if (value === null) return true
+                return /^\d{4}-\d{2}-\d{2}$/.test(value)
+            })
+            .withMessage('due_date must be in YYYY-MM-DD format or null')
+    ],
+    validateRequest,
+    agenda.update
+)
+
 export default router
