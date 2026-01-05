@@ -130,9 +130,37 @@ const update = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * PATCH /api/agenda/:id/status
+ * Update an agenda item's workflow status
+ * Sets completed_at when status = 'completed', clears it otherwise
+ */
+const updateStatus = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const { status } = req.body
+
+        const item = await agendaService.updateStatus(id, status)
+
+        if (!item) {
+            return res.status(404).json({ message: 'Agenda item not found' })
+        }
+
+        return res.status(200).json(item)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
     getOne,
     create,
-    update
+    update,
+    updateStatus
 }
