@@ -98,8 +98,41 @@ const create = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * PATCH /api/agenda/:id
+ * Update an agenda item's details (name, description, category, due_date)
+ * Does NOT update status or priority
+ */
+const update = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const { name, description, category, due_date } = req.body
+
+        const item = await agendaService.update(id, {
+            name,
+            description,
+            category,
+            due_date
+        })
+
+        if (!item) {
+            return res.status(404).json({ message: 'Agenda item not found' })
+        }
+
+        return res.status(200).json(item)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
     getOne,
-    create
+    create,
+    update
 }

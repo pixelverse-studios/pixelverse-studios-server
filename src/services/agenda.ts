@@ -138,10 +138,63 @@ const create = async (payload: CreatePayload): Promise<AgendaItem> => {
     return data as AgendaItem
 }
 
+interface UpdatePayload {
+    name?: string
+    description?: string | null
+    category?: string | null
+    due_date?: string | null
+}
+
+/**
+ * Update an agenda item's details
+ * - Does NOT update status or priority (use separate endpoints)
+ * - Send null to clear nullable fields
+ * - Updates updated_at timestamp
+ */
+const update = async (
+    id: string,
+    payload: UpdatePayload
+): Promise<AgendaItem | null> => {
+    // Build update object with only provided fields
+    const updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString()
+    }
+
+    if (payload.name !== undefined) {
+        updateData.name = payload.name
+    }
+    if (payload.description !== undefined) {
+        updateData.description = payload.description
+    }
+    if (payload.category !== undefined) {
+        updateData.category = payload.category
+    }
+    if (payload.due_date !== undefined) {
+        updateData.due_date = payload.due_date
+    }
+
+    const { data, error } = await db
+        .from(Tables.AGENDA_ITEMS)
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) {
+        if (error.code === 'PGRST116') {
+            return null
+        }
+        throw error
+    }
+
+    return data as AgendaItem
+}
+
 export default {
     getAll,
     getById,
-    create
+    create,
+    update
 }
 
 // Export types for use in controller
