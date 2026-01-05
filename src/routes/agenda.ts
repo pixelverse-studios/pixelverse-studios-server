@@ -158,4 +158,12 @@ router.patch(
     agenda.updatePriority
 )
 
+// DELETE /api/agenda/:id - Remove an agenda item
+router.delete(
+    '/api/agenda/:id',
+    [param('id').isUUID().withMessage('id must be a valid UUID')],
+    validateRequest,
+    agenda.remove
+)
+
 export default router
