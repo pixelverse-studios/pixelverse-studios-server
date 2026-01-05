@@ -72,7 +72,34 @@ const getOne = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * POST /api/agenda/new
+ * Create a new agenda item
+ */
+const create = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { name, description, category, due_date } = req.body
+
+        const item = await agendaService.create({
+            name,
+            description,
+            category,
+            due_date
+        })
+
+        return res.status(201).json(item)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
-    getOne
+    getOne,
+    create
 }
