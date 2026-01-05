@@ -48,6 +48,31 @@ const list = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * GET /api/agenda/:id
+ * Get a single agenda item by ID
+ */
+const getOne = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const item = await agendaService.getById(id)
+
+        if (!item) {
+            return res.status(404).json({ message: 'Agenda item not found' })
+        }
+
+        return res.status(200).json(item)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
-    list
+    list,
+    getOne
 }
