@@ -183,11 +183,33 @@ const updatePriority = async (req: Request, res: Response): Promise<Response> =>
     }
 }
 
+/**
+ * PATCH /api/agenda/reorder
+ * Bulk reorder agenda items by assigning priorities based on array index
+ */
+const reorder = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { item_ids } = req.body
+
+        const result = await agendaService.reorder(item_ids)
+
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
     getOne,
     create,
     update,
     updateStatus,
-    updatePriority
+    updatePriority,
+    reorder
 }

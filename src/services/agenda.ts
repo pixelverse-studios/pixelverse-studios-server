@@ -254,13 +254,58 @@ const updatePriority = async (
     return data as AgendaItem
 }
 
+interface ReorderResult {
+    updated: number
+    items: AgendaItem[]
+}
+
+/**
+ * Bulk reorder agenda items by assigning priorities based on array index
+ * - Index 0 = priority 0 (highest), index 1 = priority 1, etc.
+ * - Updates updated_at for all affected items
+ * - Handles partial updates gracefully (skips non-existent IDs)
+ */
+const reorder = async (itemIds: string[]): Promise<ReorderResult> => {
+    const now = new Date().toISOString()
+    const updatedItems: AgendaItem[] = []
+
+    // Update each item's priority based on its index in the array
+    for (let i = 0; i < itemIds.length; i++) {
+        const { data, error } = await db
+            .from(Tables.AGENDA_ITEMS)
+            .update({
+                priority: i,
+                updated_at: now
+            })
+            .eq('id', itemIds[i])
+            .select()
+            .single()
+
+        // Skip items that don't exist (graceful partial update)
+        if (error) {
+            if (error.code === 'PGRST116') {
+                continue
+            }
+            throw error
+        }
+
+        updatedItems.push(data as AgendaItem)
+    }
+
+    return {
+        updated: updatedItems.length,
+        items: updatedItems
+    }
+}
+
 export default {
     getAll,
     getById,
     create,
     update,
     updateStatus,
-    updatePriority
+    updatePriority,
+    reorder
 }
 
 // Export types for use in controller
