@@ -298,6 +298,22 @@ const reorder = async (itemIds: string[]): Promise<ReorderResult> => {
     }
 }
 
+/**
+ * Delete an agenda item (hard delete)
+ * @param id UUID of the agenda item
+ * @returns true if deleted, false if not found
+ */
+const deleteItem = async (id: string): Promise<boolean> => {
+    const { error, count } = await db
+        .from(Tables.AGENDA_ITEMS)
+        .delete({ count: 'exact' })
+        .eq('id', id)
+
+    if (error) throw error
+
+    return (count ?? 0) > 0
+}
+
 export default {
     getAll,
     getById,
@@ -305,7 +321,8 @@ export default {
     update,
     updateStatus,
     updatePriority,
-    reorder
+    reorder,
+    delete: deleteItem
 }
 
 // Export types for use in controller

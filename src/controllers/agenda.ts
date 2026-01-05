@@ -204,6 +204,31 @@ const reorder = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * DELETE /api/agenda/:id
+ * Remove an agenda item (hard delete)
+ */
+const remove = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+
+        const deleted = await agendaService.delete(id)
+
+        if (!deleted) {
+            return res.status(404).json({ message: 'Agenda item not found' })
+        }
+
+        return res.status(200).json({ success: true })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
     getOne,
@@ -211,5 +236,6 @@ export default {
     update,
     updateStatus,
     updatePriority,
-    reorder
+    reorder,
+    remove
 }
