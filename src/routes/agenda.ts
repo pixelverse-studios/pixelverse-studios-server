@@ -130,4 +130,17 @@ router.patch(
     agenda.updateStatus
 )
 
+// PATCH /api/agenda/:id/priority - Update item priority
+router.patch(
+    '/api/agenda/:id/priority',
+    [
+        param('id').isUUID().withMessage('id must be a valid UUID'),
+        body('priority')
+            .isInt({ min: 0 })
+            .withMessage('priority must be an integer >= 0')
+    ],
+    validateRequest,
+    agenda.updatePriority
+)
+
 export default router

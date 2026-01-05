@@ -157,10 +157,37 @@ const updateStatus = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * PATCH /api/agenda/:id/priority
+ * Update an agenda item's priority
+ */
+const updatePriority = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { id } = req.params
+        const { priority } = req.body
+
+        const item = await agendaService.updatePriority(id, priority)
+
+        if (!item) {
+            return res.status(404).json({ message: 'Agenda item not found' })
+        }
+
+        return res.status(200).json(item)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     list,
     getOne,
     create,
     update,
-    updateStatus
+    updateStatus,
+    updatePriority
 }
