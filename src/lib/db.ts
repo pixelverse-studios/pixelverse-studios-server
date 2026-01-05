@@ -21,7 +21,8 @@ export const Tables = {
     LEADS: 'leads',
     AUDIT_REQUESTS: 'audit_requests',
     DEPLOYMENTS: 'website_deployments',
-    CLIENT_WEBSITE_SUMMARY: 'client_website_summary'
+    CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
+    AGENDA_ITEMS: 'agenda_items'
 }
 
 // Valid project status values for websites and apps
