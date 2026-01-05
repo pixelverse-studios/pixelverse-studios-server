@@ -225,12 +225,42 @@ const updateStatus = async (
     return data as AgendaItem
 }
 
+/**
+ * Update an agenda item's priority
+ * - priority must be >= 0 (0 = highest priority)
+ * - Updates updated_at timestamp
+ */
+const updatePriority = async (
+    id: string,
+    priority: number
+): Promise<AgendaItem | null> => {
+    const { data, error } = await db
+        .from(Tables.AGENDA_ITEMS)
+        .update({
+            priority,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) {
+        if (error.code === 'PGRST116') {
+            return null
+        }
+        throw error
+    }
+
+    return data as AgendaItem
+}
+
 export default {
     getAll,
     getById,
     create,
     update,
-    updateStatus
+    updateStatus,
+    updatePriority
 }
 
 // Export types for use in controller
