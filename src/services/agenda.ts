@@ -80,8 +80,32 @@ const getAll = async (options: GetAllOptions = {}): Promise<GetAllResult> => {
     }
 }
 
+/**
+ * Get a single agenda item by ID
+ * @param id UUID of the agenda item
+ * @returns AgendaItem or null if not found
+ */
+const getById = async (id: string): Promise<AgendaItem | null> => {
+    const { data, error } = await db
+        .from(Tables.AGENDA_ITEMS)
+        .select('*')
+        .eq('id', id)
+        .single()
+
+    // Handle "no rows returned" as null, not an error
+    if (error) {
+        if (error.code === 'PGRST116') {
+            return null
+        }
+        throw error
+    }
+
+    return data as AgendaItem
+}
+
 export default {
-    getAll
+    getAll,
+    getById
 }
 
 // Export types for use in controller

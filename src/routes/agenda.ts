@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query } from 'express-validator'
+import { param, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import agenda from '../controllers/agenda'
@@ -43,6 +43,14 @@ router.get(
     ],
     validateRequest,
     agenda.list
+)
+
+// GET /api/agenda/:id - Get a single agenda item by ID
+router.get(
+    '/api/agenda/:id',
+    [param('id').isUUID().withMessage('id must be a valid UUID')],
+    validateRequest,
+    agenda.getOne
 )
 
 export default router
