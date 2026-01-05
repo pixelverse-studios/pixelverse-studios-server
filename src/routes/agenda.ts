@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { param, query } from 'express-validator'
+import { body, param, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import agenda from '../controllers/agenda'
@@ -51,6 +51,33 @@ router.get(
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     validateRequest,
     agenda.getOne
+)
+
+// POST /api/agenda/new - Create a new agenda item
+router.post(
+    '/api/agenda/new',
+    [
+        body('name')
+            .isString()
+            .notEmpty()
+            .withMessage('name is required'),
+        body('description')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('description must be a string'),
+        body('category')
+            .optional({ nullable: true })
+            .isIn(validCategories)
+            .withMessage(
+                `category must be one of: ${validCategories.join(', ')}`
+            ),
+        body('due_date')
+            .optional({ nullable: true })
+            .matches(/^\d{4}-\d{2}-\d{2}$/)
+            .withMessage('due_date must be in YYYY-MM-DD format')
+    ],
+    validateRequest,
+    agenda.create
 )
 
 export default router
