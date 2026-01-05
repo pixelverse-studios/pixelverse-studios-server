@@ -13,7 +13,16 @@ const validStatuses = ['pending', 'in_progress', 'completed', 'active']
 const validStatusUpdates = ['pending', 'in_progress', 'completed']
 
 // Valid category values
-const validCategories = ['development', 'design', 'marketing', 'admin', 'client']
+const validCategories = [
+    'development',
+    'design',
+    'marketing',
+    'admin',
+    'client'
+]
+
+// Max length for description field (supports rich HTML content)
+const MAX_DESCRIPTION_LENGTH = 50000
 
 // GET /api/agenda - List agenda items with filtering and pagination
 router.get(
@@ -22,9 +31,7 @@ router.get(
         query('status')
             .optional()
             .isIn(validStatuses)
-            .withMessage(
-                `status must be one of: ${validStatuses.join(', ')}`
-            ),
+            .withMessage(`status must be one of: ${validStatuses.join(', ')}`),
         query('category')
             .optional()
             .isIn(validCategories)
@@ -75,14 +82,14 @@ router.get(
 router.post(
     '/api/agenda/new',
     [
-        body('name')
-            .isString()
-            .notEmpty()
-            .withMessage('name is required'),
+        body('name').isString().notEmpty().withMessage('name is required'),
         body('description')
             .optional({ nullable: true })
             .isString()
-            .withMessage('description must be a string'),
+            .isLength({ max: MAX_DESCRIPTION_LENGTH })
+            .withMessage(
+                `description must be ${MAX_DESCRIPTION_LENGTH} characters or less`
+            ),
         body('category')
             .optional({ nullable: true })
             .isIn(validCategories)
@@ -111,7 +118,10 @@ router.patch(
         body('description')
             .optional({ nullable: true })
             .isString()
-            .withMessage('description must be a string'),
+            .isLength({ max: MAX_DESCRIPTION_LENGTH })
+            .withMessage(
+                `description must be ${MAX_DESCRIPTION_LENGTH} characters or less`
+            ),
         body('category')
             .optional({ nullable: true })
             .isIn([...validCategories, null])
@@ -120,7 +130,7 @@ router.patch(
             ),
         body('due_date')
             .optional({ nullable: true })
-            .custom((value) => {
+            .custom(value => {
                 if (value === null) return true
                 return /^\d{4}-\d{2}-\d{2}$/.test(value)
             })
