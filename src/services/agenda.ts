@@ -190,11 +190,47 @@ const update = async (
     return data as AgendaItem
 }
 
+/**
+ * Update an agenda item's status
+ * - If status = 'completed': sets completed_at to now
+ * - If status ≠ 'completed': clears completed_at
+ * - Always updates updated_at timestamp
+ */
+const updateStatus = async (
+    id: string,
+    status: AgendaStatus
+): Promise<AgendaItem | null> => {
+    const now = new Date().toISOString()
+
+    const updateData: Record<string, unknown> = {
+        status,
+        updated_at: now,
+        completed_at: status === 'completed' ? now : null
+    }
+
+    const { data, error } = await db
+        .from(Tables.AGENDA_ITEMS)
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) {
+        if (error.code === 'PGRST116') {
+            return null
+        }
+        throw error
+    }
+
+    return data as AgendaItem
+}
+
 export default {
     getAll,
     getById,
     create,
-    update
+    update,
+    updateStatus
 }
 
 // Export types for use in controller

@@ -6,8 +6,11 @@ import agenda from '../controllers/agenda'
 
 const router = Router()
 
-// Valid status values for filtering
+// Valid status values for filtering (includes 'active' pseudo-status)
 const validStatuses = ['pending', 'in_progress', 'completed', 'active']
+
+// Valid status values for updating (actual database values only)
+const validStatusUpdates = ['pending', 'in_progress', 'completed']
 
 // Valid category values
 const validCategories = ['development', 'design', 'marketing', 'admin', 'client']
@@ -110,6 +113,21 @@ router.patch(
     ],
     validateRequest,
     agenda.update
+)
+
+// PATCH /api/agenda/:id/status - Update item workflow status
+router.patch(
+    '/api/agenda/:id/status',
+    [
+        param('id').isUUID().withMessage('id must be a valid UUID'),
+        body('status')
+            .isIn(validStatusUpdates)
+            .withMessage(
+                `status must be one of: ${validStatusUpdates.join(', ')}`
+            )
+    ],
+    validateRequest,
+    agenda.updateStatus
 )
 
 export default router
