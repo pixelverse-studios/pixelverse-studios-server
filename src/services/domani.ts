@@ -87,10 +87,7 @@ export interface SupportQueryOptions extends PaginationOptions {
     platform?: Platform
 }
 
-export interface WaitlistQueryOptions extends PaginationOptions {
-    status?: string
-    confirmed?: boolean
-}
+export interface WaitlistQueryOptions extends PaginationOptions {}
 
 export interface UsersQueryOptions extends PaginationOptions {
     tier?: UserTier
@@ -197,31 +194,21 @@ const getSupportRequests = async (
 const getWaitlist = async (
     options: WaitlistQueryOptions = {}
 ): Promise<PaginatedResult<WaitlistEntry>> => {
-    const { limit = 50, offset = 0, status, confirmed } = options
+    const { limit = 50, offset = 0 } = options
 
     // Get total count
-    let countQuery = domaniDb
+    const { count, error: countError } = await domaniDb
         .from(DomaniTables.WAITLIST)
         .select('*', { count: 'exact', head: true })
-
-    if (status) countQuery = countQuery.eq('status', status)
-    if (confirmed !== undefined) countQuery = countQuery.eq('confirmed', confirmed)
-
-    const { count, error: countError } = await countQuery
 
     if (countError) throw countError
 
     // Get paginated data
-    let dataQuery = domaniDb
+    const { data, error } = await domaniDb
         .from(DomaniTables.WAITLIST)
         .select('*')
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
-
-    if (status) dataQuery = dataQuery.eq('status', status)
-    if (confirmed !== undefined) dataQuery = dataQuery.eq('confirmed', confirmed)
-
-    const { data, error } = await dataQuery
 
     if (error) throw error
 
