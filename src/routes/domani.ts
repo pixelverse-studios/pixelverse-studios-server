@@ -64,14 +64,7 @@ router.get(
 // GET /api/domani/waitlist - List waitlist entries
 router.get(
     '/api/domani/waitlist',
-    [
-        query('status').optional().isString(),
-        query('confirmed')
-            .optional()
-            .isIn(['true', 'false'])
-            .withMessage('confirmed must be "true" or "false"'),
-        ...paginationValidators
-    ],
+    [...paginationValidators],
     validateRequest,
     domani.listWaitlist
 )

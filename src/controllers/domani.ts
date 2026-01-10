@@ -101,11 +101,9 @@ const listSupportRequests = async (
 
 /**
  * GET /api/domani/waitlist
- * List waitlist entries with filtering and pagination
+ * List waitlist entries with pagination
  *
  * Query params:
- * - status: filter by status (e.g., 'pending', 'invited')
- * - confirmed: 'true' | 'false' to filter by confirmation status
  * - limit: max items (default 50, max 100)
  * - offset: pagination offset (default 0)
  */
@@ -116,20 +114,10 @@ const listWaitlist = async (req: Request, res: Response): Promise<Response> => {
             return res.status(400).json({ errors: errors.array() })
         }
 
-        const status = req.query.status as string | undefined
-        const confirmedParam = req.query.confirmed as string | undefined
-        const confirmed =
-            confirmedParam === 'true'
-                ? true
-                : confirmedParam === 'false'
-                  ? false
-                  : undefined
         const limit = Math.min(parseInt(req.query.limit as string) || 50, 100)
         const offset = parseInt(req.query.offset as string) || 0
 
         const result = await domaniService.getWaitlist({
-            status,
-            confirmed,
             limit,
             offset
         })
