@@ -13,6 +13,7 @@ import websitesRouter from './routes/websites'
 import appsRouter from './routes/apps'
 import projectsRouter from './routes/projects'
 import agendaRouter from './routes/agenda'
+import domaniRouter from './routes/domani'
 
 import 'dotenv/config'
 
@@ -35,6 +36,7 @@ app.use(websitesRouter)
 app.use(appsRouter)
 app.use(projectsRouter)
 app.use(agendaRouter)
+app.use(domaniRouter)
 
 // Error handling middleware
 app.use(

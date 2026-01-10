@@ -1014,9 +1014,13 @@ const BRAND = {
 
 ### Required Environment Variables
 ```bash
-# Supabase
+# Supabase (PVS Dashboard)
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=xxx
+
+# Supabase (Domani App) - Read-only access for dashboard visibility
+DOMANI_SUPABASE_URL=https://exxnnlhxcjujxnnwwrxv.supabase.co
+DOMANI_SUPABASE_SERVICE_KEY=xxx
 
 # Gmail (OAuth2)
 SMTP_HOST=smtp.gmail.com
