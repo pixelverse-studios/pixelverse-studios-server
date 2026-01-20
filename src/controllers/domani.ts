@@ -9,6 +9,10 @@ import {
     UserTier,
     SignupCohort
 } from '../lib/domani-db'
+import {
+    sendBetaLaunchEmails,
+    BetaLaunchRecipient
+} from '../lib/nylas-mailer'
 
 /**
  * GET /api/domani/feedback
@@ -176,9 +180,114 @@ const listUsers = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
+/**
+ * POST /api/domani/waitlist/unsubscribe
+ * Unsubscribe from waitlist (soft delete by setting status to 'unsubscribed')
+ *
+ * Body:
+ * - email: string (required, valid email)
+ */
+const unsubscribe = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { email } = req.body
+        const result = await domaniService.unsubscribeFromWaitlist(email)
+
+        if (!result) {
+            return res.status(404).json({ error: 'Email not found in waitlist' })
+        }
+
+        return res.status(200).json({
+            message: 'Successfully unsubscribed from waitlist',
+            email: result.email
+        })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * POST /api/domani/users/unsubscribe
+ * Unsubscribe a user (soft delete by setting deleted_at timestamp)
+ *
+ * Body:
+ * - email: string (required, valid email)
+ */
+const unsubscribeUser = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { email } = req.body
+        const result = await domaniService.unsubscribeUser(email)
+
+        if (!result) {
+            return res.status(404).json({
+                error: 'User not found or already unsubscribed'
+            })
+        }
+
+        return res.status(200).json({
+            message: 'Successfully unsubscribed user',
+            email: result.email
+        })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * POST /api/domani/beta-launch/send
+ * Send beta launch emails to a list of recipients
+ *
+ * Body:
+ * - recipients: Array of { email: string, name?: string }
+ * - iosLink: string (App Store URL)
+ * - androidLink: string (Play Store URL)
+ * - delayBetweenEmails?: number (ms, default 500)
+ */
+const sendBetaLaunchEmailBlast = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { recipients, iosLink, androidLink, delayBetweenEmails } = req.body
+
+        const result = await sendBetaLaunchEmails(
+            recipients as BetaLaunchRecipient[],
+            {
+                iosLink,
+                androidLink,
+                delayBetweenEmails
+            }
+        )
+
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     listFeedback,
     listSupportRequests,
     listWaitlist,
-    listUsers
+    listUsers,
+    unsubscribe,
+    unsubscribeUser,
+    sendBetaLaunchEmailBlast
 }

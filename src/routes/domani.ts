@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query } from 'express-validator'
+import { body, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import domani from '../controllers/domani'
@@ -67,6 +67,47 @@ router.get(
     [...paginationValidators],
     validateRequest,
     domani.listWaitlist
+)
+
+// POST /api/domani/waitlist/unsubscribe - Unsubscribe from waitlist
+router.post(
+    '/api/domani/waitlist/unsubscribe',
+    [body('email').isEmail().withMessage('Valid email is required')],
+    validateRequest,
+    domani.unsubscribe
+)
+
+// POST /api/domani/users/unsubscribe - Unsubscribe a user (soft delete)
+router.post(
+    '/api/domani/users/unsubscribe',
+    [body('email').isEmail().withMessage('Valid email is required')],
+    validateRequest,
+    domani.unsubscribeUser
+)
+
+// POST /api/domani/beta-launch/send - Send beta launch emails
+router.post(
+    '/api/domani/beta-launch/send',
+    [
+        body('recipients')
+            .isArray({ min: 1 })
+            .withMessage('recipients must be a non-empty array'),
+        body('recipients.*.email')
+            .isEmail()
+            .withMessage('Each recipient must have a valid email'),
+        body('recipients.*.name')
+            .optional()
+            .isString()
+            .withMessage('Recipient name must be a string'),
+        body('iosLink').isURL().withMessage('iosLink must be a valid URL'),
+        body('androidLink').isURL().withMessage('androidLink must be a valid URL'),
+        body('delayBetweenEmails')
+            .optional()
+            .isInt({ min: 0, max: 10000 })
+            .withMessage('delayBetweenEmails must be between 0 and 10000ms')
+    ],
+    validateRequest,
+    domani.sendBetaLaunchEmailBlast
 )
 
 // GET /api/domani/users - List user profiles

@@ -218,6 +218,43 @@ const getWaitlist = async (
     }
 }
 
+const unsubscribeFromWaitlist = async (
+    email: string
+): Promise<WaitlistEntry | null> => {
+    const { data, error } = await domaniDb
+        .from(DomaniTables.WAITLIST)
+        .update({ status: 'unsubscribed' })
+        .eq('email', email.toLowerCase())
+        .select()
+        .single()
+
+    if (error) {
+        // PGRST116 = no rows found
+        if (error.code === 'PGRST116') return null
+        throw error
+    }
+
+    return data as WaitlistEntry
+}
+
+const unsubscribeUser = async (email: string): Promise<UserProfile | null> => {
+    const { data, error } = await domaniDb
+        .from(DomaniTables.PROFILES)
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('email', email.toLowerCase())
+        .is('deleted_at', null)
+        .select()
+        .single()
+
+    if (error) {
+        // PGRST116 = no rows found
+        if (error.code === 'PGRST116') return null
+        throw error
+    }
+
+    return data as UserProfile
+}
+
 // ============================================================================
 // User Profiles Service
 // ============================================================================
@@ -271,5 +308,7 @@ export default {
     getFeedback,
     getSupportRequests,
     getWaitlist,
+    unsubscribeFromWaitlist,
+    unsubscribeUser,
     getUsers
 }
