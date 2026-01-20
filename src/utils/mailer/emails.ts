@@ -234,3 +234,170 @@ export const generateDeploymentEmailText = ({
         .filter(Boolean)
         .join('\n')
 }
+
+// ============================================================================
+// Domani Beta Launch Email
+// ============================================================================
+
+interface DomaniBetaLaunchEmailParams {
+    recipientName?: string | null
+    iosLink: string
+    androidLink: string
+}
+
+export const DOMANI_BETA_SUBJECT = "You're in! Domani is ready for you"
+
+export const generateDomaniBetaLaunchEmailHtml = ({
+    recipientName,
+    iosLink,
+    androidLink
+}: DomaniBetaLaunchEmailParams): string => {
+    const greeting = recipientName ? `Hey ${escapeHtml(recipientName)},` : 'Hey there,'
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domani Public Beta</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f8f9fa;">
+        <tr>
+            <td style="padding:40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);padding:40px 32px;text-align:center;">
+                            <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Domani</h1>
+                            <p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:16px;">Plan tomorrow, tonight.</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding:40px 32px;">
+                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">${greeting}</p>
+
+                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">You signed up for Domani a while back, and we haven't forgotten about you.</p>
+
+                            <p style="margin:0 0 28px;color:#1f2937;font-size:16px;line-height:1.7;">Today, we're excited to invite you to join our <strong>public beta</strong>.</p>
+
+                            <!-- What is Domani -->
+                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">What is Domani?</h2>
+
+                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">Domani is a simple idea: <strong>plan tomorrow, tonight</strong>. Instead of waking up scattered, you spend a few minutes each evening deciding what actually matters for the next day. Then you wake up with clarity and just... do the things.</p>
+
+                            <p style="margin:0 0 28px;color:#1f2937;font-size:16px;line-height:1.7;">No complex project management. No overwhelming feature lists. Just a focused way to plan your day and actually follow through.</p>
+
+                            <!-- Why you're getting this -->
+                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">Why you're getting this email</h2>
+
+                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">You believed in us early — before the app even existed. That means something.</p>
+
+                            <!-- Special Offer Box -->
+                            <div style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1px solid #86efac;border-radius:12px;padding:24px;margin:0 0 28px;">
+                                <p style="margin:0 0 12px;color:#166534;font-size:16px;line-height:1.6;">So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at <strong style="font-size:18px;">$9.99</strong> instead of the regular <span style="text-decoration:line-through;">$34.99</span>.</p>
+                                <p style="margin:0;color:#166534;font-size:14px;">That's a one-time purchase, yours forever.</p>
+                            </div>
+
+                            <p style="margin:0 0 32px;color:#1f2937;font-size:16px;line-height:1.7;">For now, the beta is <strong>completely free</strong>. Download it, try it out, and let us know what you think.</p>
+
+                            <!-- CTA Buttons -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 32px;">
+                                <tr>
+                                    <td align="center" style="padding:0 0 12px;">
+                                        <a href="${escapeHtml(iosLink)}" style="display:inline-block;background:#000000;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;">
+                                            Download for iOS
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center">
+                                        <a href="${escapeHtml(androidLink)}" style="display:inline-block;background:#1f2937;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;">
+                                            Download for Android
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- One Ask -->
+                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">One ask</h2>
+
+                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">This is a beta, which means we're still polishing things. If something feels off or you have ideas, tap the <strong>Feedback</strong> tab at the bottom of the app. We read everything.</p>
+
+                            <p style="margin:0;color:#1f2937;font-size:16px;line-height:1.7;">Thanks for being here from the start.</p>
+
+                            <p style="margin:32px 0 0;color:#6b7280;font-size:15px;">— The Domani Team</p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#f9fafb;padding:24px 32px;text-align:center;border-top:1px solid #e5e7eb;">
+                            <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;">Made with care by the Domani team</p>
+                            <p style="margin:0;color:#9ca3af;font-size:12px;">
+                                <a href="https://domaniapp.com" style="color:#6366f1;text-decoration:none;">domaniapp.com</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`
+}
+
+export const generateDomaniBetaLaunchEmailText = ({
+    recipientName,
+    iosLink,
+    androidLink
+}: DomaniBetaLaunchEmailParams): string => {
+    const greeting = recipientName ? `Hey ${recipientName},` : 'Hey there,'
+
+    return `${greeting}
+
+You signed up for Domani a while back, and we haven't forgotten about you.
+
+Today, we're excited to invite you to join our public beta.
+
+---
+
+WHAT IS DOMANI?
+
+Domani is a simple idea: plan tomorrow, tonight. Instead of waking up scattered, you spend a few minutes each evening deciding what actually matters for the next day. Then you wake up with clarity and just... do the things.
+
+No complex project management. No overwhelming feature lists. Just a focused way to plan your day and actually follow through.
+
+---
+
+WHY YOU'RE GETTING THIS EMAIL
+
+You believed in us early — before the app even existed. That means something.
+
+So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at $9.99 instead of the regular $34.99. That's a one-time purchase, yours forever.
+
+For now, the beta is completely free. Download it, try it out, and let us know what you think.
+
+---
+
+GET THE APP
+
+iOS: ${iosLink}
+Android: ${androidLink}
+
+---
+
+ONE ASK
+
+This is a beta, which means we're still polishing things. If something feels off or you have ideas, tap the Feedback tab at the bottom of the app. We read everything.
+
+Thanks for being here from the start.
+
+— The Domani Team
+
+---
+domaniapp.com`
+}
