@@ -202,12 +202,14 @@ async function sendBetaLaunchEmailToRecipient(
 ): Promise<BetaLaunchResult> {
     try {
         const html = generateDomaniBetaLaunchEmailHtml({
+            recipientEmail: recipient.email,
             recipientName: recipient.name,
             iosLink: config.iosLink,
             androidLink: config.androidLink
         })
 
         const text = generateDomaniBetaLaunchEmailText({
+            recipientEmail: recipient.email,
             recipientName: recipient.name,
             iosLink: config.iosLink,
             androidLink: config.androidLink
