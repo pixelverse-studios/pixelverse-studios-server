@@ -40,36 +40,36 @@ const VALID_PACKAGE_IDS = [
 
 type PackageId = (typeof VALID_PACKAGE_IDS)[number]
 
-// Display names for packages with emojis and prices
+// Display names for packages with prices
 const PACKAGE_DISPLAY_NAMES: Record<PackageId, string> = {
     // Website Packages
-    'core-lite': '🖥️ Core Lite ($500 + $49/mo)',
-    'core-starter': '🖥️ Core Starter ($2k + $79/mo)',
-    'core-growth': '🖥️ Core Growth ($4k + $179/mo)',
-    'core-premium': '🖥️ Core Premium (Custom)',
+    'core-lite': 'Core Lite ($500 + $49/mo)',
+    'core-starter': 'Core Starter ($2k + $79/mo)',
+    'core-growth': 'Core Growth ($4k + $179/mo)',
+    'core-premium': 'Core Premium (Custom)',
     // SEO Packages
-    'seo-starter': '🔍 SEO Starter ($150 + $349/mo)',
-    'seo-growth': '🔍 SEO Growth ($300 + $649/mo)',
-    'seo-premium': '🔍 SEO Premium ($500 + $1,149/mo)',
+    'seo-starter': 'SEO Starter ($150 + $349/mo)',
+    'seo-growth': 'SEO Growth ($300 + $649/mo)',
+    'seo-premium': 'SEO Premium ($500 + $1,149/mo)',
     // Development Add-ons
-    'additional-page-basic': '➕ Additional Page – Basic ($150)',
-    'additional-page-service': '➕ Additional Page – Service ($200)',
-    'feature-integration': '➕ Feature Integration ($500)',
+    'additional-page-basic': 'Additional Page – Basic ($150)',
+    'additional-page-service': 'Additional Page – Service ($200)',
+    'feature-integration': 'Feature Integration ($500)',
     // SEO Add-ons
-    'blog-post': '📝 Blog Post ($75)',
-    'citation-submission': '📍 Citation Submission ($150)',
-    'city-page': '🏙️ City Page ($200)',
-    'competitor-analysis': '🔎 Competitor Analysis ($750)',
-    'content-mapping': '🗺️ Content Mapping ($350)',
-    'county-page': '🗺️ County Page ($350)',
-    'gbp-management': '📍 GBP Management ($300)',
-    'hub-page': '🔗 Hub Page ($350)',
-    'keyword-research': '🔑 Keyword Research ($250)',
-    'monthly-seo-report': '📊 Monthly SEO Report ($249)',
-    'seo-page-audit': '🔍 SEO Page Audit ($75)',
-    'service-page': '📄 Service Page ($250)',
+    'blog-post': 'Blog Post ($75)',
+    'citation-submission': 'Citation Submission ($150)',
+    'city-page': 'City Page ($200)',
+    'competitor-analysis': 'Competitor Analysis ($750)',
+    'content-mapping': 'Content Mapping ($350)',
+    'county-page': 'County Page ($350)',
+    'gbp-management': 'GBP Management ($300)',
+    'hub-page': 'Hub Page ($350)',
+    'keyword-research': 'Keyword Research ($250)',
+    'monthly-seo-report': 'Monthly SEO Report ($249)',
+    'seo-page-audit': 'SEO Page Audit ($75)',
+    'service-page': 'Service Page ($250)',
     // UX/UI Add-ons
-    'page-audit': '🎨 Page Audit ($75)',
+    'page-audit': 'Page Audit ($75)',
 }
 
 const getPackageDisplayName = (id: string): string =>
