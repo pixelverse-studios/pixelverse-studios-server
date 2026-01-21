@@ -6,6 +6,75 @@ import { z, ZodError } from 'zod'
 
 import { handleGenericError } from '../utils/http'
 
+// Valid package and add-on IDs for the interestedIn field
+const VALID_PACKAGE_IDS = [
+    // Website Packages
+    'core-lite',
+    'core-starter',
+    'core-growth',
+    'core-premium',
+    // SEO Packages
+    'seo-starter',
+    'seo-growth',
+    'seo-premium',
+    // Development Add-ons
+    'additional-page-basic',
+    'additional-page-service',
+    'feature-integration',
+    // SEO Add-ons
+    'blog-post',
+    'citation-submission',
+    'city-page',
+    'competitor-analysis',
+    'content-mapping',
+    'county-page',
+    'gbp-management',
+    'hub-page',
+    'keyword-research',
+    'monthly-seo-report',
+    'seo-page-audit',
+    'service-page',
+    // UX/UI Add-ons
+    'page-audit',
+] as const
+
+type PackageId = (typeof VALID_PACKAGE_IDS)[number]
+
+// Display names for packages with prices
+const PACKAGE_DISPLAY_NAMES: Record<PackageId, string> = {
+    // Website Packages
+    'core-lite': 'Core Lite ($500 + $49/mo)',
+    'core-starter': 'Core Starter ($2k + $79/mo)',
+    'core-growth': 'Core Growth ($4k + $179/mo)',
+    'core-premium': 'Core Premium (Custom)',
+    // SEO Packages
+    'seo-starter': 'SEO Starter ($150 + $349/mo)',
+    'seo-growth': 'SEO Growth ($300 + $649/mo)',
+    'seo-premium': 'SEO Premium ($500 + $1,149/mo)',
+    // Development Add-ons
+    'additional-page-basic': 'Additional Page – Basic ($150)',
+    'additional-page-service': 'Additional Page – Service ($200)',
+    'feature-integration': 'Feature Integration ($500)',
+    // SEO Add-ons
+    'blog-post': 'Blog Post ($75)',
+    'citation-submission': 'Citation Submission ($150)',
+    'city-page': 'City Page ($200)',
+    'competitor-analysis': 'Competitor Analysis ($750)',
+    'content-mapping': 'Content Mapping ($350)',
+    'county-page': 'County Page ($350)',
+    'gbp-management': 'GBP Management ($300)',
+    'hub-page': 'Hub Page ($350)',
+    'keyword-research': 'Keyword Research ($250)',
+    'monthly-seo-report': 'Monthly SEO Report ($249)',
+    'seo-page-audit': 'SEO Page Audit ($75)',
+    'service-page': 'Service Page ($250)',
+    // UX/UI Add-ons
+    'page-audit': 'Page Audit ($75)',
+}
+
+const getPackageDisplayName = (id: string): string =>
+    PACKAGE_DISPLAY_NAMES[id as PackageId] ?? id
+
 const leadSchema = z.object({
     name: z.string().min(1).max(100),
     email: z.string().email(),
@@ -13,7 +82,8 @@ const leadSchema = z.object({
     timeline: z.enum(['ASAP', '1-2mo', '3-6mo', '6+mo', 'unsure']),
     briefSummary: z.string().min(10).max(2000),
     hasSeenPackages: z.boolean(),
-    honeypot: z.string().length(0)
+    honeypot: z.string().length(0),
+    interestedIn: z.array(z.enum(VALID_PACKAGE_IDS)).optional().default([]),
 })
 
 const DEFAULT_NOTIFY_TO = 'ops@pixelversestudios.io'
@@ -30,6 +100,7 @@ type LeadRecord = {
     timeline: string
     brief_summary: string
     has_seen_packages: boolean
+    interested_in: string[]
     user_agent: string | null
     ip: string | null
     acknowledged: boolean
@@ -161,6 +232,7 @@ const insertLeadViaRest = async (
                 timeline: payload.timeline,
                 brief_summary: payload.brief_summary,
                 has_seen_packages: payload.has_seen_packages,
+                interested_in: payload.interested_in,
                 user_agent: payload.user_agent,
                 ip: payload.ip,
                 acknowledged: payload.acknowledged
@@ -330,6 +402,31 @@ const buildLeadHtml = (lead: LeadRecord): string => {
                                                 BRAND.text
                                             };">${summary}</p>
                                         </div>
+                                        ${
+                                            lead.interested_in.length > 0
+                                                ? `
+                                        <div class="pvs-packages" style="margin-top:24px;padding:20px;border:1px solid ${
+                                            BRAND.border
+                                        };border-radius:12px;background:${
+                                            BRAND.surface
+                                        };">
+                                            <h2 style="margin:0 0 12px;font-size:18px;color:${
+                                                BRAND.text
+                                            };">Interested In</h2>
+                                            <ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:1.8;color:${
+                                                BRAND.text
+                                            };">
+                                                ${lead.interested_in
+                                                    .map(
+                                                        id =>
+                                                            `<li>${escapeHtml(getPackageDisplayName(id))}</li>`
+                                                    )
+                                                    .join('')}
+                                            </ul>
+                                        </div>
+                                        `
+                                                : ''
+                                        }
                                         <div class="pvs-meta" style="margin-top:24px;padding-top:20px;border-top:1px solid ${
                                             BRAND.border
                                         };">
@@ -383,6 +480,17 @@ const buildLeadHtml = (lead: LeadRecord): string => {
 
 const buildLeadText = (lead: LeadRecord): string => {
     const hasSeenPackages = lead.has_seen_packages ? 'Yes' : 'No'
+    const interestedInSection =
+        lead.interested_in.length > 0
+            ? [
+                  '',
+                  'Interested In:',
+                  ...lead.interested_in.map(
+                      id => `  • ${getPackageDisplayName(id)}`
+                  ),
+              ]
+            : []
+
     return [
         'PixelVerse Studios — New Lead Submission',
         '',
@@ -394,6 +502,7 @@ const buildLeadText = (lead: LeadRecord): string => {
         '',
         'Project Summary:',
         lead.brief_summary,
+        ...interestedInSection,
         '',
         `Lead ID: ${lead.id}`,
         `Submitted At: ${lead.created_at}`,
@@ -560,6 +669,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             timeline: parsed.timeline,
             brief_summary: parsed.briefSummary,
             has_seen_packages: parsed.hasSeenPackages,
+            interested_in: parsed.interestedIn,
             user_agent: userAgent,
             ip,
             acknowledged: false
