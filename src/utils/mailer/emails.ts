@@ -240,6 +240,7 @@ export const generateDeploymentEmailText = ({
 // ============================================================================
 
 interface DomaniBetaLaunchEmailParams {
+    recipientEmail: string
     recipientName?: string | null
     iosLink: string
     androidLink: string
@@ -248,11 +249,13 @@ interface DomaniBetaLaunchEmailParams {
 export const DOMANI_BETA_SUBJECT = "You're in! Domani is ready for you"
 
 export const generateDomaniBetaLaunchEmailHtml = ({
+    recipientEmail,
     recipientName,
     iosLink,
     androidLink
 }: DomaniBetaLaunchEmailParams): string => {
     const greeting = recipientName ? `Hey ${escapeHtml(recipientName)},` : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/waitlist/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
 
     return `
 <!DOCTYPE html>
@@ -296,28 +299,48 @@ export const generateDomaniBetaLaunchEmailHtml = ({
 
                             <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">You believed in us early — before the app even existed. That means something.</p>
 
-                            <!-- Special Offer Box -->
-                            <div style="background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1px solid #86efac;border-radius:12px;padding:24px;margin:0 0 28px;">
-                                <p style="margin:0 0 12px;color:#166534;font-size:16px;line-height:1.6;">So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at <strong style="font-size:18px;">$9.99</strong> instead of the regular <span style="text-decoration:line-through;">$34.99</span>.</p>
-                                <p style="margin:0;color:#166534;font-size:14px;">That's a one-time purchase, yours forever.</p>
-                            </div>
+                            <!-- Special Offer Box - Table-based for Gmail compatibility -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
+                                <tr>
+                                    <td bgcolor="#ecfdf5" style="background-color:#ecfdf5;border:2px solid #86efac;border-radius:12px;padding:24px;">
+                                        <p style="margin:0 0 12px;color:#000000;font-size:16px;line-height:1.6;"><span style="color:#000000;">So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at </span><strong style="font-size:18px;color:#000000;">$9.99</strong><span style="color:#000000;"> instead of the regular </span><span style="text-decoration:line-through;color:#000000;">$34.99</span><span style="color:#000000;">.</span></p>
+                                        <p style="margin:0;color:#000000;font-size:14px;"><span style="color:#000000;">That's a one-time purchase, yours forever.</span></p>
+                                    </td>
+                                </tr>
+                            </table>
 
                             <p style="margin:0 0 32px;color:#1f2937;font-size:16px;line-height:1.7;">For now, the beta is <strong>completely free</strong>. Download it, try it out, and let us know what you think.</p>
 
-                            <!-- CTA Buttons -->
+                            <!-- CTA Buttons - Bulletproof for light/dark mode -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 32px;">
                                 <tr>
                                     <td align="center" style="padding:0 0 12px;">
-                                        <a href="${escapeHtml(iosLink)}" style="display:inline-block;background:#000000;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;">
+                                        <!--[if mso]>
+                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(iosLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#6366f1" strokeweight="2px" fillcolor="#6366f1">
+                                        <w:anchorlock/>
+                                        <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for iOS</center>
+                                        </v:roundrect>
+                                        <![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="${escapeHtml(iosLink)}" style="display:inline-block;background-color:#6366f1;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #6366f1;mso-hide:all;">
                                             Download for iOS
                                         </a>
+                                        <!--<![endif]-->
                                     </td>
                                 </tr>
                                 <tr>
                                     <td align="center">
-                                        <a href="${escapeHtml(androidLink)}" style="display:inline-block;background:#1f2937;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;">
+                                        <!--[if mso]>
+                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(androidLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#6366f1" strokeweight="2px" fillcolor="#ffffff">
+                                        <w:anchorlock/>
+                                        <center style="color:#6366f1;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for Android</center>
+                                        </v:roundrect>
+                                        <![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a href="${escapeHtml(androidLink)}" style="display:inline-block;background-color:#ffffff;color:#6366f1;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #6366f1;mso-hide:all;">
                                             Download for Android
                                         </a>
+                                        <!--<![endif]-->
                                     </td>
                                 </tr>
                             </table>
@@ -337,8 +360,11 @@ export const generateDomaniBetaLaunchEmailHtml = ({
                     <tr>
                         <td style="background-color:#f9fafb;padding:24px 32px;text-align:center;border-top:1px solid #e5e7eb;">
                             <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;">Made with care by the Domani team</p>
-                            <p style="margin:0;color:#9ca3af;font-size:12px;">
-                                <a href="https://domaniapp.com" style="color:#6366f1;text-decoration:none;">domaniapp.com</a>
+                            <p style="margin:0 0 12px;color:#9ca3af;font-size:12px;">
+                                <a href="https://domani-app.com" style="color:#6366f1;text-decoration:none;">domani-app.com</a>
+                            </p>
+                            <p style="margin:0;color:#9ca3af;font-size:11px;">
+                                <a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a>
                             </p>
                         </td>
                     </tr>
@@ -351,11 +377,13 @@ export const generateDomaniBetaLaunchEmailHtml = ({
 }
 
 export const generateDomaniBetaLaunchEmailText = ({
+    recipientEmail,
     recipientName,
     iosLink,
     androidLink
 }: DomaniBetaLaunchEmailParams): string => {
     const greeting = recipientName ? `Hey ${recipientName},` : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/waitlist/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
 
     return `${greeting}
 
@@ -399,5 +427,7 @@ Thanks for being here from the start.
 — The Domani Team
 
 ---
-domaniapp.com`
+domani-app.com
+
+Unsubscribe: ${unsubscribeUrl}`
 }
