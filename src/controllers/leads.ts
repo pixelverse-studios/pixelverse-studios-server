@@ -9,10 +9,10 @@ import { handleGenericError } from '../utils/http'
 // Valid package and add-on IDs for the interestedIn field
 const VALID_PACKAGE_IDS = [
     // Website Packages
-    'core-lite',
-    'core-starter',
-    'core-growth',
-    'core-premium',
+    'lite',
+    'starter',
+    'growth',
+    'premium',
     // SEO Packages
     'seo-starter',
     'seo-growth',
@@ -43,10 +43,10 @@ type PackageId = (typeof VALID_PACKAGE_IDS)[number]
 // Display names for packages with prices
 const PACKAGE_DISPLAY_NAMES: Record<PackageId, string> = {
     // Website Packages
-    'core-lite': 'Core Lite ($500 + $49/mo)',
-    'core-starter': 'Core Starter ($2k + $79/mo)',
-    'core-growth': 'Core Growth ($4k + $179/mo)',
-    'core-premium': 'Core Premium (Custom)',
+    'lite': 'Web Lite ($500 + $49/mo)',
+    'starter': 'Web Starter ($2k + $79/mo)',
+    'growth': 'Web Growth ($4k + $179/mo)',
+    'premium': 'Web Premium (Custom)',
     // SEO Packages
     'seo-starter': 'SEO Starter ($150 + $349/mo)',
     'seo-growth': 'SEO Growth ($300 + $649/mo)',
