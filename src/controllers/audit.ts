@@ -15,7 +15,7 @@ const auditSchema = z.object({
         .union([z.string(), z.array(z.string())])
         .optional()
         .transform((v) => (Array.isArray(v) ? v.join(', ') : v)),
-    honeypot: z.string().max(0).optional(),
+    honeypot: z.string().optional(),
 })
 
 const DISCORD_USERNAME = 'PixelVerse Audit Alerts'

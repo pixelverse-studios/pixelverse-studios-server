@@ -17,7 +17,7 @@ export interface AuditRequestRecord {
     phone_number: string | null
     specifics: string | null
     status: string
-    prospect_id: string
+    prospect_id: string | null
     created_at: string
     updated_at: string
 }
