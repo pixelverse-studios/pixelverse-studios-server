@@ -12,17 +12,32 @@ CREATE TABLE public.prospects (
     id          uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
     email       text        NOT NULL,
     name        text        NOT NULL,
-    source      text        NOT NULL,       -- 'details_form' | 'review_request' | 'calendly_call'
-    status      text        NOT NULL DEFAULT 'new',  -- 'new' | 'contacted' | 'qualified' | 'closed'
+    source      text        NOT NULL,
+    status      text        NOT NULL DEFAULT 'new',
     notes       text,
     created_at  timestamptz NOT NULL DEFAULT timezone('utc', now()),
     updated_at  timestamptz NOT NULL DEFAULT timezone('utc', now()),
-    CONSTRAINT prospects_email_unique UNIQUE (email)
+    CONSTRAINT prospects_email_unique  UNIQUE (email),
+    CONSTRAINT prospects_source_check  CHECK (source IN ('details_form', 'review_request', 'calendly_call')),
+    CONSTRAINT prospects_status_check  CHECK (status IN ('new', 'contacted', 'qualified', 'closed'))
 );
 
 CREATE INDEX prospects_source_idx     ON public.prospects (source);
 CREATE INDEX prospects_status_idx     ON public.prospects (status);
 CREATE INDEX prospects_created_at_idx ON public.prospects (created_at DESC);
+
+-- Auto-update updated_at on row changes
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at = timezone('utc', now());
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER prospects_set_updated_at
+BEFORE UPDATE ON public.prospects
+FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ============================================================
 -- Table: lead_submissions
@@ -33,12 +48,14 @@ CREATE TABLE public.lead_submissions (
     prospect_id      uuid        NOT NULL REFERENCES public.prospects(id) ON DELETE CASCADE,
     company_name     text        NOT NULL,
     phone            text,
-    budget           text        NOT NULL,   -- '<1k' | '1-3k' | '3-6k' | '6-10k' | '10k+'
-    timeline         text        NOT NULL,   -- 'ASAP' | '1-2mo' | '3-6mo' | '6+mo' | 'unsure'
+    budget           text        NOT NULL,
+    timeline         text        NOT NULL,
     current_website  text,
     improvements     text[]      NOT NULL,
     brief_summary    text,
-    created_at       timestamptz NOT NULL DEFAULT timezone('utc', now())
+    created_at       timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT lead_submissions_budget_check   CHECK (budget   IN ('<1k', '1-3k', '3-6k', '6-10k', '10k+')),
+    CONSTRAINT lead_submissions_timeline_check CHECK (timeline IN ('ASAP', '1-2mo', '3-6mo', '6+mo', 'unsure'))
 );
 
 CREATE INDEX lead_submissions_prospect_id_idx ON public.lead_submissions (prospect_id);
@@ -90,10 +107,26 @@ SELECT
     p.notes,
     p.created_at,
     p.updated_at,
-    (SELECT COUNT(*) FROM public.lead_submissions ls  WHERE ls.prospect_id = p.id) AS lead_submission_count,
-    (SELECT COUNT(*) FROM public.audit_requests ar    WHERE ar.prospect_id = p.id) AS audit_request_count,
-    (SELECT COUNT(*) FROM public.calendly_bookings cb WHERE cb.prospect_id = p.id) AS calendly_booking_count
+    COALESCE(ls.cnt,  0) AS lead_submission_count,
+    COALESCE(ar.cnt,  0) AS audit_request_count,
+    COALESCE(cb.cnt,  0) AS calendly_booking_count
 FROM public.prospects p
+LEFT JOIN (
+    SELECT prospect_id, COUNT(*) AS cnt
+    FROM public.lead_submissions
+    GROUP BY prospect_id
+) ls ON ls.prospect_id = p.id
+LEFT JOIN (
+    SELECT prospect_id, COUNT(*) AS cnt
+    FROM public.audit_requests
+    WHERE prospect_id IS NOT NULL
+    GROUP BY prospect_id
+) ar ON ar.prospect_id = p.id
+LEFT JOIN (
+    SELECT prospect_id, COUNT(*) AS cnt
+    FROM public.calendly_bookings
+    GROUP BY prospect_id
+) cb ON cb.prospect_id = p.id
 ORDER BY p.created_at DESC;
 
 -- ============================================================
