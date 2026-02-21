@@ -22,6 +22,7 @@ export const Tables = {
     AUDIT_REQUESTS: 'audit_requests',
     PROSPECTS: 'prospects',
     LEAD_SUBMISSIONS: 'lead_submissions',
+    CALENDLY_BOOKINGS: 'calendly_bookings',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
     AGENDA_ITEMS: 'agenda_items'
@@ -51,5 +52,6 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 export const COLUMNS = {
     CLIENT_ID: 'client_id',
     CONTACT_EMAIL: 'contact_email',
-    WEBSITE_SLUG: 'website_slug'
+    WEBSITE_SLUG: 'website_slug',
+    CALENDLY_EVENT_URI: 'calendly_event_uri',
 }
