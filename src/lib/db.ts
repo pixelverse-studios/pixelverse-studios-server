@@ -20,6 +20,7 @@ export const Tables = {
     APPS: 'apps',
     LEADS: 'leads',
     AUDIT_REQUESTS: 'audit_requests',
+    PROSPECTS: 'prospects',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
     AGENDA_ITEMS: 'agenda_items'
