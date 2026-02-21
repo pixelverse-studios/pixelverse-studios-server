@@ -25,7 +25,8 @@ export const Tables = {
     CALENDLY_BOOKINGS: 'calendly_bookings',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
-    AGENDA_ITEMS: 'agenda_items'
+    AGENDA_ITEMS: 'agenda_items',
+    V_PROSPECTS_ALL: 'v_prospects_all',
 }
 
 // Valid project status values for websites and apps
@@ -54,4 +55,6 @@ export const COLUMNS = {
     CONTACT_EMAIL: 'contact_email',
     WEBSITE_SLUG: 'website_slug',
     CALENDLY_EVENT_URI: 'calendly_event_uri',
+    PROSPECT_SOURCE: 'source',
+    PROSPECT_STATUS: 'status',
 }

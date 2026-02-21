@@ -1,6 +1,13 @@
-import { db, Tables } from '../lib/db'
+import { db, Tables, COLUMNS } from '../lib/db'
 
-type ProspectSource = 'details_form' | 'review_request' | 'calendly_call'
+// Single source of truth for valid enum values — types are derived from these arrays.
+export const PROSPECT_SOURCES = ['details_form', 'review_request', 'calendly_call'] as const
+export const PROSPECT_STATUSES = ['new', 'contacted', 'qualified', 'closed'] as const
+
+export type ProspectSource = (typeof PROSPECT_SOURCES)[number]
+export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
+
+// ─── Upsert ───────────────────────────────────────────────────────────────────
 
 /**
  * Inserts a new prospect row, or touches updated_at if the email already
@@ -36,3 +43,156 @@ export const upsertProspect = async (
     throw insertError
 }
 
+// ─── List ─────────────────────────────────────────────────────────────────────
+
+export interface ListProspectsOptions {
+    source?: ProspectSource
+    status?: ProspectStatus
+    limit: number
+    offset: number
+}
+
+export const listProspects = async ({
+    source,
+    status,
+    limit,
+    offset,
+}: ListProspectsOptions) => {
+    let query = db
+        .from(Tables.V_PROSPECTS_ALL)
+        .select('*', { count: 'exact' })
+
+    if (source) query = query.eq(COLUMNS.PROSPECT_SOURCE, source)
+    if (status) query = query.eq(COLUMNS.PROSPECT_STATUS, status)
+
+    query = query.range(offset, offset + limit - 1)
+
+    const { data, error, count } = await query
+
+    if (error) throw error
+
+    if (count === null) {
+        console.warn('listProspects: count was null — total may be inaccurate')
+    }
+
+    return { prospects: data ?? [], total: count ?? 0 }
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export const getProspectStats = async () => {
+    const count = async (col: string, val: string): Promise<number> => {
+        const { count: n, error } = await db
+            .from(Tables.PROSPECTS)
+            .select('id', { count: 'exact', head: true })
+            .eq(col, val)
+        if (error) throw error
+        if (n === null) console.warn(`getProspectStats: count was null for ${col}=${val}`)
+        return n ?? 0
+    }
+
+    const getTotal = async (): Promise<number> => {
+        const { count: n, error } = await db
+            .from(Tables.PROSPECTS)
+            .select('id', { count: 'exact', head: true })
+        if (error) throw error
+        if (n === null) console.warn('getProspectStats: total count was null')
+        return n ?? 0
+    }
+
+    const [total, details_form, review_request, calendly_call, statusNew, contacted, qualified, closed] =
+        await Promise.all([
+            getTotal(),
+            count(COLUMNS.PROSPECT_SOURCE, 'details_form'),
+            count(COLUMNS.PROSPECT_SOURCE, 'review_request'),
+            count(COLUMNS.PROSPECT_SOURCE, 'calendly_call'),
+            count(COLUMNS.PROSPECT_STATUS, 'new'),
+            count(COLUMNS.PROSPECT_STATUS, 'contacted'),
+            count(COLUMNS.PROSPECT_STATUS, 'qualified'),
+            count(COLUMNS.PROSPECT_STATUS, 'closed'),
+        ])
+
+    return {
+        total,
+        by_source: {
+            details_form,
+            review_request,
+            calendly_call,
+        } satisfies Record<ProspectSource, number>,
+        by_status: {
+            new: statusNew,
+            contacted,
+            qualified,
+            closed,
+        } satisfies Record<ProspectStatus, number>,
+    }
+}
+
+// ─── Detail ───────────────────────────────────────────────────────────────────
+
+export const getProspectById = async (id: string) => {
+    const { data: prospect, error: prospectError } = await db
+        .from(Tables.V_PROSPECTS_ALL)
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
+
+    if (prospectError) throw prospectError
+    if (!prospect) return null
+
+    const [
+        { data: leadSubmissions, error: lsError },
+        { data: auditRequests, error: arError },
+        { data: calendlyBookings, error: cbError },
+    ] = await Promise.all([
+        db
+            .from(Tables.LEAD_SUBMISSIONS)
+            .select('*')
+            .eq('prospect_id', id)
+            .order('created_at', { ascending: false }),
+        db
+            .from(Tables.AUDIT_REQUESTS)
+            .select('*')
+            .eq('prospect_id', id)
+            .order('created_at', { ascending: false }),
+        db
+            .from(Tables.CALENDLY_BOOKINGS)
+            .select('*')
+            .eq('prospect_id', id)
+            .order('created_at', { ascending: false }),
+    ])
+
+    if (lsError) throw lsError
+    if (arError) throw arError
+    if (cbError) throw cbError
+
+    return {
+        ...prospect,
+        lead_submissions: leadSubmissions ?? [],
+        audit_requests: auditRequests ?? [],
+        calendly_bookings: calendlyBookings ?? [],
+    }
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+
+export interface UpdateProspectPayload {
+    status?: ProspectStatus
+    notes?: string | null // null clears notes (column is nullable)
+}
+
+export const updateProspect = async (
+    id: string,
+    patch: UpdateProspectPayload
+) => {
+    const { data, error } = await db
+        .from(Tables.PROSPECTS)
+        .update(patch)
+        .eq('id', id)
+        .select()
+        .maybeSingle()
+
+    if (error) throw error
+    if (!data) throw { status: 404, message: 'Prospect not found' }
+    return data
+}
