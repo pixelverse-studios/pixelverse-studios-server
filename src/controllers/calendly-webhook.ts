@@ -38,7 +38,8 @@ const extractUuid = (uri: string): string => {
     if (!uri.startsWith(CALENDLY_ORIGIN)) {
         throw { status: 400, message: 'Invalid URI: must originate from api.calendly.com' }
     }
-    const uuid = uri.split('/').at(-1) ?? ''
+    const lastSegment = uri.split('/').at(-1) ?? ''
+    const uuid = lastSegment.split('?')[0]
     if (!UUID_RE.test(uuid)) {
         throw { status: 400, message: 'Invalid URI: could not extract a valid UUID' }
     }
@@ -103,7 +104,7 @@ const sendBookingNotification = async (
         `📧 Email:     ${email}`,
         `🗓 Event:     ${eventTypeName}`,
         `📆 Scheduled: ${formatEventTime(eventStartAt)}`,
-        `🔗 Cancel:    ${cancelUrl}`,
+        `🔗 Cancel:    ${cancelUrl ?? 'N/A'}`,
     ].join('\n')
 
     const response = await fetch(webhookUrl, {
