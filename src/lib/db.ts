@@ -25,7 +25,8 @@ export const Tables = {
     CALENDLY_BOOKINGS: 'calendly_bookings',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
-    AGENDA_ITEMS: 'agenda_items'
+    AGENDA_ITEMS: 'agenda_items',
+    V_PROSPECTS_ALL: 'v_prospects_all',
 }
 
 // Valid project status values for websites and apps
