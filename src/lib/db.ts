@@ -22,6 +22,7 @@ export const Tables = {
     AUDIT_REQUESTS: 'audit_requests',
     PROSPECTS: 'prospects',
     LEAD_SUBMISSIONS: 'lead_submissions',
+    CALENDLY_BOOKINGS: 'calendly_bookings',
     DEPLOYMENTS: 'website_deployments',
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
     AGENDA_ITEMS: 'agenda_items'
