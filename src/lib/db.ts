@@ -52,5 +52,6 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 export const COLUMNS = {
     CLIENT_ID: 'client_id',
     CONTACT_EMAIL: 'contact_email',
-    WEBSITE_SLUG: 'website_slug'
+    WEBSITE_SLUG: 'website_slug',
+    CALENDLY_EVENT_URI: 'calendly_event_uri',
 }

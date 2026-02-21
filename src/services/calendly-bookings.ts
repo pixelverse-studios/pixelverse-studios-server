@@ -1,4 +1,4 @@
-import { db, Tables } from '../lib/db'
+import { db, Tables, COLUMNS } from '../lib/db'
 
 export interface CalendlyBookingPayload {
     prospectId: string
@@ -7,8 +7,8 @@ export interface CalendlyBookingPayload {
     eventTypeName: string
     eventStartAt: string
     eventEndAt: string
-    cancelUrl: string
-    rescheduleUrl: string
+    cancelUrl: string | null
+    rescheduleUrl: string | null
 }
 
 export interface CalendlyBookingRecord {
@@ -32,7 +32,7 @@ export const findBookingByEventUri = async (
     const { data, error } = await db
         .from(Tables.CALENDLY_BOOKINGS)
         .select('*')
-        .eq('calendly_event_uri', eventUri)
+        .eq(COLUMNS.CALENDLY_EVENT_URI, eventUri)
         .maybeSingle()
 
     if (error) throw error
@@ -61,20 +61,6 @@ export const createBooking = async (
     return data as CalendlyBookingRecord
 }
 
-export const cancelBooking = async (
-    eventUri: string
-): Promise<CalendlyBookingRecord | null> => {
-    const { data, error } = await db
-        .from(Tables.CALENDLY_BOOKINGS)
-        .update({ canceled: true, canceled_at: new Date().toISOString() })
-        .eq('calendly_event_uri', eventUri)
-        .select()
-        .maybeSingle()
-
-    if (error) throw error
-    return data as CalendlyBookingRecord | null
-}
-
-const calendlyBookingsService = { findBookingByEventUri, createBooking, cancelBooking }
+const calendlyBookingsService = { findBookingByEventUri, createBooking }
 
 export default calendlyBookingsService

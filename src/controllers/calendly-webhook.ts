@@ -19,7 +19,6 @@ interface CalendlyEvent {
         name: string
         start_time: string
         end_time: string
-        event_type: string
     }
 }
 
@@ -27,22 +26,30 @@ interface CalendlyInvitee {
     resource: {
         name: string
         email: string
-        cancel_url: string
-        reschedule_url: string
-        status: string
+        cancel_url: string | null
+        reschedule_url: string | null
     }
 }
 
+const CALENDLY_ORIGIN = 'https://api.calendly.com/'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const extractUuid = (uri: string): string => {
-    const parts = uri.split('/')
-    return parts[parts.length - 1]
+    if (!uri.startsWith(CALENDLY_ORIGIN)) {
+        throw { status: 400, message: 'Invalid URI: must originate from api.calendly.com' }
+    }
+    const uuid = uri.split('/').at(-1) ?? ''
+    if (!UUID_RE.test(uuid)) {
+        throw { status: 400, message: 'Invalid URI: could not extract a valid UUID' }
+    }
+    return uuid
 }
 
 const calendlyFetch = async <T>(path: string): Promise<T> => {
     const token = process.env.CALENDLY_API_TOKEN?.trim()
     if (!token) throw new Error('CALENDLY_API_TOKEN is not configured')
 
-    const response = await fetch(`https://api.calendly.com/${path}`, {
+    const response = await fetch(`${CALENDLY_ORIGIN}${path}`, {
         headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -50,8 +57,8 @@ const calendlyFetch = async <T>(path: string): Promise<T> => {
     })
 
     if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Calendly API error (${response.status}): ${errorText}`)
+        console.error('Calendly API error', { status: response.status, path })
+        throw { status: 502, message: 'Unable to retrieve booking details from Calendly.' }
     }
 
     return response.json() as Promise<T>
@@ -87,7 +94,7 @@ const sendBookingNotification = async (
     email: string,
     eventTypeName: string,
     eventStartAt: string,
-    cancelUrl: string
+    cancelUrl: string | null
 ): Promise<void> => {
     const webhookUrl = resolveWebhookUrl()
     const description = [
@@ -149,6 +156,10 @@ const handleWebhook = async (req: Request, res: Response): Promise<Response> => 
         const { name: eventTypeName, start_time, end_time } = eventData.resource
         const { name, email, cancel_url, reschedule_url } = inviteeData.resource
 
+        if (!name || !email) {
+            throw { status: 422, message: 'Incomplete invitee data returned from Calendly.' }
+        }
+
         const prospectId = await upsertProspect(email, name, 'calendly_call')
 
         await calendlyBookingsService.createBooking({
@@ -174,6 +185,10 @@ const handleWebhook = async (req: Request, res: Response): Promise<Response> => 
                 error: 'Invalid payload',
                 details: err.flatten(),
             })
+        }
+        // DB unique constraint — concurrent duplicate submission
+        if ((err as any)?.code === '23505') {
+            return res.status(200).json({ message: 'Already processed.' })
         }
         return handleGenericError(err, res)
     }
