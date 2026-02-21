@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { z, ZodError } from 'zod'
+import { validationResult } from 'express-validator'
 
 import { handleGenericError } from '../utils/http'
 import {
@@ -7,27 +8,15 @@ import {
     getProspectStats,
     getProspectById,
     updateProspect,
-    type ProspectSource,
-    type ProspectStatus,
+    PROSPECT_SOURCES,
+    PROSPECT_STATUSES,
 } from '../services/prospects'
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
-const SOURCES: [ProspectSource, ...ProspectSource[]] = [
-    'details_form',
-    'review_request',
-    'calendly_call',
-]
-const STATUSES: [ProspectStatus, ...ProspectStatus[]] = [
-    'new',
-    'contacted',
-    'qualified',
-    'closed',
-]
-
 const listQuerySchema = z.object({
-    source: z.enum(SOURCES).optional(),
-    status: z.enum(STATUSES).optional(),
+    source: z.enum(PROSPECT_SOURCES).optional(),
+    status: z.enum(PROSPECT_STATUSES).optional(),
     limit: z
         .string()
         .optional()
@@ -42,11 +31,12 @@ const listQuerySchema = z.object({
 
 const updateBodySchema = z
     .object({
-        status: z.enum(STATUSES).optional(),
+        status: z.enum(PROSPECT_STATUSES).optional(),
         notes: z.string().max(5000).nullable().optional(),
     })
     .refine((d) => d.status !== undefined || d.notes !== undefined, {
         message: 'At least one of status or notes must be provided',
+        path: ['status'],
     })
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
@@ -83,6 +73,11 @@ const stats = async (_req: Request, res: Response): Promise<Response> => {
 
 const getById = async (req: Request, res: Response): Promise<Response> => {
     try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
         const { id } = req.params
         const prospect = await getProspectById(id)
 
@@ -98,13 +93,13 @@ const getById = async (req: Request, res: Response): Promise<Response> => {
 
 const update = async (req: Request, res: Response): Promise<Response> => {
     try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
         const { id } = req.params
         const patch = updateBodySchema.parse(req.body)
-
-        const existing = await getProspectById(id)
-        if (!existing) {
-            return res.status(404).json({ error: 'Prospect not found' })
-        }
 
         const updated = await updateProspect(id, patch)
         return res.status(200).json(updated)

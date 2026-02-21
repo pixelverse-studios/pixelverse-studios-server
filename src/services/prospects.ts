@@ -1,7 +1,11 @@
-import { db, Tables } from '../lib/db'
+import { db, Tables, COLUMNS } from '../lib/db'
 
-export type ProspectSource = 'details_form' | 'review_request' | 'calendly_call'
-export type ProspectStatus = 'new' | 'contacted' | 'qualified' | 'closed'
+// Single source of truth for valid enum values — types are derived from these arrays.
+export const PROSPECT_SOURCES = ['details_form', 'review_request', 'calendly_call'] as const
+export const PROSPECT_STATUSES = ['new', 'contacted', 'qualified', 'closed'] as const
+
+export type ProspectSource = (typeof PROSPECT_SOURCES)[number]
+export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
 
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
@@ -58,55 +62,69 @@ export const listProspects = async ({
         .from(Tables.V_PROSPECTS_ALL)
         .select('*', { count: 'exact' })
 
-    if (source) query = query.eq('source', source)
-    if (status) query = query.eq('status', status)
+    if (source) query = query.eq(COLUMNS.PROSPECT_SOURCE, source)
+    if (status) query = query.eq(COLUMNS.PROSPECT_STATUS, status)
 
     query = query.range(offset, offset + limit - 1)
 
     const { data, error, count } = await query
 
     if (error) throw error
+
+    if (count === null) {
+        console.warn('listProspects: count was null — total may be inaccurate')
+    }
+
     return { prospects: data ?? [], total: count ?? 0 }
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 export const getProspectStats = async () => {
-    const countWhere = (col: string, val: string) =>
-        db
+    const count = async (col: string, val: string): Promise<number> => {
+        const { count: n, error } = await db
             .from(Tables.PROSPECTS)
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq(col, val)
-            .then(({ count, error }) => {
-                if (error) throw error
-                return count ?? 0
-            })
+        if (error) throw error
+        if (n === null) console.warn(`getProspectStats: count was null for ${col}=${val}`)
+        return n ?? 0
+    }
 
-    const [total, bySource, byStatus] = await Promise.all([
-        db
+    const getTotal = async (): Promise<number> => {
+        const { count: n, error } = await db
             .from(Tables.PROSPECTS)
-            .select('*', { count: 'exact', head: true })
-            .then(({ count, error }) => {
-                if (error) throw error
-                return count ?? 0
-            }),
-        Promise.all([
-            countWhere('source', 'details_form').then((n) => ({ details_form: n })),
-            countWhere('source', 'review_request').then((n) => ({ review_request: n })),
-            countWhere('source', 'calendly_call').then((n) => ({ calendly_call: n })),
-        ]),
-        Promise.all([
-            countWhere('status', 'new').then((n) => ({ new: n })),
-            countWhere('status', 'contacted').then((n) => ({ contacted: n })),
-            countWhere('status', 'qualified').then((n) => ({ qualified: n })),
-            countWhere('status', 'closed').then((n) => ({ closed: n })),
-        ]),
-    ])
+            .select('id', { count: 'exact', head: true })
+        if (error) throw error
+        if (n === null) console.warn('getProspectStats: total count was null')
+        return n ?? 0
+    }
+
+    const [total, details_form, review_request, calendly_call, statusNew, contacted, qualified, closed] =
+        await Promise.all([
+            getTotal(),
+            count(COLUMNS.PROSPECT_SOURCE, 'details_form'),
+            count(COLUMNS.PROSPECT_SOURCE, 'review_request'),
+            count(COLUMNS.PROSPECT_SOURCE, 'calendly_call'),
+            count(COLUMNS.PROSPECT_STATUS, 'new'),
+            count(COLUMNS.PROSPECT_STATUS, 'contacted'),
+            count(COLUMNS.PROSPECT_STATUS, 'qualified'),
+            count(COLUMNS.PROSPECT_STATUS, 'closed'),
+        ])
 
     return {
         total,
-        by_source: Object.assign({}, ...bySource) as Record<ProspectSource, number>,
-        by_status: Object.assign({}, ...byStatus) as Record<ProspectStatus, number>,
+        by_source: {
+            details_form,
+            review_request,
+            calendly_call,
+        } satisfies Record<ProspectSource, number>,
+        by_status: {
+            new: statusNew,
+            contacted,
+            qualified,
+            closed,
+        } satisfies Record<ProspectStatus, number>,
     }
 }
 
@@ -160,7 +178,7 @@ export const getProspectById = async (id: string) => {
 
 export interface UpdateProspectPayload {
     status?: ProspectStatus
-    notes?: string | null
+    notes?: string | null // null clears notes (column is nullable)
 }
 
 export const updateProspect = async (
@@ -172,8 +190,9 @@ export const updateProspect = async (
         .update(patch)
         .eq('id', id)
         .select()
-        .single()
+        .maybeSingle()
 
     if (error) throw error
+    if (!data) throw { status: 404, message: 'Prospect not found' }
     return data
 }

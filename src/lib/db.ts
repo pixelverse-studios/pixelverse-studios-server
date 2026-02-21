@@ -55,4 +55,6 @@ export const COLUMNS = {
     CONTACT_EMAIL: 'contact_email',
     WEBSITE_SLUG: 'website_slug',
     CALENDLY_EVENT_URI: 'calendly_event_uri',
+    PROSPECT_SOURCE: 'source',
+    PROSPECT_STATUS: 'status',
 }
