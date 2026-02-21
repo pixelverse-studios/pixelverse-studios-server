@@ -2,9 +2,8 @@ import { Request, Response } from 'express'
 import { z, ZodError } from 'zod'
 
 import { handleGenericError } from '../utils/http'
-import auditRequestsService, {
-    AuditRequestRecord,
-} from '../services/audit-requests'
+import { upsertProspect } from '../services/prospects'
+import auditRequestsService, { AuditRequestRecord } from '../services/audit-requests'
 
 const auditSchema = z.object({
     name: z.string().min(1).max(200),
@@ -85,7 +84,7 @@ const createAuditRequest = async (
 
         const { name, email, websiteUrl, phoneNumber, specifics } = parsed
 
-        const prospectId = await auditRequestsService.upsertProspect(email, name, 'review_request')
+        const prospectId = await upsertProspect(email, name, 'review_request')
 
         const record = await auditRequestsService.createAuditRequest({
             name,

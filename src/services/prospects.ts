@@ -29,12 +29,10 @@ export const upsertProspect = async (
             .single()
 
         if (updateError) throw updateError
+        if (!existing) throw new Error('Prospect disappeared during upsert')
         return existing.id
     }
 
     throw insertError
 }
 
-const prospectsService = { upsertProspect }
-
-export default prospectsService

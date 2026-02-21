@@ -1,7 +1,4 @@
 import { db, Tables } from '../lib/db'
-import { upsertProspect } from './prospects'
-
-export { upsertProspect }
 
 export interface AuditRequestPayload {
     name: string
@@ -58,7 +55,6 @@ export const createAuditRequest = async (
 }
 
 const auditRequestsService = {
-    upsertProspect,
     createAuditRequest,
 }
 
