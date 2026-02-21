@@ -6,6 +6,7 @@ export interface AuditRequestPayload {
     websiteUrl: string
     phoneNumber?: string
     specifics?: string
+    prospectId: string
 }
 
 export interface AuditRequestRecord {
@@ -16,6 +17,7 @@ export interface AuditRequestRecord {
     phone_number: string | null
     specifics: string | null
     status: string
+    prospect_id: string
     created_at: string
     updated_at: string
 }
@@ -25,15 +27,46 @@ const mapPayloadToRow = ({
     email,
     websiteUrl,
     phoneNumber,
-    specifics
+    specifics,
+    prospectId,
 }: AuditRequestPayload) => ({
     name,
     email,
     website_url: websiteUrl,
     phone_number: phoneNumber ?? null,
     specifics: specifics ?? null,
-    status: 'pending'
+    prospect_id: prospectId,
+    status: 'pending',
 })
+
+export const upsertProspect = async (
+    email: string,
+    name: string
+): Promise<string> => {
+    // Try to insert a new prospect first
+    const { data: inserted, error: insertError } = await db
+        .from(Tables.PROSPECTS)
+        .insert({ email, name, source: 'review_request' })
+        .select('id')
+        .single()
+
+    if (!insertError) return inserted.id
+
+    // Email already exists — touch updated_at and return the existing id
+    if (insertError.code === '23505') {
+        const { data: existing, error: updateError } = await db
+            .from(Tables.PROSPECTS)
+            .update({ updated_at: new Date().toISOString() })
+            .eq('email', email)
+            .select('id')
+            .single()
+
+        if (updateError) throw updateError
+        return existing.id
+    }
+
+    throw insertError
+}
 
 export const createAuditRequest = async (
     payload: AuditRequestPayload
@@ -44,15 +77,14 @@ export const createAuditRequest = async (
         .select()
         .single()
 
-    if (error) {
-        throw error
-    }
+    if (error) throw error
 
     return data as AuditRequestRecord
 }
 
 const auditRequestsService = {
-    createAuditRequest
+    upsertProspect,
+    createAuditRequest,
 }
 
 export default auditRequestsService
