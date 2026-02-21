@@ -17,7 +17,7 @@ const leadsSchema = z.object({
     budget: z.enum(['<1k', '1-3k', '3-6k', '6-10k', '10k+']),
     timeline: z.enum(['ASAP', '1-2mo', '3-6mo', '6+mo', 'unsure']),
     currentWebsite: z.string().url().optional().or(z.literal('')),
-    improvements: z.array(z.string().min(1).max(200)).min(1),
+    improvements: z.array(z.string().min(1).max(200)).min(1).max(20),
     briefSummary: z.string().max(2000).optional(),
     website_confirm: z.string().optional(), // honeypot
 })

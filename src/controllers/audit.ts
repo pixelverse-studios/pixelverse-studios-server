@@ -95,7 +95,9 @@ const createAuditRequest = async (
             prospectId,
         })
 
-        await sendAuditAlertToDiscord(record)
+        sendAuditAlertToDiscord(record).catch((err) =>
+            console.error('Discord notification failed (audit saved):', err)
+        )
 
         return res.status(201).json({ message: 'Audit request received.' })
     } catch (err) {
