@@ -85,7 +85,7 @@ const createAuditRequest = async (
 
         const { name, email, websiteUrl, phoneNumber, specifics } = parsed
 
-        const prospectId = await auditRequestsService.upsertProspect(email, name)
+        const prospectId = await auditRequestsService.upsertProspect(email, name, 'review_request')
 
         const record = await auditRequestsService.createAuditRequest({
             name,

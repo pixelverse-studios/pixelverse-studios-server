@@ -1,4 +1,7 @@
 import { db, Tables } from '../lib/db'
+import { upsertProspect } from './prospects'
+
+export { upsertProspect }
 
 export interface AuditRequestPayload {
     name: string
@@ -39,34 +42,6 @@ const mapPayloadToRow = ({
     status: 'pending',
 })
 
-export const upsertProspect = async (
-    email: string,
-    name: string
-): Promise<string> => {
-    // Try to insert a new prospect first
-    const { data: inserted, error: insertError } = await db
-        .from(Tables.PROSPECTS)
-        .insert({ email, name, source: 'review_request' })
-        .select('id')
-        .single()
-
-    if (!insertError) return inserted.id
-
-    // Email already exists — touch updated_at and return the existing id
-    if (insertError.code === '23505') {
-        const { data: existing, error: updateError } = await db
-            .from(Tables.PROSPECTS)
-            .update({ updated_at: new Date().toISOString() })
-            .eq('email', email)
-            .select('id')
-            .single()
-
-        if (updateError) throw updateError
-        return existing.id
-    }
-
-    throw insertError
-}
 
 export const createAuditRequest = async (
     payload: AuditRequestPayload
