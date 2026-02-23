@@ -99,8 +99,14 @@ router.post(
             .optional()
             .isString()
             .withMessage('Recipient name must be a string'),
-        body('iosLink').isURL().withMessage('iosLink must be a valid URL'),
-        body('androidLink').isURL().withMessage('androidLink must be a valid URL'),
+        body('iosLink')
+            .optional()
+            .isURL()
+            .withMessage('iosLink must be a valid URL'),
+        body('androidLink')
+            .optional()
+            .isURL()
+            .withMessage('androidLink must be a valid URL'),
         body('delayBetweenEmails')
             .optional()
             .isInt({ min: 0, max: 10000 })
@@ -108,6 +114,42 @@ router.post(
     ],
     validateRequest,
     domani.sendBetaLaunchEmailBlast
+)
+
+// POST /api/domani/beta-update/send - Send beta update emails to all active users
+router.post(
+    '/api/domani/beta-update/send',
+    [
+        body('delayBetweenEmails')
+            .optional()
+            .isInt({ min: 0, max: 10000 })
+            .withMessage('delayBetweenEmails must be between 0 and 10000ms')
+    ],
+    validateRequest,
+    domani.sendBetaUpdateEmailBlast
+)
+
+// POST /api/domani/beta-update/test - Send test beta update emails to specific recipients
+router.post(
+    '/api/domani/beta-update/test',
+    [
+        body('recipients')
+            .isArray({ min: 1 })
+            .withMessage('recipients must be a non-empty array'),
+        body('recipients.*.email')
+            .isEmail()
+            .withMessage('Each recipient must have a valid email'),
+        body('recipients.*.name')
+            .optional()
+            .isString()
+            .withMessage('Recipient name must be a string'),
+        body('delayBetweenEmails')
+            .optional()
+            .isInt({ min: 0, max: 10000 })
+            .withMessage('delayBetweenEmails must be between 0 and 10000ms')
+    ],
+    validateRequest,
+    domani.sendBetaUpdateTestEmails
 )
 
 // GET /api/domani/users - List user profiles

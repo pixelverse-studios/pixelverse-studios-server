@@ -11,7 +11,9 @@ import {
 } from '../lib/domani-db'
 import {
     sendBetaLaunchEmails,
-    BetaLaunchRecipient
+    BetaLaunchRecipient,
+    sendBetaUpdateEmails,
+    BetaUpdateRecipient
 } from '../lib/nylas-mailer'
 
 /**
@@ -282,6 +284,108 @@ const sendBetaLaunchEmailBlast = async (
     }
 }
 
+/**
+ * POST /api/domani/beta-update/send
+ * Send beta update emails to all active users (Task Rollover feature announcement)
+ *
+ * Body:
+ * - delayBetweenEmails?: number (ms, default 500)
+ *
+ * Automatically fetches all active users from profiles table (excludes deleted users)
+ */
+const sendBetaUpdateEmailBlast = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { delayBetweenEmails } = req.body
+
+        // Fetch all active users (deleted_at IS NULL)
+        console.log('📋 Fetching all active users from Domani profiles...')
+        const usersResult = await domaniService.getUsers({
+            includeDeleted: false,
+            limit: 1000, // Fetch all users (adjust if needed)
+            offset: 0
+        })
+
+        if (usersResult.total === 0) {
+            return res.status(404).json({
+                error: 'No active users found',
+                message: 'There are no active users to send emails to.'
+            })
+        }
+
+        // Map users to recipients
+        const recipients: BetaUpdateRecipient[] = usersResult.items.map(
+            user => ({
+                email: user.email,
+                name: user.full_name
+            })
+        )
+
+        console.log(
+            `📧 Preparing to send beta update emails to ${recipients.length} active users...`
+        )
+
+        // Send emails
+        const result = await sendBetaUpdateEmails(recipients, {
+            delayBetweenEmails
+        })
+
+        return res.status(200).json({
+            ...result,
+            message: 'Beta update email blast completed'
+        })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * POST /api/domani/beta-update/test
+ * Send test beta update emails to specific recipients
+ *
+ * Body:
+ * - recipients: Array of { email: string, name?: string }
+ * - delayBetweenEmails?: number (ms, default 500)
+ */
+const sendBetaUpdateTestEmails = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { recipients, delayBetweenEmails } = req.body
+
+        console.log(
+            `📧 Sending test beta update emails to ${recipients.length} recipients...`
+        )
+
+        const result = await sendBetaUpdateEmails(
+            recipients as BetaUpdateRecipient[],
+            {
+                delayBetweenEmails
+            }
+        )
+
+        return res.status(200).json({
+            ...result,
+            message: 'Test beta update emails sent'
+        })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     listFeedback,
     listSupportRequests,
@@ -289,5 +393,7 @@ export default {
     listUsers,
     unsubscribe,
     unsubscribeUser,
-    sendBetaLaunchEmailBlast
+    sendBetaLaunchEmailBlast,
+    sendBetaUpdateEmailBlast,
+    sendBetaUpdateTestEmails
 }

@@ -1,8 +1,13 @@
 import Nylas from 'nylas'
 import {
     DOMANI_BETA_SUBJECT,
+    DOMANI_IOS_LINK,
+    DOMANI_ANDROID_LINK,
     generateDomaniBetaLaunchEmailHtml,
-    generateDomaniBetaLaunchEmailText
+    generateDomaniBetaLaunchEmailText,
+    DOMANI_BETA_UPDATE_SUBJECT,
+    generateDomaniBetaUpdateEmailHtml,
+    generateDomaniBetaUpdateEmailText
 } from '../utils/mailer/emails'
 
 const NYLAS_API_KEY = process.env.NYLAS_API_KEY!
@@ -182,8 +187,8 @@ export interface BetaLaunchRecipient {
 }
 
 export interface BetaLaunchConfig {
-    iosLink: string
-    androidLink: string
+    iosLink?: string
+    androidLink?: string
     delayBetweenEmails?: number // ms delay between sends to avoid rate limiting
 }
 
@@ -201,18 +206,21 @@ async function sendBetaLaunchEmailToRecipient(
     config: BetaLaunchConfig
 ): Promise<BetaLaunchResult> {
     try {
+        const iosLink = config.iosLink ?? DOMANI_IOS_LINK
+        const androidLink = config.androidLink ?? DOMANI_ANDROID_LINK
+
         const html = generateDomaniBetaLaunchEmailHtml({
             recipientEmail: recipient.email,
             recipientName: recipient.name,
-            iosLink: config.iosLink,
-            androidLink: config.androidLink
+            iosLink,
+            androidLink
         })
 
         const text = generateDomaniBetaLaunchEmailText({
             recipientEmail: recipient.email,
             recipientName: recipient.name,
-            iosLink: config.iosLink,
-            androidLink: config.androidLink
+            iosLink,
+            androidLink
         })
 
         await nylas.messages.send({
@@ -275,6 +283,115 @@ export async function sendBetaLaunchEmails(
     const failed = results.filter(r => !r.success).length
 
     console.log(`\n📧 Beta launch email blast complete:`)
+    console.log(`   ✅ Successful: ${successful}`)
+    console.log(`   ❌ Failed: ${failed}`)
+    console.log(`   📊 Total: ${recipients.length}`)
+
+    return {
+        total: recipients.length,
+        successful,
+        failed,
+        results
+    }
+}
+
+// ============================================================================
+// Domani Beta Update Email Blast (Task Rollover Feature)
+// ============================================================================
+
+export interface BetaUpdateRecipient {
+    email: string
+    name?: string | null
+}
+
+export interface BetaUpdateConfig {
+    delayBetweenEmails?: number // ms delay between sends to avoid rate limiting
+}
+
+export interface BetaUpdateResult {
+    email: string
+    success: boolean
+    error?: string
+}
+
+/**
+ * Send beta update email to a single recipient (no CC)
+ */
+async function sendBetaUpdateEmailToRecipient(
+    recipient: BetaUpdateRecipient,
+    config: BetaUpdateConfig
+): Promise<BetaUpdateResult> {
+    try {
+        const html = generateDomaniBetaUpdateEmailHtml({
+            recipientEmail: recipient.email,
+            recipientName: recipient.name
+        })
+
+        const text = generateDomaniBetaUpdateEmailText({
+            recipientEmail: recipient.email,
+            recipientName: recipient.name
+        })
+
+        await nylas.messages.send({
+            identifier: NYLAS_GRANT_ID,
+            requestBody: {
+                subject: DOMANI_BETA_UPDATE_SUBJECT,
+                body: html,
+                to: [{ email: recipient.email }]
+                // No CC for bulk emails
+            }
+        })
+
+        console.log(`✅ Beta update email sent to: ${recipient.email}`)
+        return { email: recipient.email, success: true }
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+        console.error(`❌ Failed to send to ${recipient.email}:`, errorMessage)
+        return { email: recipient.email, success: false, error: errorMessage }
+    }
+}
+
+/**
+ * Send beta update emails to multiple recipients with optional delay
+ */
+export async function sendBetaUpdateEmails(
+    recipients: BetaUpdateRecipient[],
+    config: BetaUpdateConfig
+): Promise<{
+    total: number
+    successful: number
+    failed: number
+    results: BetaUpdateResult[]
+}> {
+    const results: BetaUpdateResult[] = []
+    const delay = config.delayBetweenEmails ?? 500 // Default 500ms between emails
+
+    console.log(
+        `📧 Starting beta update email blast to ${recipients.length} recipients...`
+    )
+
+    for (let i = 0; i < recipients.length; i++) {
+        const recipient = recipients[i]
+
+        const result = await sendBetaUpdateEmailToRecipient(recipient, config)
+        results.push(result)
+
+        // Add delay between emails (except for the last one)
+        if (i < recipients.length - 1 && delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay))
+        }
+
+        // Log progress every 10 emails
+        if ((i + 1) % 10 === 0) {
+            console.log(`📊 Progress: ${i + 1}/${recipients.length} emails sent`)
+        }
+    }
+
+    const successful = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+
+    console.log(`\n📧 Beta update email blast complete:`)
     console.log(`   ✅ Successful: ${successful}`)
     console.log(`   ❌ Failed: ${failed}`)
     console.log(`   📊 Total: ${recipients.length}`)
