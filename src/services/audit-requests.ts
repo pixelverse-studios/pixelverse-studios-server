@@ -6,6 +6,8 @@ export interface AuditRequestPayload {
     websiteUrl: string
     phoneNumber?: string
     specifics?: string
+    otherDetail?: string
+    prospectId: string
 }
 
 export interface AuditRequestRecord {
@@ -15,7 +17,9 @@ export interface AuditRequestRecord {
     website_url: string
     phone_number: string | null
     specifics: string | null
+    other_detail: string | null
     status: string
+    prospect_id: string | null
     created_at: string
     updated_at: string
 }
@@ -25,15 +29,20 @@ const mapPayloadToRow = ({
     email,
     websiteUrl,
     phoneNumber,
-    specifics
+    specifics,
+    otherDetail,
+    prospectId,
 }: AuditRequestPayload) => ({
     name,
     email,
     website_url: websiteUrl,
     phone_number: phoneNumber ?? null,
     specifics: specifics ?? null,
-    status: 'pending'
+    other_detail: otherDetail ?? null,
+    prospect_id: prospectId,
+    status: 'pending',
 })
+
 
 export const createAuditRequest = async (
     payload: AuditRequestPayload
@@ -44,15 +53,13 @@ export const createAuditRequest = async (
         .select()
         .single()
 
-    if (error) {
-        throw error
-    }
+    if (error) throw error
 
     return data as AuditRequestRecord
 }
 
 const auditRequestsService = {
-    createAuditRequest
+    createAuditRequest,
 }
 
 export default auditRequestsService
