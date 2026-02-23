@@ -16,6 +16,10 @@ const leadsSchema = z.object({
         .or(z.literal('')),
     budget: z.enum(['<1k', '1-3k', '3-6k', '6-10k', '10k+']),
     timeline: z.enum(['ASAP', '1-2mo', '3-6mo', '6+mo', 'unsure']),
+    interestedIn: z
+        .array(z.enum(['web-design', 'seo']))
+        .min(1)
+        .optional(),
     currentWebsite: z.string().url().optional().or(z.literal('')),
     improvements: z.array(z.string().min(1).max(200)).min(1).max(20),
     briefSummary: z.string().max(2000).optional(),
@@ -41,6 +45,7 @@ const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
         `💰 Budget:    ${data.budget}`,
         `⏱ Timeline:  ${data.timeline}`,
         `🌐 Website:   ${data.currentWebsite || 'Not provided'}`,
+        `🎯 Services:  ${data.interestedIn?.join(', ') || 'Not specified'}`,
         `🔧 Needs:     ${data.improvements.join(', ')}`,
         `📝 Notes:     ${data.briefSummary || 'None'}`,
     ].join('\n')
@@ -95,6 +100,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             phone,
             budget,
             timeline,
+            interestedIn,
             currentWebsite,
             improvements,
             briefSummary,
@@ -108,6 +114,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             phone,
             budget,
             timeline,
+            interestedIn,
             currentWebsite,
             improvements,
             briefSummary,

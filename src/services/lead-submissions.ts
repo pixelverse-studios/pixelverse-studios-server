@@ -8,6 +8,7 @@ export interface LeadSubmissionPayload {
     timeline: string
     currentWebsite?: string
     improvements: string[]
+    interestedIn?: string[]
     briefSummary?: string
 }
 
@@ -20,6 +21,7 @@ export interface LeadSubmissionRecord {
     timeline: string
     current_website: string | null
     improvements: string[]
+    interested_in: string[] | null
     brief_summary: string | null
     created_at: string
 }
@@ -37,6 +39,7 @@ export const createLeadSubmission = async (
             timeline: payload.timeline,
             current_website: payload.currentWebsite || null,
             improvements: payload.improvements,
+            interested_in: payload.interestedIn ?? null,
             brief_summary: payload.briefSummary || null,
         })
         .select()
