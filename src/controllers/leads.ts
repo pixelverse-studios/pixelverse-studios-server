@@ -17,7 +17,7 @@ const leadsSchema = z.object({
     budget: z.enum(['<1k', '1-3k', '3-6k', '6-10k', '10k+']),
     timeline: z.enum(['ASAP', '1-2mo', '3-6mo', '6+mo', 'unsure']),
     interestedIn: z
-        .array(z.enum(['web-design', 'seo']))
+        .array(z.enum(['web-design', 'seo', 'unsure']))
         .min(1)
         .optional(),
     currentWebsite: z.string().url().optional().or(z.literal('')),
