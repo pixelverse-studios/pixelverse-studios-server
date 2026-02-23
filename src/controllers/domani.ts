@@ -11,8 +11,13 @@ import {
 } from '../lib/domani-db'
 import {
     sendBetaLaunchEmails,
-    BetaLaunchRecipient
+    BetaLaunchRecipient,
+    sendBetaUpdateEmails,
+    BetaUpdateRecipient
 } from '../lib/nylas-mailer'
+
+// Module-level flag — prevents concurrent blasts on the same process
+let blastInProgress = false
 
 /**
  * GET /api/domani/feedback
@@ -276,7 +281,164 @@ const sendBetaLaunchEmailBlast = async (
             }
         )
 
-        return res.status(200).json(result)
+        const { total, successful, failed } = result
+
+        if (failed === total) {
+            return res.status(500).json({
+                total,
+                successful,
+                failed,
+                message: 'Beta launch email blast failed — no emails were delivered'
+            })
+        }
+
+        return res.status(200).json({ total, successful, failed })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * POST /api/domani/beta-update/send
+ * Send beta update emails to all active users (Task Rollover feature announcement)
+ *
+ * Body:
+ * - delayBetweenEmails?: number (ms, default 500)
+ *
+ * Automatically fetches all active users from profiles table (excludes deleted users)
+ */
+const sendBetaUpdateEmailBlast = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { delayBetweenEmails }: { delayBetweenEmails?: number } = req.body
+
+        if (blastInProgress) {
+            return res.status(409).json({
+                error: 'A blast is already in progress',
+                message:
+                    'Please wait for the current blast to complete before starting another.'
+            })
+        }
+
+        // Fetch all active users (deleted_at IS NULL)
+        console.log('📋 Fetching all active users from Domani profiles...')
+        const usersResult = await domaniService.getUsers({
+            includeDeleted: false,
+            limit: 1000,
+            offset: 0
+        })
+
+        if (usersResult.total === 0) {
+            return res.status(404).json({
+                error: 'No active users found',
+                message: 'There are no active users to send emails to.'
+            })
+        }
+
+        // Guard against silent truncation — abort rather than partial-blast
+        if (usersResult.items.length < usersResult.total) {
+            console.error(
+                `⚠️ User list truncated: fetched ${usersResult.items.length} of ${usersResult.total} active users`
+            )
+            return res.status(500).json({
+                error: 'Unable to fetch all active users',
+                message: `Found ${usersResult.total} active users but could only fetch ${usersResult.items.length}. Blast aborted to prevent partial send.`
+            })
+        }
+
+        // Map users to recipients
+        const recipients: BetaUpdateRecipient[] = usersResult.items.map(
+            user => ({
+                email: user.email,
+                name: user.full_name
+            })
+        )
+
+        console.log(
+            `📧 Preparing to send beta update emails to ${recipients.length} active users...`
+        )
+
+        blastInProgress = true
+        try {
+            const result = await sendBetaUpdateEmails(recipients, {
+                delayBetweenEmails
+            })
+
+            const { total, successful, failed } = result
+
+            if (failed === total) {
+                return res.status(500).json({
+                    total,
+                    successful,
+                    failed,
+                    message:
+                        'Beta update email blast failed — no emails were delivered'
+                })
+            }
+
+            return res.status(200).json({
+                total,
+                successful,
+                failed,
+                message: 'Beta update email blast completed'
+            })
+        } finally {
+            blastInProgress = false
+        }
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+/**
+ * POST /api/domani/beta-update/test
+ * Send test beta update emails to specific recipients
+ *
+ * Body:
+ * - recipients: Array of { email: string, name?: string }
+ * - delayBetweenEmails?: number (ms, default 500)
+ */
+const sendBetaUpdateTestEmails = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const recipients = req.body.recipients as BetaUpdateRecipient[]
+        const { delayBetweenEmails }: { delayBetweenEmails?: number } = req.body
+
+        console.log(
+            `📧 Sending test beta update emails to ${recipients.length} recipients...`
+        )
+
+        const result = await sendBetaUpdateEmails(recipients, {
+            delayBetweenEmails
+        })
+
+        const { total, successful, failed } = result
+
+        if (failed === total) {
+            return res.status(500).json({
+                ...result,
+                message: 'Test blast failed — no emails were delivered'
+            })
+        }
+
+        return res.status(200).json({
+            ...result,
+            message: 'Test beta update emails sent'
+        })
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -289,5 +451,7 @@ export default {
     listUsers,
     unsubscribe,
     unsubscribeUser,
-    sendBetaLaunchEmailBlast
+    sendBetaLaunchEmailBlast,
+    sendBetaUpdateEmailBlast,
+    sendBetaUpdateTestEmails
 }

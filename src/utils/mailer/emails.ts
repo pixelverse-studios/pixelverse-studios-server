@@ -239,11 +239,16 @@ export const generateDeploymentEmailText = ({
 // Domani Beta Launch Email
 // ============================================================================
 
+// Default app store links for Domani
+export const DOMANI_IOS_LINK = 'https://testflight.apple.com/join/1dgpHTK3'
+export const DOMANI_ANDROID_LINK =
+    'https://play.google.com/store/apps/details?id=com.baitedz.domaniapp'
+
 interface DomaniBetaLaunchEmailParams {
     recipientEmail: string
     recipientName?: string | null
-    iosLink: string
-    androidLink: string
+    iosLink?: string
+    androidLink?: string
 }
 
 export const DOMANI_BETA_SUBJECT = "You're in! Domani is ready for you"
@@ -251,8 +256,8 @@ export const DOMANI_BETA_SUBJECT = "You're in! Domani is ready for you"
 export const generateDomaniBetaLaunchEmailHtml = ({
     recipientEmail,
     recipientName,
-    iosLink,
-    androidLink
+    iosLink = DOMANI_IOS_LINK,
+    androidLink = DOMANI_ANDROID_LINK
 }: DomaniBetaLaunchEmailParams): string => {
     const greeting = recipientName ? `Hey ${escapeHtml(recipientName)},` : 'Hey there,'
     const unsubscribeUrl = `https://domani-app.com/waitlist/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
@@ -265,64 +270,64 @@ export const generateDomaniBetaLaunchEmailHtml = ({
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Domani Public Beta</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f8f9fa;">
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#FAF8F5;">
         <tr>
             <td style="padding:40px 20px;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;margin:0 auto;background-color:#F5F2ED;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(125,155,138,0.15);">
                     <!-- Header -->
                     <tr>
-                        <td style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);padding:40px 32px;text-align:center;">
-                            <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Domani</h1>
-                            <p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:16px;">Plan tomorrow, tonight.</p>
+                        <td style="background:linear-gradient(135deg,#7D9B8A 0%,#5A7765 100%);padding:40px 32px;text-align:center;">
+                            <h1 style="margin:0;color:#FAF8F5;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Domani</h1>
+                            <p style="margin:8px 0 0;color:rgba(250,248,245,0.9);font-size:16px;">Plan tomorrow, tonight.</p>
                         </td>
                     </tr>
 
                     <!-- Body -->
                     <tr>
                         <td style="padding:40px 32px;">
-                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">${greeting}</p>
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">${greeting}</p>
 
-                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">You signed up for Domani a while back, and we haven't forgotten about you.</p>
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">You signed up for Domani a while back, and we haven't forgotten about you.</p>
 
-                            <p style="margin:0 0 28px;color:#1f2937;font-size:16px;line-height:1.7;">Today, we're excited to invite you to join our <strong>public beta</strong>.</p>
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;">Today, we're excited to invite you to join our <strong>public beta</strong>.</p>
 
                             <!-- What is Domani -->
-                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">What is Domani?</h2>
+                            <h2 style="margin:0 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">What is Domani?</h2>
 
-                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">Domani is a simple idea: <strong>plan tomorrow, tonight</strong>. Instead of waking up scattered, you spend a few minutes each evening deciding what actually matters for the next day. Then you wake up with clarity and just... do the things.</p>
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">Domani is a simple idea: <strong>plan tomorrow, tonight</strong>. Instead of waking up scattered, you spend a few minutes each evening deciding what actually matters for the next day. Then you wake up with clarity and just... do the things.</p>
 
-                            <p style="margin:0 0 28px;color:#1f2937;font-size:16px;line-height:1.7;">No complex project management. No overwhelming feature lists. Just a focused way to plan your day and actually follow through.</p>
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;">No complex project management. No overwhelming feature lists. Just a focused way to plan your day and actually follow through.</p>
 
                             <!-- Why you're getting this -->
-                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">Why you're getting this email</h2>
+                            <h2 style="margin:0 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">Why you're getting this email</h2>
 
-                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">You believed in us early — before the app even existed. That means something.</p>
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">You believed in us early — before the app even existed. That means something.</p>
 
                             <!-- Special Offer Box - Table-based for Gmail compatibility -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
                                 <tr>
-                                    <td bgcolor="#ecfdf5" style="background-color:#ecfdf5;border:2px solid #86efac;border-radius:12px;padding:24px;">
-                                        <p style="margin:0 0 12px;color:#000000;font-size:16px;line-height:1.6;"><span style="color:#000000;">So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at </span><strong style="font-size:18px;color:#000000;">$9.99</strong><span style="color:#000000;"> instead of the regular </span><span style="text-decoration:line-through;color:#000000;">$34.99</span><span style="color:#000000;">.</span></p>
-                                        <p style="margin:0;color:#000000;font-size:14px;"><span style="color:#000000;">That's a one-time purchase, yours forever.</span></p>
+                                    <td bgcolor="#E8F1ED" style="background-color:#E8F1ED;border:2px solid #A3BFB0;border-radius:12px;padding:24px;">
+                                        <p style="margin:0 0 12px;color:#3D4A44;font-size:16px;line-height:1.6;"><span style="color:#3D4A44;">So here's our thank you: once the beta ends, you'll be able to unlock Domani for life at </span><strong style="font-size:18px;color:#5A7765;">$9.99</strong><span style="color:#3D4A44;"> instead of the regular </span><span style="text-decoration:line-through;color:#6B7265;">$34.99</span><span style="color:#3D4A44;">.</span></p>
+                                        <p style="margin:0;color:#3D4A44;font-size:14px;"><span style="color:#3D4A44;">That's a one-time purchase, yours forever.</span></p>
                                     </td>
                                 </tr>
                             </table>
 
-                            <p style="margin:0 0 32px;color:#1f2937;font-size:16px;line-height:1.7;">For now, the beta is <strong>completely free</strong>. Download it, try it out, and let us know what you think.</p>
+                            <p style="margin:0 0 32px;color:#3D4A44;font-size:16px;line-height:1.7;">For now, the beta is <strong>completely free</strong>. Download it, try it out, and let us know what you think.</p>
 
                             <!-- CTA Buttons - Bulletproof for light/dark mode -->
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 32px;">
                                 <tr>
                                     <td align="center" style="padding:0 0 12px;">
                                         <!--[if mso]>
-                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(iosLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#6366f1" strokeweight="2px" fillcolor="#6366f1">
+                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(iosLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#7D9B8A" strokeweight="2px" fillcolor="#7D9B8A">
                                         <w:anchorlock/>
-                                        <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for iOS</center>
+                                        <center style="color:#FAF8F5;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for iOS</center>
                                         </v:roundrect>
                                         <![endif]-->
                                         <!--[if !mso]><!-->
-                                        <a href="${escapeHtml(iosLink)}" style="display:inline-block;background-color:#6366f1;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #6366f1;mso-hide:all;">
+                                        <a href="${escapeHtml(iosLink)}" style="display:inline-block;background-color:#7D9B8A;color:#FAF8F5;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #7D9B8A;mso-hide:all;">
                                             Download for iOS
                                         </a>
                                         <!--<![endif]-->
@@ -331,13 +336,13 @@ export const generateDomaniBetaLaunchEmailHtml = ({
                                 <tr>
                                     <td align="center">
                                         <!--[if mso]>
-                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(androidLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#6366f1" strokeweight="2px" fillcolor="#ffffff">
+                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(androidLink)}" style="height:52px;v-text-anchor:middle;width:220px;" arcsize="23%" strokecolor="#7D9B8A" strokeweight="2px" fillcolor="#FAF8F5">
                                         <w:anchorlock/>
-                                        <center style="color:#6366f1;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for Android</center>
+                                        <center style="color:#7D9B8A;font-family:sans-serif;font-size:16px;font-weight:bold;">Download for Android</center>
                                         </v:roundrect>
                                         <![endif]-->
                                         <!--[if !mso]><!-->
-                                        <a href="${escapeHtml(androidLink)}" style="display:inline-block;background-color:#ffffff;color:#6366f1;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #6366f1;mso-hide:all;">
+                                        <a href="${escapeHtml(androidLink)}" style="display:inline-block;background-color:#FAF8F5;color:#7D9B8A;text-decoration:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;border:2px solid #7D9B8A;mso-hide:all;">
                                             Download for Android
                                         </a>
                                         <!--<![endif]-->
@@ -346,13 +351,13 @@ export const generateDomaniBetaLaunchEmailHtml = ({
                             </table>
 
                             <!-- One Ask -->
-                            <h2 style="margin:0 0 16px;color:#6366f1;font-size:20px;font-weight:600;">One ask</h2>
+                            <h2 style="margin:0 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">One ask</h2>
 
-                            <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.7;">This is a beta, which means we're still polishing things. If something feels off or you have ideas, tap the <strong>Feedback</strong> tab at the bottom of the app. We read everything.</p>
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">This is a beta, which means we're still polishing things. If something feels off or you have ideas, tap the <strong>Feedback</strong> tab at the bottom of the app. We read everything.</p>
 
-                            <p style="margin:0;color:#1f2937;font-size:16px;line-height:1.7;">Thanks for being here from the start.</p>
+                            <p style="margin:0;color:#3D4A44;font-size:16px;line-height:1.7;">Thanks for being here from the start.</p>
 
-                            <p style="margin:32px 0 0;color:#6b7280;font-size:15px;">— The Domani Team</p>
+                            <p style="margin:32px 0 0;color:#6B7265;font-size:15px;">— The Domani Team</p>
                         </td>
                     </tr>
 
@@ -379,8 +384,8 @@ export const generateDomaniBetaLaunchEmailHtml = ({
 export const generateDomaniBetaLaunchEmailText = ({
     recipientEmail,
     recipientName,
-    iosLink,
-    androidLink
+    iosLink = DOMANI_IOS_LINK,
+    androidLink = DOMANI_ANDROID_LINK
 }: DomaniBetaLaunchEmailParams): string => {
     const greeting = recipientName ? `Hey ${recipientName},` : 'Hey there,'
     const unsubscribeUrl = `https://domani-app.com/waitlist/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
@@ -425,6 +430,203 @@ This is a beta, which means we're still polishing things. If something feels off
 Thanks for being here from the start.
 
 — The Domani Team
+
+---
+domani-app.com
+
+Unsubscribe: ${unsubscribeUrl}`
+}
+
+// ============================================================================
+// Domani Beta Update Email (Task Rollover Feature)
+// ============================================================================
+
+interface DomaniBetaUpdateEmailParams {
+    recipientEmail: string
+    recipientName?: string | null
+}
+
+export const DOMANI_BETA_UPDATE_SUBJECT =
+    "You've been shaping something special (+ a peek at what's next)"
+
+export const generateDomaniBetaUpdateEmailHtml = ({
+    recipientEmail,
+    recipientName
+}: DomaniBetaUpdateEmailParams): string => {
+    const greeting = recipientName
+        ? `Hey ${escapeHtml(recipientName)},`
+        : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/users/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domani Beta Update</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#FAF8F5;">
+        <tr>
+            <td style="padding:40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:600px;margin:0 auto;background-color:#F5F2ED;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(125,155,138,0.15);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#7D9B8A 0%,#5A7765 100%);padding:40px 32px;text-align:center;">
+                            <h1 style="margin:0;color:#FAF8F5;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Domani</h1>
+                            <p style="margin:8px 0 0;color:rgba(250,248,245,0.9);font-size:16px;">Beta Update</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding:40px 32px;">
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">${greeting}</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">First, thank you. Seriously. You took a chance on Domani when it was just an idea about planning differently, and your feedback has been shaping this app into something real.</p>
+
+                            <!-- What you've seen recently -->
+                            <h2 style="margin:28px 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">What you've seen recently</h2>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">You might have noticed things looking a little different lately. We rolled out a new <strong>sage theme</strong>—think muted earth tones instead of bold blues. It wasn't just a visual refresh. The old colors felt urgent, almost pushy. The sage palette is calmer, more grounded. Because planning your day shouldn't feel like your app is yelling at you.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">The philosophy is simple: support intentional work without visual overwhelm. You're already making conscious choices about tomorrow. Your tools should respect that.</p>
+
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;">We also added <strong>per-task reminders</strong>. You asked for them, we built them. Now you can set a specific time for each task instead of hoping you remember when it matters.</p>
+
+                            <!-- What's coming next -->
+                            <h2 style="margin:28px 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">What's coming next: Task Rollover</h2>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">Here's the thing we've been wrestling with: what happens when you don't finish everything you planned yesterday?</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">Right now, those tasks just... disappear into the past. You have to manually recreate them if you still care. That's friction you shouldn't need.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">But auto-rollover everything? That's worse. Suddenly you're dragging around a backlog of stuff you never quite got to, and planning feels like housekeeping instead of intention-setting.</p>
+
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;">So we built something in between.</p>
+
+                            <!-- Feature Box -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 28px;">
+                                <tr>
+                                    <td bgcolor="#E8F1ED" style="background-color:#E8F1ED;border:2px solid #A3BFB0;border-radius:12px;padding:24px;">
+                                        <p style="margin:0 0 12px;color:#3D4A44;font-size:18px;font-weight:600;">Task Rollover lets you choose.</p>
+                                        <p style="margin:0;color:#6B7265;font-size:15px;line-height:1.6;">It works at two key moments during your planning flow.</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin:0 0 12px;color:#3D4A44;font-size:16px;line-height:1.7;"><strong>In the morning:</strong> When you open Domani for the first time each day, if you had incomplete tasks yesterday, you'll see a simple prompt. Your Most Important Task from yesterday appears at the top with a star. Other incomplete tasks sit below it. You pick which ones deserve another day.</p>
+
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;"><strong>During evening planning:</strong> When your planning reminder goes off (say, 6pm), and you have incomplete tasks from today, you'll see a gentle prompt before you start planning tomorrow. But here's the smart part—it only shows tasks you clearly missed (that 4pm dentist call) or unscheduled tasks. Tasks with reminders still in the future (your 7pm meditation) don't show up because they haven't failed yet.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">Maybe that quarterly report still matters. Check it, carry it forward, keep it as today's MIT (or tomorrow's, if you're planning ahead).</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">Maybe that "organize desk drawer" task was never actually important. Leave it unchecked. Start fresh.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">The details come with you—category, priority, reminders all preserved (adjusted to the right day, obviously). But you're making a conscious choice, not inheriting leftovers by default.</p>
+
+                            <p style="margin:0 0 28px;color:#3D4A44;font-size:16px;line-height:1.7;">And if you finished everything? The app celebrates with you. Because that deserves recognition.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">This isn't about managing an endless to-do list. It's about choosing what matters, informed by what you didn't finish, without the guilt or overwhelm of automatic inheritance.</p>
+
+                            <!-- Keep going -->
+                            <h2 style="margin:28px 0 16px;color:#7D9B8A;font-size:20px;font-weight:600;">Keep going</h2>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">We're building this thing together. Keep using the app, keep sharing what works and what doesn't. The more real-world usage we see, the better Domani becomes for everyone who values intentional productivity.</p>
+
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;"><strong>Task Rollover launches soon.</strong> You'll be the first to try it.</p>
+
+                            <p style="margin:0;color:#3D4A44;font-size:16px;line-height:1.7;">Talk soon,</p>
+                            <p style="margin:8px 0 0;color:#6B7265;font-size:15px;">— The Domani Team</p>
+
+                            <p style="margin:32px 0 0;color:#6B7265;font-size:14px;font-style:italic;">P.S. If something feels off or you have ideas about what should come next, just reply to this email. We read everything.</p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#FAF8F5;padding:24px 32px;text-align:center;border-top:1px solid #E8E4DD;">
+                            <p style="margin:0 0 8px;color:#9BA69E;font-size:13px;">Made with care by the Domani team</p>
+                            <p style="margin:0 0 12px;color:#9BA69E;font-size:12px;">
+                                <a href="https://domani-app.com" style="color:#7D9B8A;text-decoration:none;">domani-app.com</a>
+                            </p>
+                            <p style="margin:0;color:#ADB7B0;font-size:11px;">
+                                <a href="${unsubscribeUrl}" style="color:#9BA69E;text-decoration:underline;">Unsubscribe</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`
+}
+
+export const generateDomaniBetaUpdateEmailText = ({
+    recipientEmail,
+    recipientName
+}: DomaniBetaUpdateEmailParams): string => {
+    const greeting = recipientName ? `Hey ${recipientName},` : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/users/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+
+    return `${greeting}
+
+First, thank you. Seriously. You took a chance on Domani when it was just an idea about planning differently, and your feedback has been shaping this app into something real.
+
+---
+
+WHAT YOU'VE SEEN RECENTLY
+
+You might have noticed things looking a little different lately. We rolled out a new sage theme—think muted earth tones instead of bold blues. It wasn't just a visual refresh. The old colors felt urgent, almost pushy. The sage palette is calmer, more grounded. Because planning your day shouldn't feel like your app is yelling at you.
+
+The philosophy is simple: support intentional work without visual overwhelm. You're already making conscious choices about tomorrow. Your tools should respect that.
+
+We also added per-task reminders. You asked for them, we built them. Now you can set a specific time for each task instead of hoping you remember when it matters.
+
+---
+
+WHAT'S COMING NEXT: TASK ROLLOVER
+
+Here's the thing we've been wrestling with: what happens when you don't finish everything you planned yesterday?
+
+Right now, those tasks just... disappear into the past. You have to manually recreate them if you still care. That's friction you shouldn't need.
+
+But auto-rollover everything? That's worse. Suddenly you're dragging around a backlog of stuff you never quite got to, and planning feels like housekeeping instead of intention-setting.
+
+So we built something in between.
+
+Task Rollover lets you choose.
+
+It works at two key moments:
+
+IN THE MORNING: When you open Domani for the first time each day, if you had incomplete tasks yesterday, you'll see a simple prompt. Your Most Important Task from yesterday appears at the top with a star. Other incomplete tasks sit below it. You pick which ones deserve another day.
+
+DURING EVENING PLANNING: When your planning reminder goes off (say, 6pm), and you have incomplete tasks from today, you'll see a gentle prompt before you start planning tomorrow. But here's the smart part—it only shows tasks you clearly missed (that 4pm dentist call) or unscheduled tasks. Tasks with reminders still in the future (your 7pm meditation) don't show up because they haven't failed yet.
+
+Maybe that quarterly report still matters. Check it, carry it forward, keep it as today's MIT (or tomorrow's, if you're planning ahead).
+
+Maybe that "organize desk drawer" task was never actually important. Leave it unchecked. Start fresh.
+
+The details come with you—category, priority, reminders all preserved (adjusted to the right day, obviously). But you're making a conscious choice, not inheriting leftovers by default.
+
+And if you finished everything? The app celebrates with you. Because that deserves recognition.
+
+This isn't about managing an endless to-do list. It's about choosing what matters, informed by what you didn't finish, without the guilt or overwhelm of automatic inheritance.
+
+---
+
+KEEP GOING
+
+We're building this thing together. Keep using the app, keep sharing what works and what doesn't. The more real-world usage we see, the better Domani becomes for everyone who values intentional productivity.
+
+Task Rollover launches soon. You'll be the first to try it.
+
+Talk soon,
+— The Domani Team
+
+P.S. If something feels off or you have ideas about what should come next, just reply to this email. We read everything.
 
 ---
 domani-app.com
