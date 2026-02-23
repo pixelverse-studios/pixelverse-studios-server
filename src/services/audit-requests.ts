@@ -6,6 +6,7 @@ export interface AuditRequestPayload {
     websiteUrl: string
     phoneNumber?: string
     specifics?: string
+    otherDetail?: string
     prospectId: string
 }
 
@@ -16,6 +17,7 @@ export interface AuditRequestRecord {
     website_url: string
     phone_number: string | null
     specifics: string | null
+    other_detail: string | null
     status: string
     prospect_id: string | null
     created_at: string
@@ -28,6 +30,7 @@ const mapPayloadToRow = ({
     websiteUrl,
     phoneNumber,
     specifics,
+    otherDetail,
     prospectId,
 }: AuditRequestPayload) => ({
     name,
@@ -35,6 +38,7 @@ const mapPayloadToRow = ({
     website_url: websiteUrl,
     phone_number: phoneNumber ?? null,
     specifics: specifics ?? null,
+    other_detail: otherDetail ?? null,
     prospect_id: prospectId,
     status: 'pending',
 })
