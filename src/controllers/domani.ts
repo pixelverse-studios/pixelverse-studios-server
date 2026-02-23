@@ -16,6 +16,9 @@ import {
     BetaUpdateRecipient
 } from '../lib/nylas-mailer'
 
+// Module-level flag — prevents concurrent blasts on the same process
+let blastInProgress = false
+
 /**
  * GET /api/domani/feedback
  * List beta feedback submissions with filtering and pagination
@@ -278,7 +281,18 @@ const sendBetaLaunchEmailBlast = async (
             }
         )
 
-        return res.status(200).json(result)
+        const { total, successful, failed } = result
+
+        if (failed === total) {
+            return res.status(500).json({
+                total,
+                successful,
+                failed,
+                message: 'Beta launch email blast failed — no emails were delivered'
+            })
+        }
+
+        return res.status(200).json({ total, successful, failed })
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -303,13 +317,21 @@ const sendBetaUpdateEmailBlast = async (
             return res.status(400).json({ errors: errors.array() })
         }
 
-        const { delayBetweenEmails } = req.body
+        const { delayBetweenEmails }: { delayBetweenEmails?: number } = req.body
+
+        if (blastInProgress) {
+            return res.status(409).json({
+                error: 'A blast is already in progress',
+                message:
+                    'Please wait for the current blast to complete before starting another.'
+            })
+        }
 
         // Fetch all active users (deleted_at IS NULL)
         console.log('📋 Fetching all active users from Domani profiles...')
         const usersResult = await domaniService.getUsers({
             includeDeleted: false,
-            limit: 1000, // Fetch all users (adjust if needed)
+            limit: 1000,
             offset: 0
         })
 
@@ -317,6 +339,17 @@ const sendBetaUpdateEmailBlast = async (
             return res.status(404).json({
                 error: 'No active users found',
                 message: 'There are no active users to send emails to.'
+            })
+        }
+
+        // Guard against silent truncation — abort rather than partial-blast
+        if (usersResult.items.length < usersResult.total) {
+            console.error(
+                `⚠️ User list truncated: fetched ${usersResult.items.length} of ${usersResult.total} active users`
+            )
+            return res.status(500).json({
+                error: 'Unable to fetch all active users',
+                message: `Found ${usersResult.total} active users but could only fetch ${usersResult.items.length}. Blast aborted to prevent partial send.`
             })
         }
 
@@ -332,15 +365,33 @@ const sendBetaUpdateEmailBlast = async (
             `📧 Preparing to send beta update emails to ${recipients.length} active users...`
         )
 
-        // Send emails
-        const result = await sendBetaUpdateEmails(recipients, {
-            delayBetweenEmails
-        })
+        blastInProgress = true
+        try {
+            const result = await sendBetaUpdateEmails(recipients, {
+                delayBetweenEmails
+            })
 
-        return res.status(200).json({
-            ...result,
-            message: 'Beta update email blast completed'
-        })
+            const { total, successful, failed } = result
+
+            if (failed === total) {
+                return res.status(500).json({
+                    total,
+                    successful,
+                    failed,
+                    message:
+                        'Beta update email blast failed — no emails were delivered'
+                })
+            }
+
+            return res.status(200).json({
+                total,
+                successful,
+                failed,
+                message: 'Beta update email blast completed'
+            })
+        } finally {
+            blastInProgress = false
+        }
     } catch (err) {
         return handleGenericError(err, res)
     }
@@ -364,18 +415,25 @@ const sendBetaUpdateTestEmails = async (
             return res.status(400).json({ errors: errors.array() })
         }
 
-        const { recipients, delayBetweenEmails } = req.body
+        const recipients = req.body.recipients as BetaUpdateRecipient[]
+        const { delayBetweenEmails }: { delayBetweenEmails?: number } = req.body
 
         console.log(
             `📧 Sending test beta update emails to ${recipients.length} recipients...`
         )
 
-        const result = await sendBetaUpdateEmails(
-            recipients as BetaUpdateRecipient[],
-            {
-                delayBetweenEmails
-            }
-        )
+        const result = await sendBetaUpdateEmails(recipients, {
+            delayBetweenEmails
+        })
+
+        const { total, successful, failed } = result
+
+        if (failed === total) {
+            return res.status(500).json({
+                ...result,
+                message: 'Test blast failed — no emails were delivered'
+            })
+        }
 
         return res.status(200).json({
             ...result,

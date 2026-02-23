@@ -4,10 +4,8 @@ import {
     DOMANI_IOS_LINK,
     DOMANI_ANDROID_LINK,
     generateDomaniBetaLaunchEmailHtml,
-    generateDomaniBetaLaunchEmailText,
     DOMANI_BETA_UPDATE_SUBJECT,
-    generateDomaniBetaUpdateEmailHtml,
-    generateDomaniBetaUpdateEmailText
+    generateDomaniBetaUpdateEmailHtml
 } from '../utils/mailer/emails'
 
 const NYLAS_API_KEY = process.env.NYLAS_API_KEY!
@@ -216,13 +214,6 @@ async function sendBetaLaunchEmailToRecipient(
             androidLink
         })
 
-        const text = generateDomaniBetaLaunchEmailText({
-            recipientEmail: recipient.email,
-            recipientName: recipient.name,
-            iosLink,
-            androidLink
-        })
-
         await nylas.messages.send({
             identifier: NYLAS_GRANT_ID,
             requestBody: {
@@ -323,11 +314,6 @@ async function sendBetaUpdateEmailToRecipient(
 ): Promise<BetaUpdateResult> {
     try {
         const html = generateDomaniBetaUpdateEmailHtml({
-            recipientEmail: recipient.email,
-            recipientName: recipient.name
-        })
-
-        const text = generateDomaniBetaUpdateEmailText({
             recipientEmail: recipient.email,
             recipientName: recipient.name
         })
