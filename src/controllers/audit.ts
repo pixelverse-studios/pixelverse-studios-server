@@ -14,6 +14,7 @@ const auditSchema = z.object({
         .union([z.string(), z.array(z.string())])
         .optional()
         .transform((v) => (Array.isArray(v) ? v.join(', ') : v)),
+    otherDetail: z.string().max(500).optional(),
     honeypot: z.string().optional(),
 })
 
@@ -27,14 +28,20 @@ const resolveWebhookUrl = (): string => {
 }
 
 const buildDiscordDescription = (record: AuditRequestRecord): string => {
-    return [
+    const lines = [
         '────────────────────────',
         `👤 Name:        ${record.name}`,
         `📧 Email:       ${record.email}`,
         `🌐 Website:     ${record.website_url}`,
         `📞 Phone:       ${record.phone_number ?? 'Not provided'}`,
         `🔍 Focus areas: ${record.specifics ?? 'Not specified'}`,
-    ].join('\n')
+    ]
+
+    if (record.other_detail) {
+        lines.push(`📝 Other:       ${record.other_detail}`)
+    }
+
+    return lines.join('\n')
 }
 
 const sendAuditAlertToDiscord = async (
@@ -82,7 +89,7 @@ const createAuditRequest = async (
             return res.status(200).json({ message: 'Audit request received.' })
         }
 
-        const { name, email, websiteUrl, phoneNumber, specifics } = parsed
+        const { name, email, websiteUrl, phoneNumber, specifics, otherDetail } = parsed
 
         const prospectId = await upsertProspect(email, name, 'review_request')
 
@@ -92,6 +99,7 @@ const createAuditRequest = async (
             websiteUrl,
             phoneNumber,
             specifics,
+            otherDetail,
             prospectId,
         })
 
