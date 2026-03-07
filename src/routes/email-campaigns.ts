@@ -13,12 +13,17 @@ router.post(
     [
         body('subject')
             .isString()
+            .trim()
             .notEmpty()
-            .withMessage('subject is required'),
+            .withMessage('subject is required')
+            .isLength({ max: 500 })
+            .withMessage('subject must be 500 characters or fewer'),
         body('htmlContent')
             .isString()
             .notEmpty()
-            .withMessage('htmlContent is required'),
+            .withMessage('htmlContent is required')
+            .isLength({ max: 500000 })
+            .withMessage('htmlContent must be 500KB or fewer'),
     ],
     validateRequest,
     emailCampaigns.preview
@@ -31,15 +36,20 @@ router.post(
     [
         body('subject')
             .isString()
+            .trim()
             .notEmpty()
-            .withMessage('subject is required'),
+            .withMessage('subject is required')
+            .isLength({ max: 500 })
+            .withMessage('subject must be 500 characters or fewer'),
         body('htmlContent')
             .isString()
             .notEmpty()
-            .withMessage('htmlContent is required'),
+            .withMessage('htmlContent is required')
+            .isLength({ max: 500000 })
+            .withMessage('htmlContent must be 500KB or fewer'),
         body('recipientIds')
-            .isArray({ min: 1 })
-            .withMessage('recipientIds must be a non-empty array'),
+            .isArray({ min: 1, max: 500 })
+            .withMessage('recipientIds must be a non-empty array (max 500)'),
         body('recipientIds.*')
             .isUUID()
             .withMessage('Each recipientId must be a valid UUID'),

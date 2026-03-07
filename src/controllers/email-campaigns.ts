@@ -5,10 +5,7 @@ import { handleGenericError } from '../utils/http'
 import { sanitizeRichText } from '../utils/html'
 import emailCampaignService from '../services/email-campaigns'
 import { sendCampaignEmails, CampaignRecipient } from '../lib/nylas-mailer'
-import {
-    generateVersionReleaseEmailHtml,
-    generateVersionReleaseEmailText,
-} from '../utils/mailer/emails'
+import { generateVersionReleaseEmailHtml } from '../utils/mailer/emails'
 
 // Hardcoded preview recipients
 const PREVIEW_RECIPIENTS = [
@@ -41,12 +38,6 @@ const preview = async (req: Request, res: Response): Promise<Response> => {
             `[PREVIEW] ${subject}`,
             recipient => ({
                 html: generateVersionReleaseEmailHtml({
-                    recipientEmail: recipient.email,
-                    recipientName: recipient.name,
-                    subject,
-                    htmlContent: sanitizedContent,
-                }),
-                text: generateVersionReleaseEmailText({
                     recipientEmail: recipient.email,
                     recipientName: recipient.name,
                     subject,
@@ -115,12 +106,6 @@ const send = async (req: Request, res: Response): Promise<Response> => {
                 subject,
                 recipient => ({
                     html: generateVersionReleaseEmailHtml({
-                        recipientEmail: recipient.email,
-                        recipientName: recipient.name,
-                        subject,
-                        htmlContent: sanitizedContent,
-                    }),
-                    text: generateVersionReleaseEmailText({
                         recipientEmail: recipient.email,
                         recipientName: recipient.name,
                         subject,

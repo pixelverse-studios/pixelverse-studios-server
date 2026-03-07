@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { Request, Response, NextFunction } from 'express'
 import { validationResult } from 'express-validator'
 
@@ -23,7 +24,12 @@ export const requireBlastSecret = (
         res.status(503).json({ error: 'Blast endpoint not configured' })
         return
     }
-    if (req.headers['x-blast-secret'] !== secret) {
+    const header = req.headers['x-blast-secret']
+    if (
+        typeof header !== 'string' ||
+        header.length !== secret.length ||
+        !crypto.timingSafeEqual(Buffer.from(header), Buffer.from(secret))
+    ) {
         res.status(401).json({ error: 'Unauthorized' })
         return
     }
