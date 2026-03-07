@@ -16,6 +16,7 @@ import agendaRouter from './routes/agenda'
 import domaniRouter from './routes/domani'
 import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
+import emailCampaignsRouter from './routes/email-campaigns'
 
 import 'dotenv/config'
 
@@ -41,6 +42,7 @@ app.use(agendaRouter)
 app.use(domaniRouter)
 app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
+app.use(emailCampaignsRouter)
 
 // Error handling middleware
 app.use(
