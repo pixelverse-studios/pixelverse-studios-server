@@ -6,8 +6,6 @@ import {
     generateDomaniBetaLaunchEmailHtml,
     DOMANI_BETA_UPDATE_SUBJECT,
     generateDomaniBetaUpdateEmailHtml,
-    generateVersionReleaseEmailHtml,
-    generateVersionReleaseEmailText,
 } from '../utils/mailer/emails'
 
 const NYLAS_API_KEY = process.env.NYLAS_API_KEY!
