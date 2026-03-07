@@ -4,11 +4,7 @@ import { validationResult } from 'express-validator'
 import { handleGenericError } from '../utils/http'
 import { sanitizeRichText } from '../utils/html'
 import emailCampaignService from '../services/email-campaigns'
-import {
-    sendCampaignEmails,
-    sendEmail,
-    CampaignRecipient,
-} from '../lib/nylas-mailer'
+import { sendCampaignEmails, CampaignRecipient } from '../lib/nylas-mailer'
 import {
     generateVersionReleaseEmailHtml,
     generateVersionReleaseEmailText,
@@ -37,18 +33,27 @@ const preview = async (req: Request, res: Response): Promise<Response> => {
         const { subject, htmlContent } = req.body
         const sanitizedContent = sanitizeRichText(htmlContent)
 
-        const html = generateVersionReleaseEmailHtml({
-            recipientEmail: PREVIEW_RECIPIENTS[0],
-            recipientName: 'Preview',
-            subject,
-            htmlContent: sanitizedContent,
-        })
+        const previewRecipients: CampaignRecipient[] =
+            PREVIEW_RECIPIENTS.map(email => ({ email, name: 'Preview' }))
 
-        await sendEmail({
-            to: PREVIEW_RECIPIENTS,
-            subject: `[PREVIEW] ${subject}`,
-            html,
-        })
+        await sendCampaignEmails(
+            previewRecipients,
+            `[PREVIEW] ${subject}`,
+            recipient => ({
+                html: generateVersionReleaseEmailHtml({
+                    recipientEmail: recipient.email,
+                    recipientName: recipient.name,
+                    subject,
+                    htmlContent: sanitizedContent,
+                }),
+                text: generateVersionReleaseEmailText({
+                    recipientEmail: recipient.email,
+                    recipientName: recipient.name,
+                    subject,
+                    htmlContent: sanitizedContent,
+                }),
+            })
+        )
 
         return res.status(200).json({
             message: 'Preview email sent successfully',

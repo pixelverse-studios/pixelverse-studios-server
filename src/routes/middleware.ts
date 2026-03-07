@@ -12,3 +12,20 @@ export const validateRequest = (
     }
     next()
 }
+
+export const requireBlastSecret = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): void => {
+    const secret = process.env.BLAST_SECRET?.trim()
+    if (!secret) {
+        res.status(503).json({ error: 'Blast endpoint not configured' })
+        return
+    }
+    if (req.headers['x-blast-secret'] !== secret) {
+        res.status(401).json({ error: 'Unauthorized' })
+        return
+    }
+    next()
+}
