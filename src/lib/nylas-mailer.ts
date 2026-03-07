@@ -408,7 +408,6 @@ export interface CampaignSendResult {
 
 export type CampaignTemplateFn = (recipient: CampaignRecipient) => {
     html: string
-    text: string
 }
 
 export interface CampaignSendOptions {

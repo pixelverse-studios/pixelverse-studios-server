@@ -1,7 +1,7 @@
-import { Router, Request, Response, NextFunction } from 'express'
+import { Router } from 'express'
 import { body, query } from 'express-validator'
 
-import { validateRequest } from './middleware'
+import { validateRequest, requireBlastSecret } from './middleware'
 import domani from '../controllers/domani'
 import {
     FEEDBACK_CATEGORIES,
@@ -11,24 +11,6 @@ import {
 } from '../lib/domani-db'
 
 const router = Router()
-
-// Middleware: require X-Blast-Secret header on email blast endpoints
-const requireBlastSecret = (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): void => {
-    const secret = process.env.BLAST_SECRET?.trim()
-    if (!secret) {
-        res.status(503).json({ error: 'Blast endpoint not configured' })
-        return
-    }
-    if (req.headers['x-blast-secret'] !== secret) {
-        res.status(401).json({ error: 'Unauthorized' })
-        return
-    }
-    next()
-}
 
 // Common pagination validators
 const paginationValidators = [
