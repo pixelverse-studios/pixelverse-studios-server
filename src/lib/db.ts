@@ -27,6 +27,7 @@ export const Tables = {
     CLIENT_WEBSITE_SUMMARY: 'client_website_summary',
     AGENDA_ITEMS: 'agenda_items',
     V_PROSPECTS_ALL: 'v_prospects_all',
+    EMAIL_CAMPAIGNS: 'email_campaigns',
 }
 
 // Valid project status values for websites and apps
