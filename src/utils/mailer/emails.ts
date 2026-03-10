@@ -564,6 +564,120 @@ export const generateDomaniBetaUpdateEmailHtml = ({
 </html>`
 }
 
+// ============================================================================
+// Domani Version Release Campaign Email
+// ============================================================================
+
+interface VersionReleaseEmailParams {
+    recipientEmail: string
+    recipientName?: string | null
+    subject: string
+    htmlContent: string // pre-sanitized WYSIWYG HTML
+}
+
+export const generateVersionReleaseEmailHtml = ({
+    recipientEmail,
+    recipientName,
+    subject,
+    htmlContent,
+}: VersionReleaseEmailParams): string => {
+    const greeting = recipientName
+        ? `Hey ${escapeHtml(recipientName)},`
+        : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/users/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#FAF8F5;">
+        <tr>
+            <td style="padding:40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:600px;margin:0 auto;background-color:#F5F2ED;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(125,155,138,0.15);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#7D9B8A 0%,#5A7765 100%);padding:40px 32px;text-align:center;">
+                            <h1 style="margin:0;color:#FAF8F5;font-size:28px;font-weight:700;letter-spacing:-0.5px;">Domani</h1>
+                            <p style="margin:8px 0 0;color:rgba(250,248,245,0.9);font-size:16px;">${escapeHtml(subject)}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding:40px 32px;">
+                            <p style="margin:0 0 20px;color:#3D4A44;font-size:16px;line-height:1.7;">${greeting}</p>
+
+                            <!-- WYSIWYG Content -->
+                            <div style="color:#3D4A44;font-size:16px;line-height:1.7;">
+                                ${htmlContent}
+                            </div>
+
+                            <p style="margin:32px 0 0;color:#6B7265;font-size:15px;">— The Domani Team</p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#FAF8F5;padding:24px 32px;text-align:center;border-top:1px solid #E8E4DD;">
+                            <p style="margin:0 0 8px;color:#9BA69E;font-size:13px;">Made with care by the Domani team</p>
+                            <p style="margin:0 0 12px;color:#9BA69E;font-size:12px;">
+                                <a href="https://domani-app.com" style="color:#7D9B8A;text-decoration:none;">domani-app.com</a>
+                            </p>
+                            <p style="margin:0;color:#ADB7B0;font-size:11px;">
+                                <a href="${unsubscribeUrl}" style="color:#9BA69E;text-decoration:underline;">Unsubscribe</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`
+}
+
+export const generateVersionReleaseEmailText = ({
+    recipientEmail,
+    recipientName,
+    subject,
+    htmlContent,
+}: VersionReleaseEmailParams): string => {
+    const greeting = recipientName ? `Hey ${recipientName},` : 'Hey there,'
+    const unsubscribeUrl = `https://domani-app.com/users/unsubscribe?email=${encodeURIComponent(recipientEmail)}`
+
+    // Strip HTML tags for plain text version
+    const plainContent = htmlContent
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/<li>/gi, '- ')
+        .replace(/<\/h[1-6]>/gi, '\n\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+
+    return `${greeting}
+
+${plainContent}
+
+— The Domani Team
+
+---
+domani-app.com
+
+Unsubscribe: ${unsubscribeUrl}`
+}
+
 export const generateDomaniBetaUpdateEmailText = ({
     recipientEmail,
     recipientName

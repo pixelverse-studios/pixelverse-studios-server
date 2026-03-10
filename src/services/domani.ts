@@ -3,7 +3,6 @@ import {
     DomaniTables,
     FeedbackCategory,
     Platform,
-    UserTier,
     SignupCohort
 } from '../lib/domani-db'
 
@@ -61,12 +60,12 @@ export interface UserProfile {
     id: string
     email: string
     full_name: string | null
-    tier: UserTier
     signup_cohort: SignupCohort
     signup_method: string
     timezone: string
     created_at: string
     deleted_at: string | null
+    last_sign_in_at: string | null
 }
 
 // Query options
@@ -90,7 +89,6 @@ export interface SupportQueryOptions extends PaginationOptions {
 export interface WaitlistQueryOptions extends PaginationOptions {}
 
 export interface UsersQueryOptions extends PaginationOptions {
-    tier?: UserTier
     cohort?: SignupCohort
     includeDeleted?: boolean
 }
@@ -265,36 +263,20 @@ const getUsers = async (
     const {
         limit = 50,
         offset = 0,
-        tier,
         cohort,
         includeDeleted = false
     } = options
 
-    // Get total count
-    let countQuery = domaniDb
-        .from(DomaniTables.PROFILES)
-        .select('*', { count: 'exact', head: true })
-
-    if (tier) countQuery = countQuery.eq('tier', tier)
-    if (cohort) countQuery = countQuery.eq('signup_cohort', cohort)
-    if (!includeDeleted) countQuery = countQuery.is('deleted_at', null)
-
-    const { count, error: countError } = await countQuery
-
-    if (countError) throw countError
-
-    // Get paginated data
-    let dataQuery = domaniDb
-        .from(DomaniTables.PROFILES)
-        .select('*')
+    let query = domaniDb
+        .from(DomaniTables.PROFILES_DASHBOARD)
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
-    if (tier) dataQuery = dataQuery.eq('tier', tier)
-    if (cohort) dataQuery = dataQuery.eq('signup_cohort', cohort)
-    if (!includeDeleted) dataQuery = dataQuery.is('deleted_at', null)
+    if (cohort) query = query.eq('signup_cohort', cohort)
+    if (!includeDeleted) query = query.is('deleted_at', null)
 
-    const { data, error } = await dataQuery
+    const { data, count, error } = await query
 
     if (error) throw error
 

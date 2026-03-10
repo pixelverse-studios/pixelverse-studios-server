@@ -6,7 +6,6 @@ import domaniService from '../services/domani'
 import {
     FeedbackCategory,
     Platform,
-    UserTier,
     SignupCohort
 } from '../lib/domani-db'
 import {
@@ -147,7 +146,6 @@ const listWaitlist = async (req: Request, res: Response): Promise<Response> => {
  * List user profiles with filtering and pagination
  *
  * Query params:
- * - tier: 'free' | 'premium' | 'lifetime'
  * - cohort: 'friends_family' | 'early_adopter' | 'general'
  * - include_deleted: 'true' to include soft-deleted users
  * - limit: max items (default 50, max 100)
@@ -160,14 +158,12 @@ const listUsers = async (req: Request, res: Response): Promise<Response> => {
             return res.status(400).json({ errors: errors.array() })
         }
 
-        const tier = req.query.tier as UserTier | undefined
         const cohort = req.query.cohort as SignupCohort | undefined
         const includeDeleted = req.query.include_deleted === 'true'
         const limit = Math.min(parseInt(req.query.limit as string) || 50, 100)
         const offset = parseInt(req.query.offset as string) || 0
 
         const result = await domaniService.getUsers({
-            tier,
             cohort,
             includeDeleted,
             limit,
