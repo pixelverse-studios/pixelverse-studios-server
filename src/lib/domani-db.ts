@@ -17,7 +17,8 @@ export const DomaniTables = {
     BETA_FEEDBACK: 'beta_feedback',
     SUPPORT_REQUESTS: 'support_requests',
     WAITLIST: 'waitlist',
-    PROFILES: 'profiles'
+    PROFILES: 'profiles',
+    PROFILES_DASHBOARD: 'profiles_dashboard',
 }
 
 // Feedback categories
@@ -27,10 +28,6 @@ export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]
 // Platform types
 export const PLATFORMS = ['ios', 'android'] as const
 export type Platform = (typeof PLATFORMS)[number]
-
-// User tier types
-export const USER_TIERS = ['free', 'premium', 'lifetime'] as const
-export type UserTier = (typeof USER_TIERS)[number]
 
 // Signup cohort types
 export const SIGNUP_COHORTS = [

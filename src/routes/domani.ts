@@ -6,7 +6,6 @@ import domani from '../controllers/domani'
 import {
     FEEDBACK_CATEGORIES,
     PLATFORMS,
-    USER_TIERS,
     SIGNUP_COHORTS
 } from '../lib/domani-db'
 
@@ -159,10 +158,6 @@ router.post(
 router.get(
     '/api/domani/users',
     [
-        query('tier')
-            .optional()
-            .isIn([...USER_TIERS])
-            .withMessage(`tier must be one of: ${USER_TIERS.join(', ')}`),
         query('cohort')
             .optional()
             .isIn([...SIGNUP_COHORTS])
