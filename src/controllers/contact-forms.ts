@@ -17,7 +17,7 @@ const getAll = async (req: Request, res: Response): Promise<Response> => {
 }
 
 const addRecord = async (req: Request, res: Response): Promise<Response> => {
-    const { fullname, email, phone, data: reqData } = req.body
+    const { fullname, email, phone = '', data: reqData } = req.body
     const { website_slug } = req.params
 
     try {

@@ -15,7 +15,7 @@ contactFormsRouter.post(
         param('website_slug').isString().notEmpty(),
         body('fullname').isString().notEmpty(),
         body('email').isString().notEmpty(),
-        body('phone').isString().notEmpty(),
+        body('phone').optional().isString(),
         body('data').notEmpty().isObject()
     ],
     validateRequest,
