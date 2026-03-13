@@ -77,11 +77,11 @@ const createCampaign = async (
 const listCampaigns = async (
     limit: number = 20,
     offset: number = 0
-): Promise<{ campaigns: EmailCampaignSummary[]; total: number }> => {
+): Promise<{ campaigns: EmailCampaignRecord[]; total: number }> => {
     const { data, count, error } = await db
         .from(Tables.EMAIL_CAMPAIGNS)
         .select(
-            'id, template_type, subject, recipient_count, successful, failed, sent_by, created_at',
+            'id, template_type, subject, html_content, recipient_count, successful, failed, recipients, sent_by, created_at',
             { count: 'exact' }
         )
         .order('created_at', { ascending: false })
@@ -90,7 +90,7 @@ const listCampaigns = async (
     if (error) throw error
 
     return {
-        campaigns: (data || []) as EmailCampaignSummary[],
+        campaigns: (data || []) as EmailCampaignRecord[],
         total: count ?? 0,
     }
 }
