@@ -1,4 +1,5 @@
 import Nylas from 'nylas'
+import { Resend } from 'resend'
 import {
     DOMANI_BETA_SUBJECT,
     DOMANI_IOS_LINK,
@@ -10,6 +11,9 @@ import {
 
 const NYLAS_API_KEY = process.env.NYLAS_API_KEY!
 const NYLAS_GRANT_ID = process.env.NYLAS_GRANT_ID!
+
+const resend = new Resend(process.env.RESEND_API_KEY!)
+const DOMANI_FROM_EMAIL = 'Domani <hello@domani-app.com>'
 
 // Simple markdown to HTML converter for basic formatting
 function markdownToHtml(markdown: string): string {
@@ -177,6 +181,7 @@ export async function sendDeploymentEmail({
 
 // ============================================================================
 // Domani Beta Launch Email Blast
+// TODO: Migrate to Resend (hello@domani-app.com) — currently still using Nylas
 // ============================================================================
 
 export interface BetaLaunchRecipient {
@@ -288,6 +293,7 @@ export async function sendBetaLaunchEmails(
 
 // ============================================================================
 // Domani Beta Update Email Blast (Task Rollover Feature)
+// TODO: Migrate to Resend (hello@domani-app.com) — currently still using Nylas
 // ============================================================================
 
 export interface BetaUpdateRecipient {
@@ -442,13 +448,11 @@ export async function sendCampaignEmails(
         try {
             const { html } = templateFn(recipient)
 
-            await nylas.messages.send({
-                identifier: NYLAS_GRANT_ID,
-                requestBody: {
-                    subject,
-                    body: html,
-                    to: [{ email: recipient.email }],
-                },
+            await resend.emails.send({
+                from: DOMANI_FROM_EMAIL,
+                to: recipient.email,
+                subject,
+                html,
             })
 
             console.log(`✅ Campaign email sent to: ${recipient.email}`)
