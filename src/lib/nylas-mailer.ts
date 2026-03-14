@@ -54,19 +54,16 @@ export async function sendEmail({
     try {
         const recipients = Array.isArray(to) ? to : [to]
 
-        const emailBody: Record<string, unknown> = {
-            subject,
-            body: html,
-            to: recipients.map(email => ({ email })),
-        }
-
-        if (cc && cc.length > 0) {
-            emailBody.cc = cc.map(email => ({ email }))
-        }
-
         await nylas.messages.send({
             identifier: NYLAS_GRANT_ID,
-            requestBody: emailBody
+            requestBody: {
+                subject,
+                body: html,
+                to: recipients.map(email => ({ email })),
+                ...(cc && cc.length > 0 && {
+                    cc: cc.map(email => ({ email })),
+                }),
+            },
         })
 
         console.log('✅ Email sent successfully via Nylas:', {
