@@ -41,25 +41,27 @@ interface SendEmailParams {
     subject: string
     html: string
     text?: string
+    cc?: string[]
 }
 
 export async function sendEmail({
     to,
     subject,
     html,
-    text
+    text,
+    cc
 }: SendEmailParams): Promise<void> {
     try {
         const recipients = Array.isArray(to) ? to : [to]
 
-        const emailBody = {
+        const emailBody: Record<string, unknown> = {
             subject,
             body: html,
             to: recipients.map(email => ({ email })),
-            cc: [
-                { email: 'sami@pixelversestudios.io' },
-                { email: 'phil@pixelversestudios.io' }
-            ]
+        }
+
+        if (cc && cc.length > 0) {
+            emailBody.cc = cc.map(email => ({ email }))
         }
 
         await nylas.messages.send({
@@ -69,7 +71,7 @@ export async function sendEmail({
 
         console.log('✅ Email sent successfully via Nylas:', {
             sentTo: recipients.join(', '),
-            cc: 'sami@pixelversestudios.io, phil@pixelversestudios.io',
+            ...(cc && cc.length > 0 && { cc: cc.join(', ') }),
             subject
         })
     } catch (error) {
@@ -175,7 +177,11 @@ export async function sendDeploymentEmail({
     await sendEmail({
         to,
         subject: `🚀 New Deployment: ${websiteTitle}`,
-        html
+        html,
+        cc: [
+            'sami@pixelversestudios.io',
+            'phil@pixelversestudios.io',
+        ],
     })
 }
 
