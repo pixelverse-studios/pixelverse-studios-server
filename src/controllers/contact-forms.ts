@@ -1,7 +1,8 @@
 import { Request, Response } from 'express'
 
 import { handleGenericError } from '../utils/http'
-import { sendContactSubmissionEmail } from '../lib/mailer'
+import { sendEmail as sendNylasEmail } from '../lib/nylas-mailer'
+import { generateContactFormSubmissionEmail } from '../utils/mailer/emails'
 import websitesDB from '../services/websites'
 import contactFormDB from '../services/contact-forms'
 
@@ -33,14 +34,21 @@ const addRecord = async (req: Request, res: Response): Promise<Response> => {
         })
         const payload = { additional: { ...reqData }, phone, email, fullname }
 
-        await sendContactSubmissionEmail({
+        const html = generateContactFormSubmissionEmail({
+            website: title,
+            fullname: payload.fullname,
+            phone: payload.phone,
+            email: payload.email,
+            data: payload.additional,
+        })
+
+        await sendNylasEmail({
             to:
                 process.env.NODE_ENVIRONMENT === 'development'
                     ? 'info@pixelversestudios.io'
                     : sendToEmail,
             subject: `New Contact Form Submission for ${title}`,
-            website: title,
-            payload
+            html,
         })
 
         return res.status(201).json({})
