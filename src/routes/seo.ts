@@ -1,8 +1,9 @@
 import { Router } from 'express'
-import { body } from 'express-validator'
+import { body, param, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import seo from '../controllers/seo'
+import { PROJECT_STATUSES } from '../lib/db'
 
 const router = Router()
 
@@ -168,6 +169,75 @@ router.post(
     ],
     validateRequest,
     seo.submitAudit
+)
+
+// GET /api/seo/overview - Dashboard overview table (all websites)
+router.get(
+    '/api/seo/overview',
+    [
+        query('status')
+            .optional()
+            .isIn(PROJECT_STATUSES as readonly string[])
+            .withMessage(
+                `status must be one of: ${PROJECT_STATUSES.join(', ')}`
+            ),
+    ],
+    validateRequest,
+    seo.getOverview
+)
+
+// GET /api/websites/:websiteId/seo - Single website SEO summary
+router.get(
+    '/api/websites/:websiteId/seo',
+    [
+        param('websiteId')
+            .isUUID()
+            .withMessage('websiteId must be a valid UUID'),
+    ],
+    validateRequest,
+    seo.getWebsiteSeo
+)
+
+// GET /api/websites/:websiteId/seo/audits - Audit history (paginated)
+router.get(
+    '/api/websites/:websiteId/seo/audits',
+    [
+        param('websiteId')
+            .isUUID()
+            .withMessage('websiteId must be a valid UUID'),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 50 })
+            .withMessage('limit must be between 1 and 50'),
+        query('offset')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('offset must be a non-negative integer'),
+    ],
+    validateRequest,
+    seo.getAuditHistory
+)
+
+// GET /api/websites/:websiteId/seo/keywords/history - Keyword position history
+router.get(
+    '/api/websites/:websiteId/seo/keywords/history',
+    [
+        param('websiteId')
+            .isUUID()
+            .withMessage('websiteId must be a valid UUID'),
+        query('keyword')
+            .optional()
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('keyword must be a non-empty string'),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 50 })
+            .withMessage('limit must be between 1 and 50'),
+    ],
+    validateRequest,
+    seo.getKeywordHistory
 )
 
 export default router
