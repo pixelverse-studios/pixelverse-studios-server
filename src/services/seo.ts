@@ -15,11 +15,17 @@ type SeoGrade =
 
 type KeywordTrend = 'up' | 'down' | 'stable' | 'new' | 'lost'
 
+interface ChecklistItemDetail {
+    name: string
+    status: 'complete' | 'incomplete' | 'partial'
+}
+
 interface ChecklistItem {
     category: string
     total: number
     completed: number
     pct: number
+    items?: ChecklistItemDetail[]
 }
 
 interface ChangelogEntry {
@@ -290,7 +296,7 @@ const getWebsiteSeo = async (websiteId: string) => {
         return {
             website_id: websiteId,
             latest_audit: null,
-            keywords: { total: 0, ranking: 0, avg_position: null, top_keywords: [] },
+            keywords: { total: 0, ranking: 0, avg_position: null, items: [] },
             competitors: [],
             trend: { dates: [], scores: [] },
         }
@@ -351,7 +357,7 @@ const getWebsiteSeo = async (websiteId: string) => {
             total: (keywords || []).length,
             ranking: rankingKeywords.length,
             avg_position: avgPosition,
-            top_keywords: (keywords || []).slice(0, 10),
+            items: keywords || [],
         },
         competitors: competitors || [],
         trend: {
