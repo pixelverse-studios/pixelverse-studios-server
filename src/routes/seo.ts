@@ -80,6 +80,20 @@ router.post(
         body('checklist.*.pct')
             .isFloat({ min: 0, max: 100 })
             .withMessage('checklist pct must be between 0 and 100'),
+        body('checklist.*.items')
+            .optional()
+            .isArray({ max: 200 })
+            .withMessage('checklist items must be an array (max 200)'),
+        body('checklist.*.items.*.name')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('checklist item name is required'),
+        body('checklist.*.items.*.status')
+            .isIn(['complete', 'incomplete', 'partial'])
+            .withMessage(
+                'checklist item status must be complete, incomplete, or partial'
+            ),
         body('changelog')
             .optional()
             .isArray({ max: 200 })
