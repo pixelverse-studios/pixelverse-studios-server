@@ -29,10 +29,10 @@ CREATE UNIQUE INDEX idx_seo_audits_website_date ON public.seo_audits(website_id,
 CREATE TABLE public.seo_keywords (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     audit_id UUID NOT NULL REFERENCES public.seo_audits(id) ON DELETE CASCADE,
-    website_id UUID NOT NULL REFERENCES public.websites(id) ON DELETE CASCADE,
+    website_id UUID NOT NULL REFERENCES public.websites(id),
     keyword TEXT NOT NULL,
-    position INTEGER,
-    previous_position INTEGER,
+    position INTEGER CHECK (position > 0),
+    previous_position INTEGER CHECK (previous_position > 0),
     search_volume INTEGER,
     trend TEXT CHECK (trend IN ('up','down','stable','new','lost')),
     target_city TEXT,
@@ -43,12 +43,13 @@ CREATE TABLE public.seo_keywords (
 CREATE INDEX idx_seo_keywords_audit_id ON public.seo_keywords(audit_id);
 CREATE INDEX idx_seo_keywords_website_id ON public.seo_keywords(website_id);
 CREATE INDEX idx_seo_keywords_keyword ON public.seo_keywords(keyword);
+CREATE UNIQUE INDEX idx_seo_keywords_audit_keyword ON public.seo_keywords(audit_id, keyword);
 
 -- Competitor tracking — one row per competitor per audit
 CREATE TABLE public.seo_competitors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     audit_id UUID NOT NULL REFERENCES public.seo_audits(id) ON DELETE CASCADE,
-    website_id UUID NOT NULL REFERENCES public.websites(id) ON DELETE CASCADE,
+    website_id UUID NOT NULL REFERENCES public.websites(id),
     competitor_domain TEXT NOT NULL,
     da_score INTEGER CHECK (da_score BETWEEN 0 AND 100),
     keyword_overlap INTEGER,
@@ -59,3 +60,4 @@ CREATE TABLE public.seo_competitors (
 
 CREATE INDEX idx_seo_competitors_audit_id ON public.seo_competitors(audit_id);
 CREATE INDEX idx_seo_competitors_website_id ON public.seo_competitors(website_id);
+CREATE UNIQUE INDEX idx_seo_competitors_audit_domain ON public.seo_competitors(audit_id, competitor_domain);
