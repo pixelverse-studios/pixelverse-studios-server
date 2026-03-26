@@ -173,7 +173,7 @@ const getOverview = async (status?: string) => {
     // Get all websites with client info
     let websiteQuery = db
         .from(Tables.WEBSITES)
-        .select('id, title, domain, status, clients!inner(firstname, lastname)')
+        .select('id, title, domain, status, clients(firstname, lastname)')
 
     if (status) {
         websiteQuery = websiteQuery.eq('status', status)
@@ -207,7 +207,7 @@ const getOverview = async (status?: string) => {
     }
 
     // Get keyword stats for latest audits only
-    let keywordStats = new Map<string, { tracked: number; ranking: number }>()
+    const keywordStats = new Map<string, { tracked: number; ranking: number }>()
     if (latestAuditIds.size > 0) {
         const { data: keywords, error: kwError } = await db
             .from(Tables.SEO_KEYWORDS)
@@ -308,7 +308,7 @@ const getWebsiteSeo = async (websiteId: string) => {
     const rankingKeywords = (keywords || []).filter((k: any) => k.position !== null)
     const avgPosition = rankingKeywords.length > 0
         ? Math.round(
-            rankingKeywords.reduce((sum: number, k: any) => sum + k.position, 0) / rankingKeywords.length * 10
+            (rankingKeywords.reduce((sum: number, k: any) => sum + k.position, 0) / rankingKeywords.length) * 10
         ) / 10
         : null
 
@@ -320,15 +320,18 @@ const getWebsiteSeo = async (websiteId: string) => {
 
     if (compError) throw compError
 
-    // Score trend (last 6 audits)
+    // Score trend (last 6 audits, returned in chronological order)
     const { data: trendAudits, error: trendError } = await db
         .from(Tables.SEO_AUDITS)
         .select('audit_date, score')
         .eq('website_id', websiteId)
-        .order('audit_date', { ascending: true })
+        .order('audit_date', { ascending: false })
         .limit(6)
 
     if (trendError) throw trendError
+
+    // Reverse to chronological order for chart display
+    const trendChronological = (trendAudits || []).reverse()
 
     return {
         website_id: websiteId,
@@ -352,8 +355,8 @@ const getWebsiteSeo = async (websiteId: string) => {
         },
         competitors: competitors || [],
         trend: {
-            dates: (trendAudits || []).map((a: any) => a.audit_date),
-            scores: (trendAudits || []).map((a: any) => a.score),
+            dates: trendChronological.map((a: any) => a.audit_date),
+            scores: trendChronological.map((a: any) => a.score),
         },
     }
 }
@@ -377,7 +380,7 @@ const getAuditHistory = async (
 
     // Get keyword counts per audit
     const auditIds = (audits || []).map((a: any) => a.id)
-    let keywordCounts = new Map<string, number>()
+    const keywordCounts = new Map<string, number>()
     if (auditIds.length > 0) {
         const { data: kwData, error: kwError } = await db
             .from(Tables.SEO_KEYWORDS)
