@@ -64,4 +64,62 @@ const submitAudit = async (req: Request, res: Response): Promise<Response> => {
     }
 }
 
-export default { submitAudit }
+const getOverview = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const status = req.query.status as string | undefined
+        const result = await seoService.getOverview(status)
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+const getWebsiteSeo = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { websiteId } = req.params
+
+        // Verify website exists
+        const { data: website, error: websiteError } = await db
+            .from(Tables.WEBSITES)
+            .select('id')
+            .eq('id', websiteId)
+            .single()
+
+        if (websiteError || !website) {
+            return res.status(404).json({ error: 'Website not found' })
+        }
+
+        const result = await seoService.getWebsiteSeo(websiteId)
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+const getAuditHistory = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { websiteId } = req.params
+        const limit = parseInt(req.query.limit as string) || 12
+        const offset = parseInt(req.query.offset as string) || 0
+
+        const result = await seoService.getAuditHistory(websiteId, limit, offset)
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+const getKeywordHistory = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { websiteId } = req.params
+        const keyword = req.query.keyword as string | undefined
+        const limit = parseInt(req.query.limit as string) || 12
+
+        const result = await seoService.getKeywordHistory(websiteId, keyword, limit)
+        return res.status(200).json(result)
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+export default { submitAudit, getOverview, getWebsiteSeo, getAuditHistory, getKeywordHistory }
