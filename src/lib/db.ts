@@ -28,6 +28,9 @@ export const Tables = {
     AGENDA_ITEMS: 'agenda_items',
     V_PROSPECTS_ALL: 'v_prospects_all',
     EMAIL_CAMPAIGNS: 'email_campaigns',
+    SEO_AUDITS: 'seo_audits',
+    SEO_KEYWORDS: 'seo_keywords',
+    SEO_COMPETITORS: 'seo_competitors',
 }
 
 // Valid project status values for websites and apps
