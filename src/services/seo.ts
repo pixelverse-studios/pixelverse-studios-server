@@ -26,7 +26,7 @@ interface ChangelogEntry {
     date: string
     description: string
     category: string
-    impact: string
+    impact: 'positive' | 'negative' | 'neutral'
 }
 
 interface KeywordInput {

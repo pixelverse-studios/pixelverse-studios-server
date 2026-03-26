@@ -43,6 +43,7 @@ router.post(
             .withMessage(`grade must be one of: ${VALID_GRADES.join(', ')}`),
         body('auditor')
             .isString()
+            .trim()
             .notEmpty()
             .withMessage('auditor is required'),
         body('findings_count')
@@ -56,58 +57,56 @@ router.post(
             .optional()
             .isISO8601()
             .withMessage('next_audit_due must be a valid ISO date'),
+        body('raw_data')
+            .optional()
+            .isObject()
+            .withMessage('raw_data must be an object'),
         body('checklist')
             .optional()
-            .isArray()
-            .withMessage('checklist must be an array'),
+            .isArray({ max: 50 })
+            .withMessage('checklist must be an array (max 50 items)'),
         body('checklist.*.category')
-            .optional()
             .isString()
+            .trim()
             .notEmpty()
             .withMessage('checklist category is required'),
         body('checklist.*.total')
-            .optional()
             .isInt({ min: 0 })
             .withMessage('checklist total must be a non-negative integer'),
         body('checklist.*.completed')
-            .optional()
             .isInt({ min: 0 })
             .withMessage('checklist completed must be a non-negative integer'),
         body('checklist.*.pct')
-            .optional()
             .isFloat({ min: 0, max: 100 })
             .withMessage('checklist pct must be between 0 and 100'),
         body('changelog')
             .optional()
-            .isArray()
-            .withMessage('changelog must be an array'),
+            .isArray({ max: 200 })
+            .withMessage('changelog must be an array (max 200 items)'),
         body('changelog.*.date')
-            .optional()
             .isISO8601()
             .withMessage('changelog date must be a valid ISO date'),
         body('changelog.*.description')
-            .optional()
             .isString()
             .notEmpty()
             .withMessage('changelog description is required'),
         body('changelog.*.category')
-            .optional()
             .isString()
+            .trim()
             .notEmpty()
             .withMessage('changelog category is required'),
         body('changelog.*.impact')
-            .optional()
             .isIn(VALID_IMPACTS)
             .withMessage(
                 `changelog impact must be one of: ${VALID_IMPACTS.join(', ')}`
             ),
         body('keywords')
             .optional()
-            .isArray()
-            .withMessage('keywords must be an array'),
+            .isArray({ max: 500 })
+            .withMessage('keywords must be an array (max 500 items)'),
         body('keywords.*.keyword')
-            .optional()
             .isString()
+            .trim()
             .notEmpty()
             .withMessage('keyword text is required'),
         body('keywords.*.position')
@@ -127,7 +126,6 @@ router.post(
                 'keyword search_volume must be a non-negative integer'
             ),
         body('keywords.*.trend')
-            .optional()
             .isIn(VALID_TRENDS)
             .withMessage(
                 `keyword trend must be one of: ${VALID_TRENDS.join(', ')}`
@@ -142,11 +140,11 @@ router.post(
             .withMessage('keyword target_url must be a string'),
         body('competitors')
             .optional()
-            .isArray()
-            .withMessage('competitors must be an array'),
+            .isArray({ max: 100 })
+            .withMessage('competitors must be an array (max 100 items)'),
         body('competitors.*.competitor_domain')
-            .optional()
             .isString()
+            .trim()
             .notEmpty()
             .withMessage('competitor_domain is required'),
         body('competitors.*.da_score')
