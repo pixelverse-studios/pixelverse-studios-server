@@ -66,6 +66,6 @@ export const COLUMNS = {
     PROSPECT_STATUS: 'status',
     AUTH_UID: 'auth_uid',
     TEMPLATE_ID: 'template_id',
-    SLUG: 'slug',
+    CMS_SLUG: 'slug',
     IS_PVS_ADMIN: 'is_pvs_admin',
 }

@@ -9,6 +9,17 @@ CREATE TYPE public.cms_role AS ENUM ('admin', 'editor', 'viewer');
 CREATE TYPE public.cms_publish_status AS ENUM ('draft', 'published', 'archived');
 
 -- ============================================================
+-- Shared trigger function for auto-updating updated_at
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
 -- Table: client_users
 -- Links Supabase auth users to clients with role-based access
 -- ============================================================
@@ -17,18 +28,21 @@ CREATE TABLE public.client_users (
     auth_uid        UUID,
     client_id       UUID REFERENCES public.clients(id) ON DELETE CASCADE,
     role            public.cms_role NOT NULL DEFAULT 'viewer',
-    email           TEXT NOT NULL,
+    email           TEXT NOT NULL CHECK (email = lower(email) AND length(email) > 0),
     display_name    TEXT,
     is_pvs_admin    BOOLEAN NOT NULL DEFAULT false,
-    invited_by      UUID,
+    invited_by      UUID,                                   -- References auth.users.id; no FK to avoid cross-schema constraint
     invited_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_login      TIMESTAMPTZ,
     active          BOOLEAN NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- PVS admins must have role = 'admin' to avoid ambiguity
+    CONSTRAINT chk_pvs_admin_role CHECK (NOT is_pvs_admin OR role = 'admin')
 );
 
--- A user can only have one role per client
+-- A user can only have one role per client (once linked via auth_uid)
 CREATE UNIQUE INDEX idx_client_users_auth_client
     ON public.client_users(auth_uid, client_id)
     WHERE client_id IS NOT NULL;
@@ -38,9 +52,18 @@ CREATE UNIQUE INDEX idx_client_users_pvs_admin
     ON public.client_users(auth_uid)
     WHERE is_pvs_admin = true;
 
-CREATE INDEX idx_client_users_auth_uid ON public.client_users(auth_uid);
+-- Prevent duplicate invites for the same email + client (covers pre-login when auth_uid is NULL)
+CREATE UNIQUE INDEX idx_client_users_email_client
+    ON public.client_users(email, client_id)
+    WHERE client_id IS NOT NULL;
+
+CREATE INDEX idx_client_users_auth_uid ON public.client_users(auth_uid) WHERE auth_uid IS NOT NULL;
 CREATE INDEX idx_client_users_client_id ON public.client_users(client_id);
 CREATE INDEX idx_client_users_email ON public.client_users(email);
+
+CREATE TRIGGER trg_client_users_updated_at
+    BEFORE UPDATE ON public.client_users
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ============================================================
 -- Table: cms_templates (Schema Registry)
@@ -53,17 +76,16 @@ CREATE TABLE public.cms_templates (
     label           TEXT NOT NULL,
     description     TEXT,
     fields          JSONB NOT NULL DEFAULT '[]',
-    version         INTEGER NOT NULL DEFAULT 1,
+    version         INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
     active          BOOLEAN NOT NULL DEFAULT true,
-    created_by      UUID,
+    created_by      UUID,                                   -- References auth.users.id; no FK to avoid cross-schema constraint
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Unique slug per client (also covers client_id lookups as leading column)
 CREATE UNIQUE INDEX idx_cms_templates_client_slug
     ON public.cms_templates(client_id, slug);
-
-CREATE INDEX idx_cms_templates_client_id ON public.cms_templates(client_id);
 
 COMMENT ON COLUMN public.cms_templates.fields IS
 'JSON array of field definitions. Each element:
@@ -79,6 +101,10 @@ COMMENT ON COLUMN public.cms_templates.fields IS
   "description": "Help text for the field"
 }';
 
+CREATE TRIGGER trg_cms_templates_updated_at
+    BEFORE UPDATE ON public.cms_templates
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 -- ============================================================
 -- Table: cms_pages
 -- Stores actual page content validated against templates
@@ -90,17 +116,21 @@ CREATE TABLE public.cms_pages (
     slug                TEXT NOT NULL,
     content             JSONB NOT NULL DEFAULT '{}',
     status              public.cms_publish_status NOT NULL DEFAULT 'draft',
-    template_version    INTEGER NOT NULL DEFAULT 1,
+    template_version    INTEGER NOT NULL DEFAULT 1 CHECK (template_version > 0),
     published_at        TIMESTAMPTZ,
-    published_by        UUID,
-    last_edited_by      UUID,
+    published_by        UUID,                               -- References auth.users.id; no FK to avoid cross-schema constraint
+    last_edited_by      UUID,                               -- References auth.users.id; no FK to avoid cross-schema constraint
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Unique slug per client (also covers client_id lookups as leading column)
 CREATE UNIQUE INDEX idx_cms_pages_client_slug
     ON public.cms_pages(client_id, slug);
 
-CREATE INDEX idx_cms_pages_client_id ON public.cms_pages(client_id);
 CREATE INDEX idx_cms_pages_template_id ON public.cms_pages(template_id);
 CREATE INDEX idx_cms_pages_status ON public.cms_pages(client_id, status);
+
+CREATE TRIGGER trg_cms_pages_updated_at
+    BEFORE UPDATE ON public.cms_pages
+    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
