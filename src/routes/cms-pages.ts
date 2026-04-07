@@ -38,8 +38,8 @@ router.get(
 
 router.get(
     '/api/cms/clients/:clientId/pages',
-    authReadLimit,
     requireAuth,
+    authReadLimit,
     requireCmsAccess('view'),
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
@@ -66,8 +66,8 @@ router.get(
 
 router.get(
     '/api/cms/pages/:id',
-    authReadLimit,
     requireAuth,
+    authReadLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.getById
@@ -75,8 +75,8 @@ router.get(
 
 router.post(
     '/api/cms/clients/:clientId/pages',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     requireCmsAccess('edit'),
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
@@ -107,8 +107,8 @@ router.post(
 
 router.patch(
     '/api/cms/pages/:id',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     [
         param('id').isUUID().withMessage('id must be a UUID'),
         body('slug')
@@ -136,8 +136,8 @@ router.patch(
 
 router.post(
     '/api/cms/pages/:id/publish',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.publish
@@ -145,8 +145,8 @@ router.post(
 
 router.delete(
     '/api/cms/pages/:id',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.remove

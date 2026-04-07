@@ -15,8 +15,8 @@ const SLUG_REGEX = /^[a-z0-9-]+$/
 
 router.get(
     '/api/cms/clients/:clientId/templates',
-    authReadLimit,
     requireAuth,
+    authReadLimit,
     requireCmsAccess('view'),
     [
         param('clientId')
@@ -28,16 +28,16 @@ router.get(
 
 router.get(
     '/api/cms/templates/:id',
-    authReadLimit,
     requireAuth,
+    authReadLimit,
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     controller.getById
 )
 
 router.post(
     '/api/cms/clients/:clientId/templates',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('clientId')
@@ -70,8 +70,8 @@ router.post(
 
 router.patch(
     '/api/cms/templates/:id',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('id').isUUID().withMessage('id must be a valid UUID'),
@@ -103,8 +103,8 @@ router.patch(
 
 router.delete(
     '/api/cms/templates/:id',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     controller.remove

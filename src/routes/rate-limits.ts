@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { Request, Response } from 'express'
 import rateLimit, { Options } from 'express-rate-limit'
 
@@ -16,25 +17,64 @@ const isDevelopment =
  * authenticated via X-Blast-Secret. Email blast and Domani endpoints
  * are called by other PVS services and should not count against any
  * shared per-IP quota.
+ *
+ * Uses crypto.timingSafeEqual to match the existing requireBlastSecret
+ * middleware (timing-attack resistant).
  */
 const skipBlastSecret = (req: Request): boolean => {
     const secret = process.env.BLAST_SECRET?.trim()
     if (!secret) return false
     const header = req.headers['x-blast-secret']
-    return typeof header === 'string' && header === secret
+    if (typeof header !== 'string') return false
+    if (header.length !== secret.length) return false
+    try {
+        return crypto.timingSafeEqual(
+            Buffer.from(header),
+            Buffer.from(secret)
+        )
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Returns the global skip predicate applied to every limiter:
+ * - Bypass in development (no rate limiting locally)
+ * - Bypass for internal service-to-service calls (X-Blast-Secret)
+ *
+ * Note: We use `skip` for the development bypass instead of `max: 0`
+ * because in express-rate-limit v7+, `max: 0` BLOCKS all requests
+ * rather than disabling the limiter.
+ */
+const baseSkip = (req: Request): boolean => {
+    if (isDevelopment) return true
+    return skipBlastSecret(req)
 }
 
 /**
  * Returns a rate-limit key tied to the authenticated user when present,
- * falling back to the request IP. Once auth middleware has run, this
- * limits per-user (so multiple users on a corporate NAT aren't grouped),
- * but pre-auth requests are still IP-bound.
+ * falling back to the request IP. The auth-keyed limiters are mounted
+ * AFTER requireAuth in route definitions, so req.authUser.uid is set by
+ * the time this runs and rate limiting is per-user (not per-IP).
+ *
+ * Fails closed: throws if neither uid nor IP is available, which causes
+ * express-rate-limit's handler to surface a 500 — better than silently
+ * grouping all such requests into a single shared bucket.
  */
 const userOrIpKey = (req: Request): string => {
-    return req.authUser?.uid || req.ip || 'unknown'
+    const key = req.authUser?.uid || req.ip
+    if (!key) {
+        throw new Error('rate-limit key unavailable: no auth uid and no req.ip')
+    }
+    return key
 }
 
-const handler = (_req: Request, res: Response, _next: unknown, options: Options) => {
+const handler = (
+    _req: Request,
+    res: Response,
+    _next: unknown,
+    options: Options
+) => {
     const retryAfterSeconds = Math.ceil(options.windowMs / 1000)
     res.setHeader('Retry-After', String(retryAfterSeconds))
     res.status(429).json({
@@ -46,7 +86,7 @@ const handler = (_req: Request, res: Response, _next: unknown, options: Options)
 const baseConfig = {
     standardHeaders: true,
     legacyHeaders: false,
-    skip: skipBlastSecret,
+    skip: baseSkip,
     handler,
 }
 
@@ -57,39 +97,40 @@ const baseConfig = {
 export const publicReadLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
-    max: isDevelopment ? 0 : 120,
+    max: 120,
 })
 
 /**
  * Authenticated read endpoints — higher cap since the user is known
- * and we can attribute usage. Keyed by auth uid (falls back to IP).
+ * and we can attribute usage. MUST be mounted after requireAuth so
+ * keying happens by auth uid (per-user) rather than IP.
  */
 export const authReadLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
-    max: isDevelopment ? 0 : 300,
+    max: 300,
     keyGenerator: userOrIpKey,
 })
 
 /**
  * Authenticated write endpoints — moderate cap to protect the DB
- * from runaway scripts or abuse. Keyed by auth uid.
+ * from runaway scripts or abuse. MUST be mounted after requireAuth.
  */
 export const authWriteLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
-    max: isDevelopment ? 0 : 30,
+    max: 30,
     keyGenerator: userOrIpKey,
 })
 
 /**
  * Privileged operations — strict cap. User invites, role changes,
- * template create/delete, user removal. Keyed by auth uid.
+ * template create/delete, user removal. MUST be mounted after requireAuth.
  */
 export const sensitiveWriteLimit = rateLimit({
     ...baseConfig,
     windowMs: FIVE_MINUTES,
-    max: isDevelopment ? 0 : 10,
+    max: 10,
     keyGenerator: userOrIpKey,
 })
 
@@ -99,16 +140,19 @@ export const sensitiveWriteLimit = rateLimit({
  * to blunt simple flooding attacks. Keyed by IP.
  *
  * Skips:
+ * - Development environment
  * - Internal service-to-service calls (X-Blast-Secret)
  * - All /api/cms/* routes (they have their own per-tier limiters)
  */
 export const generalApiLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
-    max: isDevelopment ? 0 : 200,
+    max: 200,
     skip: (req: Request) => {
-        if (skipBlastSecret(req)) return true
-        if (req.path.startsWith('/api/cms/')) return true
+        if (baseSkip(req)) return true
+        if (req.path === '/api/cms' || req.path.startsWith('/api/cms/')) {
+            return true
+        }
         return false
     },
 })

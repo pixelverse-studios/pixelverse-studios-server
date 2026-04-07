@@ -11,12 +11,12 @@ const cmsUsersRouter: Router = Router()
 const ROLES = ['admin', 'editor', 'viewer'] as const
 const INVITE_ROLES = ['editor', 'viewer'] as const
 
-cmsUsersRouter.get('/api/cms/me', authReadLimit, requireAuth, controller.me)
+cmsUsersRouter.get('/api/cms/me', requireAuth, authReadLimit, controller.me)
 
 cmsUsersRouter.get(
     '/api/cms/clients/:clientId/users',
-    authReadLimit,
     requireAuth,
+    authReadLimit,
     requirePvsAdmin,
     [
         param('clientId')
@@ -29,8 +29,8 @@ cmsUsersRouter.get(
 
 cmsUsersRouter.post(
     '/api/cms/clients/:clientId/users',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('clientId')
@@ -55,8 +55,8 @@ cmsUsersRouter.post(
 
 cmsUsersRouter.patch(
     '/api/cms/users/:id',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('id').isUUID().withMessage('id must be a valid UUID'),
@@ -70,8 +70,8 @@ cmsUsersRouter.patch(
 
 cmsUsersRouter.delete(
     '/api/cms/users/:id',
-    sensitiveWriteLimit,
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     validateRequest,

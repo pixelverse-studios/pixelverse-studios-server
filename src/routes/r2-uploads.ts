@@ -17,8 +17,8 @@ const ALLOWED_CONTENT_TYPES = [
 
 router.post(
     '/api/cms/websites/:websiteId/upload/presign',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     [
         param('websiteId').isUUID().withMessage('websiteId must be a UUID'),
         body('filename')
@@ -44,8 +44,8 @@ router.post(
 
 router.delete(
     '/api/cms/websites/:websiteId/upload',
-    authWriteLimit,
     requireAuth,
+    authWriteLimit,
     [
         param('websiteId').isUUID().withMessage('websiteId must be a UUID'),
         body('r2_key')
