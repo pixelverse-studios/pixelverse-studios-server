@@ -9,6 +9,7 @@ export type FieldType =
     | 'select'
     | 'array'
     | 'json'
+    | 'image_gallery'
 
 export interface FieldDefinition {
     key: string
