@@ -1,4 +1,5 @@
 import { z, ZodError, ZodTypeAny } from 'zod'
+import DOMPurify from 'isomorphic-dompurify'
 
 import { FieldDefinition } from '../services/cms-templates'
 
@@ -29,6 +30,70 @@ const IMAGE_GALLERY_HARD_MAX_GROUPS = 50
 const IMAGE_GALLERY_URL_MAX_LENGTH = 2048
 const IMAGE_GALLERY_ALT_MAX_LENGTH = 500
 const IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH = 50
+
+// Allowlist for HTML content stored in `richtext` field values.
+// Coordinated with the dashboard editor's output capabilities.
+// Anything not in these lists is stripped (defense-in-depth XSS protection).
+const RICHTEXT_ALLOWED_TAGS = [
+    'p',
+    'br',
+    'strong',
+    'em',
+    'u',
+    's',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'ul',
+    'ol',
+    'li',
+    'a',
+    'blockquote',
+    'code',
+    'pre',
+    'img',
+    'figure',
+    'figcaption',
+]
+
+const RICHTEXT_ALLOWED_ATTRS = [
+    'href',
+    'target',
+    'rel',
+    'src',
+    'alt',
+    'width',
+    'height',
+    'class',
+]
+
+/**
+ * Sanitizes a richtext HTML string. Strips disallowed tags/attributes,
+ * `javascript:` URLs, event handlers, and inline styles.
+ *
+ * Returns the sanitized string. If sanitization removed content, emits
+ * a structured warning log so we can detect compromised editors or
+ * pasted-from-Word artifacts.
+ */
+const sanitizeRichtext = (key: string, value: string): string => {
+    const sanitized = DOMPurify.sanitize(value, {
+        ALLOWED_TAGS: RICHTEXT_ALLOWED_TAGS,
+        ALLOWED_ATTR: RICHTEXT_ALLOWED_ATTRS,
+        ALLOWED_URI_REGEXP:
+            /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    })
+    if (sanitized !== value) {
+        console.warn('cms-validation: sanitized richtext field', {
+            key,
+            originalLength: value.length,
+            sanitizedLength: sanitized.length,
+        })
+    }
+    return sanitized
+}
 
 const buildImageGallerySchema = (field: FieldDefinition): ZodTypeAny => {
     const maxImages =
@@ -242,8 +307,23 @@ export const validateContent = (
     const schema = buildContentSchema(fields)
 
     try {
-        const parsed = schema.parse(content)
-        return { ok: true, content: parsed as Record<string, unknown> }
+        const parsed = schema.parse(content) as Record<string, unknown>
+        // Post-validation: sanitize all richtext field values to strip
+        // dangerous HTML before persisting. Defense-in-depth alongside
+        // the dashboard editor's input-side sanitization.
+        const sanitized: Record<string, unknown> = { ...parsed }
+        for (const field of fields) {
+            if (
+                field.type === 'richtext' &&
+                typeof sanitized[field.key] === 'string'
+            ) {
+                sanitized[field.key] = sanitizeRichtext(
+                    field.key,
+                    sanitized[field.key] as string
+                )
+            }
+        }
+        return { ok: true, content: sanitized }
     } catch (err) {
         if (err instanceof ZodError) {
             const flattened = err.flatten()
