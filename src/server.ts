@@ -19,6 +19,7 @@ import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
 import cmsUsersRouter from './routes/cms-users'
+import cmsTemplatesRouter from './routes/cms-templates'
 
 import 'dotenv/config'
 
@@ -47,6 +48,7 @@ app.use(prospectsRouter)
 app.use(emailCampaignsRouter)
 app.use(seoRouter)
 app.use(cmsUsersRouter)
+app.use(cmsTemplatesRouter)
 
 // Error handling middleware
 app.use(
