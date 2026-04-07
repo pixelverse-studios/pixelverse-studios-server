@@ -1,4 +1,5 @@
 import { z, ZodError, ZodTypeAny } from 'zod'
+import sanitizeHtml from 'sanitize-html'
 
 import { FieldDefinition } from '../services/cms-templates'
 
@@ -29,6 +30,76 @@ const IMAGE_GALLERY_HARD_MAX_GROUPS = 50
 const IMAGE_GALLERY_URL_MAX_LENGTH = 2048
 const IMAGE_GALLERY_ALT_MAX_LENGTH = 500
 const IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH = 50
+
+// Allowlist for HTML content stored in `richtext` field values.
+// Coordinated with the dashboard editor's output capabilities.
+// Anything not in these lists is stripped (defense-in-depth XSS protection).
+const RICHTEXT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+    allowedTags: [
+        'p',
+        'br',
+        'strong',
+        'em',
+        'u',
+        's',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'a',
+        'blockquote',
+        'code',
+        'pre',
+        'img',
+        'figure',
+        'figcaption',
+    ],
+    allowedAttributes: {
+        a: ['href', 'target', 'rel'],
+        img: ['src', 'alt', 'width', 'height'],
+        '*': ['class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesAppliedToAttributes: ['href', 'src'],
+    // Auto-inject rel="noopener noreferrer" on all <a> tags to prevent
+    // tabnabbing attacks via target="_blank". The `true` argument merges
+    // with any existing rel value (e.g., editor-set rel="nofollow").
+    transformTags: {
+        a: sanitizeHtml.simpleTransform(
+            'a',
+            { rel: 'noopener noreferrer' },
+            true
+        ),
+    },
+    // Strip everything else (including event handlers, style attributes,
+    // and any tag not in allowedTags)
+    disallowedTagsMode: 'discard',
+}
+
+/**
+ * Sanitizes a richtext HTML string. Strips disallowed tags/attributes,
+ * `javascript:` URLs, event handlers, and inline styles.
+ *
+ * Returns the sanitized string. If sanitization removed content, emits
+ * a structured warning log so we can detect compromised editors or
+ * pasted-from-Word artifacts.
+ */
+const sanitizeRichtext = (key: string, value: string): string => {
+    const sanitized = sanitizeHtml(value, RICHTEXT_SANITIZE_OPTIONS)
+    if (sanitized !== value) {
+        console.warn('cms-validation: sanitized richtext field', {
+            key,
+            originalLength: value.length,
+            sanitizedLength: sanitized.length,
+        })
+    }
+    return sanitized
+}
 
 const buildImageGallerySchema = (field: FieldDefinition): ZodTypeAny => {
     const maxImages =
@@ -242,8 +313,23 @@ export const validateContent = (
     const schema = buildContentSchema(fields)
 
     try {
-        const parsed = schema.parse(content)
-        return { ok: true, content: parsed as Record<string, unknown> }
+        const parsed = schema.parse(content) as Record<string, unknown>
+        // Post-validation: sanitize all richtext field values to strip
+        // dangerous HTML before persisting. Defense-in-depth alongside
+        // the dashboard editor's input-side sanitization.
+        const sanitized: Record<string, unknown> = { ...parsed }
+        for (const field of fields) {
+            if (
+                field.type === 'richtext' &&
+                typeof sanitized[field.key] === 'string'
+            ) {
+                sanitized[field.key] = sanitizeRichtext(
+                    field.key,
+                    sanitized[field.key] as string
+                )
+            }
+        }
+        return { ok: true, content: sanitized }
     } catch (err) {
         if (err instanceof ZodError) {
             const flattened = err.flatten()
