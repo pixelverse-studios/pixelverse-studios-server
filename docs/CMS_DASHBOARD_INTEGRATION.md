@@ -541,6 +541,7 @@ These are the field types PVS admins can use when defining a template. Each maps
 | `select` | string | Dropdown. Options defined in `field.options` array. |
 | `array` | any[] | Repeatable list of items. |
 | `json` | any | Raw JSON editor (for advanced/structured data). |
+| `image_gallery` | `{ groups: ImageGroup[] }` | Grouped image grid with drag-drop, upload, reorder, alt-text editing. See [Image Gallery Field](#image-gallery-field). |
 
 ### Dynamic Form Rendering
 
@@ -558,6 +559,196 @@ For each field in template.fields:
 ```
 
 This means the dashboard does NOT need to know what each client's content looks like at build time. It reads the template and builds the form at runtime.
+
+---
+
+## Image Gallery Field
+
+The `image_gallery` field is a first-class type for grouped image collections (portfolios, event galleries, product catalogs).
+
+### Field Definition
+
+```json
+{
+  "key": "gallery_images",
+  "label": "Portfolio Gallery",
+  "type": "image_gallery",
+  "required": false,
+  "description": "Drag to reorder. Organize by sub-category.",
+  "config": {
+    "max_images": 200,
+    "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+    "sub_categories": true
+  }
+}
+```
+
+### Content Value Shape
+
+```json
+{
+  "gallery_images": {
+    "groups": [
+      {
+        "name": "Baby Shower",
+        "slug": "baby-shower",
+        "sort_order": 0,
+        "images": [
+          {
+            "src": "https://pub-....r2.dev/<website-id>/events/baby-shower/baby-shower-01.jpg",
+            "alt": "Mother-to-be opening gifts",
+            "aspect_ratio": "portrait",
+            "r2_key": "<website-id>/events/baby-shower/baby-shower-01.jpg",
+            "sort_order": 0
+          }
+        ]
+      },
+      {
+        "name": "Bridal Shower",
+        "slug": "bridal-shower",
+        "sort_order": 1,
+        "images": [ ... ]
+      }
+    ]
+  }
+}
+```
+
+### Validation Rules
+
+| Rule | Error |
+|------|-------|
+| Total images across all groups exceeds `config.max_images` | 400 "Exceeds maximum of {max_images} images" |
+| Image `src` is missing or not a valid URL | 400 field-level error |
+| Group missing `name` or `slug` | 400 field-level error |
+| Group `slug` not lowercase/safe chars | 400 field-level error |
+
+`aspect_ratio` and `alt` are optional metadata — set by the dashboard on upload, no enum validation.
+
+### Dashboard Rendering
+
+- Collapsible sub-category sections
+- Drag-drop image grid per section
+- Upload button per section (auto-assigns folder based on group slug)
+- Drag to reorder within a group, move images between groups
+- Inline alt-text editing
+- Aspect ratio auto-detected on upload
+
+---
+
+## Image Uploads (R2 Presigned URLs)
+
+Image uploads bypass the server entirely. The dashboard requests a presigned URL, then uploads directly to R2.
+
+### Upload Flow
+
+```
+1. Dashboard calls POST /api/cms/websites/:websiteId/upload/presign
+2. Server returns { presigned_url, public_url, r2_key, expires_in }
+3. Dashboard PUTs the file directly to presigned_url with the correct Content-Type header
+4. Dashboard stores public_url as the value in the CMS content field
+```
+
+### `POST /api/cms/websites/:websiteId/upload/presign`
+**Auth:** Editor or Admin for the website's client
+
+**Request Body:**
+```json
+{
+  "filename": "baby-shower-15.jpg",
+  "content_type": "image/jpeg",
+  "folder": "events/baby-shower"
+}
+```
+
+**Response 201:**
+```json
+{
+  "presigned_url": "https://<account>.r2.cloudflarestorage.com/...",
+  "public_url": "https://pub-....r2.dev/<website-id>/events/baby-shower/1712345678-baby-shower-15.jpg",
+  "r2_key": "<website-id>/events/baby-shower/1712345678-baby-shower-15.jpg",
+  "expires_in": 900
+}
+```
+
+**Notes:**
+- Allowed content types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
+- `folder` must be lowercase, alphanumeric + hyphens + slashes (e.g., `events/baby-shower`)
+- Presigned URL expires in 15 minutes
+- Filenames are sanitized server-side to prevent unsafe characters
+- The `r2_key` is automatically prefixed with the website ID for tenant isolation
+
+### `DELETE /api/cms/websites/:websiteId/upload`
+**Auth:** Editor or Admin for the website's client
+
+**Request Body:**
+```json
+{
+  "r2_key": "<website-id>/events/baby-shower/1712345678-baby-shower-15.jpg"
+}
+```
+
+**Response 200:** Success
+**Response 403:** `r2_key` does not start with this website's ID (cross-tenant prevention)
+
+---
+
+## Hostname Resolution & White-Labeled Dashboard
+
+The dashboard supports custom per-website domains (e.g., `dashboard.ifferspictures.com`). On initial load, the dashboard resolves the current hostname to a website + branding before login.
+
+### `GET /api/cms/resolve-hostname?hostname=dashboard.ifferspictures.com`
+**Auth:** None (public)
+
+**Response 200:**
+```json
+{
+  "website_id": "uuid",
+  "website_title": "Iffer's Pictures Portfolio",
+  "client": {
+    "id": "uuid",
+    "company_name": "Iffer's Pictures"
+  },
+  "branding": {
+    "logo_url": "https://...",
+    "favicon_url": "https://...",
+    "primary_color": "#1a9b8e",
+    "secondary_color": "#...",
+    "accent_color": "#...",
+    "font_family": "Inter",
+    "heading_font_family": "Playfair Display"
+  },
+  "purpose": "dashboard"
+}
+```
+
+**Response 404:** Hostname not recognized
+
+**Caching:** Response is cached for 5 minutes (`Cache-Control: public, max-age=300`).
+
+### Frontend Flow
+
+```
+1. Dashboard loads at https://dashboard.ifferspictures.com
+2. Calls GET /api/cms/resolve-hostname?hostname=dashboard.ifferspictures.com
+3. If 200: apply branding (logo, colors, fonts) to the entire UI before login
+4. If 404: fall back to default PVS branding
+5. After login, the resolved website_id scopes the user's CMS access
+```
+
+### Branding Object
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `logo_url` | string | Header logo |
+| `favicon_url` | string | Browser tab icon |
+| `primary_color` | string (hex) | Main brand color |
+| `secondary_color` | string (hex) | Secondary brand color |
+| `accent_color` | string (hex) | Accent for buttons, highlights |
+| `font_family` | string | Body font |
+| `heading_font_family` | string | Heading font |
+
+If a website has no `branding` set, the response uses PVS default theme values.
 
 ---
 
