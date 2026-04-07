@@ -1,5 +1,5 @@
 import { z, ZodError, ZodTypeAny } from 'zod'
-import DOMPurify from 'isomorphic-dompurify'
+import sanitizeHtml from 'sanitize-html'
 
 import { FieldDefinition } from '../services/cms-templates'
 
@@ -34,41 +34,42 @@ const IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH = 50
 // Allowlist for HTML content stored in `richtext` field values.
 // Coordinated with the dashboard editor's output capabilities.
 // Anything not in these lists is stripped (defense-in-depth XSS protection).
-const RICHTEXT_ALLOWED_TAGS = [
-    'p',
-    'br',
-    'strong',
-    'em',
-    'u',
-    's',
-    'h1',
-    'h2',
-    'h3',
-    'h4',
-    'h5',
-    'h6',
-    'ul',
-    'ol',
-    'li',
-    'a',
-    'blockquote',
-    'code',
-    'pre',
-    'img',
-    'figure',
-    'figcaption',
-]
-
-const RICHTEXT_ALLOWED_ATTRS = [
-    'href',
-    'target',
-    'rel',
-    'src',
-    'alt',
-    'width',
-    'height',
-    'class',
-]
+const RICHTEXT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+    allowedTags: [
+        'p',
+        'br',
+        'strong',
+        'em',
+        'u',
+        's',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'a',
+        'blockquote',
+        'code',
+        'pre',
+        'img',
+        'figure',
+        'figcaption',
+    ],
+    allowedAttributes: {
+        a: ['href', 'target', 'rel'],
+        img: ['src', 'alt', 'width', 'height'],
+        '*': ['class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesAppliedToAttributes: ['href', 'src'],
+    // Strip everything else (including event handlers, style attributes,
+    // and any tag not in allowedTags)
+    disallowedTagsMode: 'discard',
+}
 
 /**
  * Sanitizes a richtext HTML string. Strips disallowed tags/attributes,
@@ -79,12 +80,7 @@ const RICHTEXT_ALLOWED_ATTRS = [
  * pasted-from-Word artifacts.
  */
 const sanitizeRichtext = (key: string, value: string): string => {
-    const sanitized = DOMPurify.sanitize(value, {
-        ALLOWED_TAGS: RICHTEXT_ALLOWED_TAGS,
-        ALLOWED_ATTR: RICHTEXT_ALLOWED_ATTRS,
-        ALLOWED_URI_REGEXP:
-            /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
-    })
+    const sanitized = sanitizeHtml(value, RICHTEXT_SANITIZE_OPTIONS)
     if (sanitized !== value) {
         console.warn('cms-validation: sanitized richtext field', {
             key,
