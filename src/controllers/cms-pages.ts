@@ -22,16 +22,14 @@ const list = async (req: Request, res: Response) => {
         const { clientId } = req.params
         const statusFilter = req.query.status as CmsPublishStatus | undefined
 
-        const limitRaw = req.query.limit
-        const offsetRaw = req.query.offset
+        // The route validator applies .toInt() so limit/offset arrive as
+        // numbers when present. Bounds (1-100, >=0) are already enforced
+        // by the validator — defaults kick in only when the query param
+        // is absent.
         const limit =
-            typeof limitRaw === 'string' && limitRaw.length > 0
-                ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100)
-                : 50
+            typeof req.query.limit === 'number' ? req.query.limit : 50
         const offset =
-            typeof offsetRaw === 'string' && offsetRaw.length > 0
-                ? Math.max(parseInt(offsetRaw, 10) || 0, 0)
-                : 0
+            typeof req.query.offset === 'number' ? req.query.offset : 0
 
         const pages = await cmsPagesService.findByClientId(clientId, {
             status: statusFilter,
@@ -44,6 +42,9 @@ const list = async (req: Request, res: Response) => {
     }
 }
 
+// GET /api/cms/pages/:id uses only requireAuth (no requireCmsAccess) because
+// the URL does not contain clientId — the client scope must be resolved from
+// the page record. Authorization is performed here after the resource lookup.
 const getById = async (req: Request, res: Response) => {
     try {
         const errors = validationResult(req)
@@ -206,6 +207,25 @@ const publish = async (req: Request, res: Response) => {
         const canEdit = await hasEditAccessToClient(req, existing.client_id)
         if (!canEdit) {
             return res.status(404).json({ error: 'Page not found' })
+        }
+
+        // Re-validate the stored content against the current template before
+        // publishing. Prevents a stale page whose template has changed from
+        // being published with content that no longer conforms.
+        const template = await cmsTemplatesService.findById(existing.template_id)
+        if (!template) {
+            return res.status(409).json({
+                error: 'Template no longer exists for this page',
+                message:
+                    'The template this page references has been deleted. Contact a PVS admin to resolve.',
+            })
+        }
+        const validation = validateContent(template.fields, existing.content)
+        if (!validation.ok) {
+            return res.status(validation.status).json({
+                error: 'Cannot publish: content no longer matches template',
+                details: validation.details,
+            })
         }
 
         const published = await cmsPagesService.publish(id, req.authUser.uid)
