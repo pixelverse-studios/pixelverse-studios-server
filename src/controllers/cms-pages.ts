@@ -5,31 +5,12 @@ import cmsPagesService, {
     CmsPublishStatus,
 } from '../services/cms-pages'
 import cmsTemplatesService from '../services/cms-templates'
-import clientUsersService from '../services/client-users'
 import { validateContent } from '../utils/cms-validation'
 import { handleGenericError } from '../utils/http'
-
-const VALID_STATUSES: CmsPublishStatus[] = ['draft', 'published', 'archived']
-
-/**
- * Checks whether the current authenticated user can view pages for a client.
- * Mirrors requireCmsAccess('view') semantics but is callable from controllers
- * that need to make the check after a resource lookup.
- */
-const hasViewAccessToClient = async (
-    req: Request,
-    clientId: string
-): Promise<boolean> => {
-    if (!req.authUser) return false
-
-    const assignments =
-        req.cmsUserAssignments ||
-        (await clientUsersService.findByAuthUid(req.authUser.uid))
-    if (!req.cmsUserAssignments) req.cmsUserAssignments = assignments
-
-    if (assignments.some(a => a.is_pvs_admin)) return true
-    return assignments.some(a => a.client_id === clientId)
-}
+import {
+    hasEditAccessToClient,
+    hasViewAccessToClient,
+} from '../routes/auth-middleware'
 
 const list = async (req: Request, res: Response) => {
     try {
@@ -41,17 +22,22 @@ const list = async (req: Request, res: Response) => {
         const { clientId } = req.params
         const statusFilter = req.query.status as CmsPublishStatus | undefined
 
-        if (statusFilter && !VALID_STATUSES.includes(statusFilter)) {
-            return res.status(400).json({
-                error: 'Invalid status filter',
-                message: `status must be one of ${VALID_STATUSES.join(', ')}`,
-            })
-        }
+        const limitRaw = req.query.limit
+        const offsetRaw = req.query.offset
+        const limit =
+            typeof limitRaw === 'string' && limitRaw.length > 0
+                ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100)
+                : 50
+        const offset =
+            typeof offsetRaw === 'string' && offsetRaw.length > 0
+                ? Math.max(parseInt(offsetRaw, 10) || 0, 0)
+                : 0
 
-        const pages = await cmsPagesService.findByClientId(
-            clientId,
-            statusFilter
-        )
+        const pages = await cmsPagesService.findByClientId(clientId, {
+            status: statusFilter,
+            limit,
+            offset,
+        })
         return res.status(200).json(pages)
     } catch (err) {
         return handleGenericError(err, res)
@@ -146,24 +132,11 @@ const update = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Page not found' })
         }
 
-        // Resource-level auth — need edit access for this page's client.
         if (!req.authUser) {
             return res.status(401).json({ error: 'Unauthorized' })
         }
-        const assignments =
-            req.cmsUserAssignments ||
-            (await clientUsersService.findByAuthUid(req.authUser.uid))
-        if (!req.cmsUserAssignments) req.cmsUserAssignments = assignments
 
-        const isPvsAdmin = assignments.some(a => a.is_pvs_admin)
-        const clientAssignment = assignments.find(
-            a => a.client_id === existing.client_id
-        )
-        const canEdit =
-            isPvsAdmin ||
-            (clientAssignment !== undefined &&
-                (clientAssignment.role === 'editor' ||
-                    clientAssignment.role === 'admin'))
+        const canEdit = await hasEditAccessToClient(req, existing.client_id)
         if (!canEdit) {
             return res.status(404).json({ error: 'Page not found' })
         }
@@ -176,13 +149,16 @@ const update = async (req: Request, res: Response) => {
 
         // If content is being updated, validate against the current template
         let validatedContent: Record<string, unknown> | undefined
+        let templateVersionToBump: number | undefined
         if (content !== undefined) {
             const template = await cmsTemplatesService.findById(
                 existing.template_id
             )
             if (!template) {
-                return res.status(500).json({
+                return res.status(409).json({
                     error: 'Template no longer exists for this page',
+                    message:
+                        'The template this page references has been deleted. Contact a PVS admin to resolve.',
                 })
             }
             const validation = validateContent(template.fields, content)
@@ -193,6 +169,7 @@ const update = async (req: Request, res: Response) => {
                 })
             }
             validatedContent = validation.content
+            templateVersionToBump = template.version
         }
 
         const updated = await cmsPagesService.update(id, {
@@ -200,6 +177,7 @@ const update = async (req: Request, res: Response) => {
             content: validatedContent,
             status,
             last_edited_by: req.authUser.uid,
+            template_version: templateVersionToBump,
         })
 
         return res.status(200).json(updated)
@@ -225,21 +203,7 @@ const publish = async (req: Request, res: Response) => {
             return res.status(401).json({ error: 'Unauthorized' })
         }
 
-        // Resource-level edit access check
-        const assignments =
-            req.cmsUserAssignments ||
-            (await clientUsersService.findByAuthUid(req.authUser.uid))
-        if (!req.cmsUserAssignments) req.cmsUserAssignments = assignments
-
-        const isPvsAdmin = assignments.some(a => a.is_pvs_admin)
-        const clientAssignment = assignments.find(
-            a => a.client_id === existing.client_id
-        )
-        const canEdit =
-            isPvsAdmin ||
-            (clientAssignment !== undefined &&
-                (clientAssignment.role === 'editor' ||
-                    clientAssignment.role === 'admin'))
+        const canEdit = await hasEditAccessToClient(req, existing.client_id)
         if (!canEdit) {
             return res.status(404).json({ error: 'Page not found' })
         }
@@ -268,20 +232,7 @@ const remove = async (req: Request, res: Response) => {
             return res.status(401).json({ error: 'Unauthorized' })
         }
 
-        const assignments =
-            req.cmsUserAssignments ||
-            (await clientUsersService.findByAuthUid(req.authUser.uid))
-        if (!req.cmsUserAssignments) req.cmsUserAssignments = assignments
-
-        const isPvsAdmin = assignments.some(a => a.is_pvs_admin)
-        const clientAssignment = assignments.find(
-            a => a.client_id === existing.client_id
-        )
-        const canEdit =
-            isPvsAdmin ||
-            (clientAssignment !== undefined &&
-                (clientAssignment.role === 'editor' ||
-                    clientAssignment.role === 'admin'))
+        const canEdit = await hasEditAccessToClient(req, existing.client_id)
         if (!canEdit) {
             return res.status(404).json({ error: 'Page not found' })
         }

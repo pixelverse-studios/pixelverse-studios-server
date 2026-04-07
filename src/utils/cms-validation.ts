@@ -23,6 +23,13 @@ export type ContentValidationResult =
 
 const GROUP_SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 
+const MAX_CONTENT_BYTES = 128 * 1024 // 128KB serialized
+const IMAGE_GALLERY_HARD_MAX_IMAGES = 500
+const IMAGE_GALLERY_HARD_MAX_GROUPS = 50
+const IMAGE_GALLERY_URL_MAX_LENGTH = 2048
+const IMAGE_GALLERY_ALT_MAX_LENGTH = 500
+const IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH = 50
+
 const buildImageGallerySchema = (field: FieldDefinition): ZodTypeAny => {
     const maxImages =
         typeof field.config?.max_images === 'number'
@@ -30,9 +37,27 @@ const buildImageGallerySchema = (field: FieldDefinition): ZodTypeAny => {
             : undefined
 
     const imageSchema = z.object({
-        src: z.string().url({ message: 'src must be a valid URL' }),
-        alt: z.string().optional(),
-        aspect_ratio: z.string().optional(),
+        src: z
+            .string()
+            .url({ message: 'src must be a valid URL' })
+            .max(IMAGE_GALLERY_URL_MAX_LENGTH, {
+                message: `src must be ${IMAGE_GALLERY_URL_MAX_LENGTH} characters or fewer`,
+            })
+            .refine(u => /^https:\/\//i.test(u), {
+                message: 'src must be an https URL',
+            }),
+        alt: z
+            .string()
+            .max(IMAGE_GALLERY_ALT_MAX_LENGTH, {
+                message: `alt must be ${IMAGE_GALLERY_ALT_MAX_LENGTH} characters or fewer`,
+            })
+            .optional(),
+        aspect_ratio: z
+            .string()
+            .max(IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH, {
+                message: `aspect_ratio must be ${IMAGE_GALLERY_ASPECT_RATIO_MAX_LENGTH} characters or fewer`,
+            })
+            .optional(),
         r2_key: z.string().optional(),
         sort_order: z.number().int().nonnegative().optional(),
     })
@@ -50,31 +75,53 @@ const buildImageGallerySchema = (field: FieldDefinition): ZodTypeAny => {
         images: z.array(imageSchema),
     })
 
-    let gallerySchema: ZodTypeAny = z.object({
-        groups: z.array(groupSchema),
-    })
-
-    if (typeof maxImages === 'number') {
-        gallerySchema = (gallerySchema as z.ZodObject<z.ZodRawShape>).superRefine(
-            (data, ctx) => {
-                const typed = data as {
-                    groups: Array<{ images: unknown[] }>
-                }
-                const total = typed.groups.reduce(
-                    (sum, g) => sum + g.images.length,
-                    0
-                )
-                if (total > maxImages) {
+    return z
+        .object({
+            groups: z.array(groupSchema).max(IMAGE_GALLERY_HARD_MAX_GROUPS, {
+                message: `must have ${IMAGE_GALLERY_HARD_MAX_GROUPS} groups or fewer`,
+            }),
+        })
+        .superRefine((data, ctx) => {
+            const typed = data as {
+                groups: Array<{ images: unknown[] }>
+            }
+            const total = typed.groups.reduce(
+                (sum, g) => sum + g.images.length,
+                0
+            )
+            // Always enforce the hard ceiling
+            if (total > IMAGE_GALLERY_HARD_MAX_IMAGES) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `Exceeds hard maximum of ${IMAGE_GALLERY_HARD_MAX_IMAGES} images`,
+                })
+            }
+            // Additionally enforce the template-specified max if smaller
+            if (
+                typeof maxImages === 'number' &&
+                total > maxImages &&
+                maxImages < IMAGE_GALLERY_HARD_MAX_IMAGES
+            ) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `Exceeds maximum of ${maxImages} images`,
+                })
+            }
+        })
+        .superRefine((data, ctx) => {
+            const typed = data as { groups: Array<{ slug: string }> }
+            const slugs = new Set<string>()
+            for (const group of typed.groups) {
+                if (slugs.has(group.slug)) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
-                        message: `Exceeds maximum of ${maxImages} images`,
+                        message: `Duplicate group slug: ${group.slug}`,
                     })
+                    return
                 }
+                slugs.add(group.slug)
             }
-        )
-    }
-
-    return gallerySchema
+        })
 }
 
 const buildFieldSchema = (field: FieldDefinition): ZodTypeAny => {
@@ -90,7 +137,12 @@ const buildFieldSchema = (field: FieldDefinition): ZodTypeAny => {
             return schema
         }
         case 'image':
-            return z.string().url({ message: 'must be a valid URL' })
+            return z
+                .string()
+                .url({ message: 'must be a valid URL' })
+                .refine(u => /^https:\/\//i.test(u), {
+                    message: 'must be an https URL',
+                })
         case 'number': {
             let schema = z.number()
             if (typeof field.min === 'number') {
@@ -122,8 +174,13 @@ const buildFieldSchema = (field: FieldDefinition): ZodTypeAny => {
             return z.any()
         case 'image_gallery':
             return buildImageGallerySchema(field)
-        default:
-            return z.any()
+        default: {
+            // Exhaustiveness check — compile error if a new FieldType is added
+            // without a case above. Runtime fallback logs + rejects unknown types.
+            const _exhaustive: never = field.type
+            console.warn('Unknown field type in template:', _exhaustive)
+            return z.never()
+        }
     }
 }
 
@@ -143,7 +200,7 @@ export const buildContentSchema = (
         const fieldSchema = buildFieldSchema(field)
         shape[field.key] = field.required
             ? fieldSchema
-            : fieldSchema.optional()
+            : fieldSchema.nullish()
     }
 
     return z.object(shape).strict()
@@ -165,6 +222,19 @@ export const validateContent = (
             details: {
                 fieldErrors: {},
                 formErrors: ['content must be an object'],
+            },
+        }
+    }
+
+    const contentJson = JSON.stringify(content)
+    if (contentJson.length > MAX_CONTENT_BYTES) {
+        return {
+            ok: false,
+            status: 400,
+            error: 'Content too large',
+            details: {
+                fieldErrors: {},
+                formErrors: [`content exceeds ${MAX_CONTENT_BYTES} bytes`],
             },
         }
     }

@@ -3,6 +3,12 @@ import { CmsTemplateRow } from './cms-templates'
 
 export type CmsPublishStatus = 'draft' | 'published' | 'archived'
 
+export const VALID_PUBLISH_STATUSES: CmsPublishStatus[] = [
+    'draft',
+    'published',
+    'archived',
+]
+
 export interface CmsPageRow {
     id: string
     client_id: string
@@ -37,17 +43,24 @@ export interface CmsPageUpdatePayload {
     content?: Record<string, unknown>
     status?: CmsPublishStatus
     last_edited_by?: string | null
+    template_version?: number
 }
 
 const findByClientId = async (
     clientId: string,
-    status?: CmsPublishStatus
+    options: {
+        status?: CmsPublishStatus
+        limit?: number
+        offset?: number
+    } = {}
 ): Promise<CmsPageRow[]> => {
+    const { status, limit = 50, offset = 0 } = options
     let query = db
         .from(Tables.CMS_PAGES)
         .select('*')
         .eq(COLUMNS.CLIENT_ID, clientId)
         .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
 
     if (status) {
         query = query.eq('status', status)
@@ -72,6 +85,10 @@ const findById = async (id: string): Promise<CmsPageRow | null> => {
 const findByIdWithTemplate = async (
     id: string
 ): Promise<CmsPageWithTemplate | null> => {
+    // Uses !inner join — orphaned pages (whose template was deleted) will
+    // return null. The cms_pages.template_id FK uses ON DELETE RESTRICT
+    // (see migration 20260406) which prevents template deletion while any
+    // pages reference it, so orphaned rows should not exist in practice.
     const { data, error } = await db
         .from(Tables.CMS_PAGES)
         .select(
@@ -154,6 +171,9 @@ const update = async (
     if (payload.status !== undefined) patch.status = payload.status
     if (payload.last_edited_by !== undefined) {
         patch.last_edited_by = payload.last_edited_by
+    }
+    if (payload.template_version !== undefined) {
+        patch.template_version = payload.template_version
     }
 
     const { data, error } = await db

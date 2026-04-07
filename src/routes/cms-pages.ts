@@ -2,13 +2,14 @@ import { Router } from 'express'
 import { body, param, query } from 'express-validator'
 
 import controller from '../controllers/cms-pages'
+import { VALID_PUBLISH_STATUSES } from '../services/cms-pages'
 import { requireAuth, requireCmsAccess } from './auth-middleware'
 import { validateRequest } from './middleware'
 
 const router = Router()
 
-const STATUSES = ['draft', 'published', 'archived']
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+const PATCH_STATUSES = ['draft', 'archived']
 
 router.get(
     '/api/cms/clients/:clientId/pages',
@@ -18,8 +19,20 @@ router.get(
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
         query('status')
             .optional()
-            .isIn(STATUSES)
-            .withMessage(`status must be one of ${STATUSES.join(', ')}`),
+            .isIn(VALID_PUBLISH_STATUSES)
+            .withMessage(
+                `status must be one of ${VALID_PUBLISH_STATUSES.join(', ')}`
+            ),
+        query('limit')
+            .optional()
+            .isInt({ min: 1, max: 100 })
+            .toInt()
+            .withMessage('limit must be an integer between 1 and 100'),
+        query('offset')
+            .optional()
+            .isInt({ min: 0 })
+            .toInt()
+            .withMessage('offset must be a non-negative integer'),
     ],
     validateRequest,
     controller.list
@@ -55,8 +68,10 @@ router.post(
             .withMessage('content must be an object'),
         body('status')
             .optional()
-            .isIn(STATUSES)
-            .withMessage(`status must be one of ${STATUSES.join(', ')}`),
+            .isIn(VALID_PUBLISH_STATUSES)
+            .withMessage(
+                `status must be one of ${VALID_PUBLISH_STATUSES.join(', ')}`
+            ),
     ],
     validateRequest,
     controller.create
@@ -81,8 +96,10 @@ router.patch(
             .withMessage('content must be an object'),
         body('status')
             .optional()
-            .isIn(STATUSES)
-            .withMessage(`status must be one of ${STATUSES.join(', ')}`),
+            .isIn(PATCH_STATUSES)
+            .withMessage(
+                'status can only be set to draft or archived via PATCH; use /publish endpoint to publish'
+            ),
     ],
     validateRequest,
     controller.update

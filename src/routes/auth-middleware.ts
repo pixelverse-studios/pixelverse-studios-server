@@ -219,6 +219,30 @@ export const requireCmsAccess = (permission: CmsPermission) => {
 }
 
 /**
+ * Checks whether the authenticated user has view access to a specific client.
+ * Used by controllers that need to authorize after a resource lookup.
+ *
+ * PVS admins always pass. Returns false if req.authUser is missing.
+ */
+export const hasViewAccessToClient = async (
+    req: Request,
+    clientId: string | null
+): Promise<boolean> => {
+    if (!req.authUser || !clientId) return false
+
+    const assignments =
+        req.cmsUserAssignments ||
+        (await clientUsersService.findByAuthUid(req.authUser.uid))
+
+    if (!req.cmsUserAssignments) {
+        req.cmsUserAssignments = assignments
+    }
+
+    if (assignments.some(a => a.is_pvs_admin)) return true
+    return assignments.some(a => a.client_id === clientId)
+}
+
+/**
  * Checks whether the authenticated user has edit access to a specific client.
  * Used by routes where the permission check happens in the controller after
  * resolving a client_id from a resource lookup (e.g., routes keyed on
