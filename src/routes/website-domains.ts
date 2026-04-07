@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { query } from 'express-validator'
 
 import controller from '../controllers/website-domains'
+import { publicReadLimit } from './rate-limits'
 
 const router = Router()
 
@@ -10,6 +11,7 @@ const router = Router()
 // Do NOT add auth middleware here.
 router.get(
     '/api/cms/resolve-hostname',
+    publicReadLimit,
     [
         query('hostname')
             .isString()

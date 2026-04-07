@@ -22,6 +22,7 @@ import cmsTemplatesRouter from './routes/cms-templates'
 import cmsPagesRouter from './routes/cms-pages'
 import websiteDomainsRouter from './routes/website-domains'
 import r2UploadsRouter from './routes/r2-uploads'
+import { generalApiLimit } from './routes/rate-limits'
 
 import 'dotenv/config'
 
@@ -29,9 +30,19 @@ import 'dotenv/config'
 const app: Application = express()
 const PORT = process.env.PORT || 3000
 
+// Trust the first proxy hop in front of the server (Render/Fly/etc.) so
+// express-rate-limit can read req.ip from X-Forwarded-For correctly.
+// IMPORTANT: do NOT use `true` here — it would trust ANY hop, allowing
+// X-Forwarded-For spoofing.
+app.set('trust proxy', 1)
+
 // Middleware
 app.use(bodyParser.json())
 app.use(cors())
+// Catch-all rate limit for non-CMS routes. The CMS routes apply their
+// own per-tier limits explicitly and are skipped by this middleware
+// (see src/routes/rate-limits.ts).
+app.use(generalApiLimit)
 // Routes
 app.use(clientsRouter)
 app.use(newsletterRouter)

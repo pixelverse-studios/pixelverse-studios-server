@@ -5,6 +5,11 @@ import controller from '../controllers/cms-pages'
 import { VALID_PUBLISH_STATUSES } from '../services/cms-pages'
 import { requireAuth, requireCmsAccess } from './auth-middleware'
 import { validateRequest } from './middleware'
+import {
+    publicReadLimit,
+    authReadLimit,
+    authWriteLimit,
+} from './rate-limits'
 
 const router = Router()
 
@@ -15,6 +20,7 @@ const PATCH_STATUSES = ['draft', 'archived']
 // fetch published CMS content. Only returns pages with status = 'published'.
 router.get(
     '/api/cms/clients/:clientId/pages/:slug/published',
+    publicReadLimit,
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
         param('slug')
@@ -33,6 +39,7 @@ router.get(
 router.get(
     '/api/cms/clients/:clientId/pages',
     requireAuth,
+    authReadLimit,
     requireCmsAccess('view'),
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
@@ -60,6 +67,7 @@ router.get(
 router.get(
     '/api/cms/pages/:id',
     requireAuth,
+    authReadLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.getById
@@ -68,6 +76,7 @@ router.get(
 router.post(
     '/api/cms/clients/:clientId/pages',
     requireAuth,
+    authWriteLimit,
     requireCmsAccess('edit'),
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
@@ -99,6 +108,7 @@ router.post(
 router.patch(
     '/api/cms/pages/:id',
     requireAuth,
+    authWriteLimit,
     [
         param('id').isUUID().withMessage('id must be a UUID'),
         body('slug')
@@ -127,6 +137,7 @@ router.patch(
 router.post(
     '/api/cms/pages/:id/publish',
     requireAuth,
+    authWriteLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.publish
@@ -135,6 +146,7 @@ router.post(
 router.delete(
     '/api/cms/pages/:id',
     requireAuth,
+    authWriteLimit,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
     controller.remove

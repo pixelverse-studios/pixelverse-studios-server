@@ -3,6 +3,7 @@ import { body, param } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import { requireAuth, requirePvsAdmin } from './auth-middleware'
+import { authReadLimit, sensitiveWriteLimit } from './rate-limits'
 import controller from '../controllers/client-users'
 
 const cmsUsersRouter: Router = Router()
@@ -10,11 +11,12 @@ const cmsUsersRouter: Router = Router()
 const ROLES = ['admin', 'editor', 'viewer'] as const
 const INVITE_ROLES = ['editor', 'viewer'] as const
 
-cmsUsersRouter.get('/api/cms/me', requireAuth, controller.me)
+cmsUsersRouter.get('/api/cms/me', requireAuth, authReadLimit, controller.me)
 
 cmsUsersRouter.get(
     '/api/cms/clients/:clientId/users',
     requireAuth,
+    authReadLimit,
     requirePvsAdmin,
     [
         param('clientId')
@@ -28,6 +30,7 @@ cmsUsersRouter.get(
 cmsUsersRouter.post(
     '/api/cms/clients/:clientId/users',
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('clientId')
@@ -53,6 +56,7 @@ cmsUsersRouter.post(
 cmsUsersRouter.patch(
     '/api/cms/users/:id',
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [
         param('id').isUUID().withMessage('id must be a valid UUID'),
@@ -67,6 +71,7 @@ cmsUsersRouter.patch(
 cmsUsersRouter.delete(
     '/api/cms/users/:id',
     requireAuth,
+    sensitiveWriteLimit,
     requirePvsAdmin,
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     validateRequest,
