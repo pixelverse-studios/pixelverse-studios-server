@@ -8,6 +8,7 @@ import controller from '../controllers/client-users'
 const cmsUsersRouter: Router = Router()
 
 const ROLES = ['admin', 'editor', 'viewer'] as const
+const INVITE_ROLES = ['editor', 'viewer'] as const
 
 cmsUsersRouter.get('/api/cms/me', requireAuth, controller.me)
 
@@ -36,8 +37,10 @@ cmsUsersRouter.post(
             .isEmail()
             .withMessage('email must be a valid email address'),
         body('role')
-            .isIn(ROLES as unknown as string[])
-            .withMessage(`role must be one of: ${ROLES.join(', ')}`),
+            .isIn(INVITE_ROLES as unknown as string[])
+            .withMessage(
+                `role must be one of: ${INVITE_ROLES.join(', ')}`
+            ),
         body('display_name')
             .optional({ values: 'null' })
             .isString()

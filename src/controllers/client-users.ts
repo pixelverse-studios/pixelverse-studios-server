@@ -98,10 +98,11 @@ const me = async (req: Request, res: Response): Promise<Response> => {
             const clientIds = clients.map(c => c.id)
             const websitesByClient = await fetchWebsitesByClientIds(clientIds)
 
-            const adminAssignment = assignments.find(a => a.is_pvs_admin)
-
+            // Synthesized rows are not real client_users records — use
+            // id: null so callers cannot mistake them for an assignment
+            // they can update or delete.
             assignmentResponses = clients.map(client => ({
-                id: adminAssignment ? adminAssignment.id : null,
+                id: null,
                 client_id: client.id,
                 role: 'admin' as CmsRole,
                 client,
@@ -166,21 +167,29 @@ const invite = async (req: Request, res: Response): Promise<Response> => {
 
         const { clientId } = req.params
         const {
-            email,
             role,
             display_name,
-        }: { email: string; role: CmsRole; display_name?: string } = req.body
+        }: { role: CmsRole; display_name?: string } = req.body
+        const email = String(req.body.email).toLowerCase()
 
-        const duplicate = await clientUsersService.existsByEmailAndClient(
+        // Check for an existing assignment in any state. Active rows
+        // should error, inactive rows should be reactivated.
+        const existing = await clientUsersService.findByEmailAndClient(
             email,
             clientId
         )
-        if (duplicate) {
-            return res.status(409).json({
-                error: 'Already exists',
-                message:
-                    'A user with this email is already assigned to this client.',
-            })
+        if (existing) {
+            if (existing.active) {
+                return res.status(409).json({
+                    error: 'Already exists',
+                    message:
+                        'A user with this email is already assigned to this client.',
+                })
+            }
+            const reactivated = await clientUsersService.reactivate(
+                existing.id
+            )
+            return res.status(200).json(reactivated)
         }
 
         const invitedBy = req.authUser?.uid ?? null
@@ -214,6 +223,27 @@ const updateRole = async (req: Request, res: Response): Promise<Response> => {
             return res.status(404).json({ error: 'User not found' })
         }
 
+        // Block any modification of PVS admin rows via this endpoint.
+        if (existing.is_pvs_admin) {
+            return res.status(403).json({
+                error: 'Forbidden',
+                message:
+                    'PVS admin roles cannot be modified via this endpoint',
+            })
+        }
+
+        // Block self-role-changes to prevent privilege escalation/lockout.
+        if (
+            req.authUser &&
+            existing.auth_uid &&
+            existing.auth_uid === req.authUser.uid
+        ) {
+            return res.status(403).json({
+                error: 'Forbidden',
+                message: 'You cannot modify your own role',
+            })
+        }
+
         // Only PVS admin rows may hold the global 'admin' role. For
         // client-scoped assignments, restrict to editor/viewer.
         if (role === 'admin' && !existing.is_pvs_admin) {
@@ -239,11 +269,36 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
         }
 
         const { id } = req.params
-        const deleted = await clientUsersService.remove(id)
-        if (!deleted) {
+
+        const existing = await clientUsersService.findById(id)
+        if (!existing) {
             return res.status(404).json({ error: 'User not found' })
         }
-        return res.status(200).json(deleted)
+
+        // Block removal of PVS admin rows via this endpoint.
+        if (existing.is_pvs_admin) {
+            return res.status(403).json({
+                error: 'Forbidden',
+                message:
+                    'PVS admin users cannot be removed via this endpoint',
+            })
+        }
+
+        // Block self-removal to prevent admin lockout.
+        if (
+            req.authUser &&
+            existing.auth_uid &&
+            existing.auth_uid === req.authUser.uid
+        ) {
+            return res.status(403).json({
+                error: 'Forbidden',
+                message: 'You cannot remove yourself',
+            })
+        }
+
+        // Soft-delete preserves the audit trail and allows reinvitation.
+        const deactivated = await clientUsersService.deactivate(id)
+        return res.status(200).json(deactivated)
     } catch (err) {
         return handleGenericError(err, res)
     }

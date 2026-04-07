@@ -146,7 +146,17 @@ const insert = async (
         .select()
         .single()
 
-    if (error) throw error
+    if (error) {
+        // Postgres unique-violation — surface as 409 Conflict so the
+        // controller can return a friendly error.
+        if ((error as { code?: string }).code === '23505') {
+            throw {
+                status: 409,
+                message: 'User already invited to this client',
+            }
+        }
+        throw error
+    }
     return data as ClientUserRow
 }
 
@@ -218,6 +228,41 @@ const existsByEmailAndClient = async (
     return Boolean(data)
 }
 
+/**
+ * Finds an existing assignment row (active OR inactive) for the given
+ * email and client combination. Used by invite to detect rows that
+ * should be reactivated rather than re-inserted.
+ */
+const findByEmailAndClient = async (
+    email: string,
+    clientId: string
+): Promise<ClientUserRow | null> => {
+    const { data, error } = await db
+        .from(Tables.CLIENT_USERS)
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .eq(COLUMNS.CLIENT_ID, clientId)
+        .maybeSingle()
+
+    if (error) throw error
+    return (data as ClientUserRow) || null
+}
+
+/**
+ * Reactivates a soft-deleted client_users row by setting active = true.
+ */
+const reactivate = async (id: string): Promise<ClientUserRow> => {
+    const { data, error } = await db
+        .from(Tables.CLIENT_USERS)
+        .update({ active: true, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data as ClientUserRow
+}
+
 export default {
     findByAuthUid,
     findUnlinkedByEmail,
@@ -230,4 +275,6 @@ export default {
     deactivate,
     remove,
     existsByEmailAndClient,
+    findByEmailAndClient,
+    reactivate,
 }
