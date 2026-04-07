@@ -194,41 +194,6 @@ const deactivate = async (id: string): Promise<ClientUserRow> => {
 }
 
 /**
- * Hard-deletes a client_users row.
- */
-const remove = async (id: string): Promise<ClientUserRow | null> => {
-    const { data, error } = await db
-        .from(Tables.CLIENT_USERS)
-        .delete()
-        .eq('id', id)
-        .select()
-        .maybeSingle()
-
-    if (error) throw error
-    return (data as ClientUserRow) || null
-}
-
-/**
- * Returns true if an active assignment already exists for the given
- * email and client combination.
- */
-const existsByEmailAndClient = async (
-    email: string,
-    clientId: string
-): Promise<boolean> => {
-    const { data, error } = await db
-        .from(Tables.CLIENT_USERS)
-        .select('id')
-        .eq('email', email.toLowerCase())
-        .eq(COLUMNS.CLIENT_ID, clientId)
-        .eq('active', true)
-        .maybeSingle()
-
-    if (error) throw error
-    return Boolean(data)
-}
-
-/**
  * Finds an existing assignment row (active OR inactive) for the given
  * email and client combination. Used by invite to detect rows that
  * should be reactivated rather than re-inserted.
@@ -273,8 +238,6 @@ export default {
     insert,
     updateRole,
     deactivate,
-    remove,
-    existsByEmailAndClient,
     findByEmailAndClient,
     reactivate,
 }
