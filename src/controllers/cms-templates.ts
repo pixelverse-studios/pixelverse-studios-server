@@ -17,6 +17,7 @@ const VALID_FIELD_TYPES: FieldType[] = [
     'select',
     'array',
     'json',
+    'image_gallery',
 ]
 
 const MAX_FIELDS_PER_TEMPLATE = 100
