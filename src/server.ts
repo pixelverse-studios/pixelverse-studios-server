@@ -21,6 +21,7 @@ import seoRouter from './routes/seo'
 import cmsUsersRouter from './routes/cms-users'
 import cmsTemplatesRouter from './routes/cms-templates'
 import websiteDomainsRouter from './routes/website-domains'
+import r2UploadsRouter from './routes/r2-uploads'
 
 import 'dotenv/config'
 
@@ -51,6 +52,7 @@ app.use(seoRouter)
 app.use(cmsUsersRouter)
 app.use(cmsTemplatesRouter)
 app.use(websiteDomainsRouter)
+app.use(r2UploadsRouter)
 
 // Error handling middleware
 app.use(
