@@ -2,18 +2,11 @@ import { Request, Response } from 'express'
 import { validationResult } from 'express-validator'
 
 import websiteDomainsService from '../services/website-domains'
+import { normalizeHostname } from '../utils/hostname'
 import { handleGenericError } from '../utils/http'
 
-/**
- * Strip an optional port suffix from a hostname (e.g.
- * `dashboard.example.com:8080` -> `dashboard.example.com`) and lowercase/trim.
- * IPv6 hostnames are not expected for the dashboard use case.
- */
-const normalizeHostname = (raw: string): string => {
-    const trimmed = raw.trim().toLowerCase()
-    const withoutPort = trimmed.split(':')[0] || ''
-    return withoutPort
-}
+const SUCCESS_CACHE_MAX_AGE = 300 // 5 minutes
+const NOT_FOUND_CACHE_MAX_AGE = 60 // 1 minute (blunts enumeration scans)
 
 const resolveHostname = async (req: Request, res: Response) => {
     try {
@@ -34,13 +27,20 @@ const resolveHostname = async (req: Request, res: Response) => {
         const context =
             await websiteDomainsService.findByHostnameWithContext(hostname)
         if (!context) {
+            res.setHeader(
+                'Cache-Control',
+                `public, max-age=${NOT_FOUND_CACHE_MAX_AGE}`
+            )
             return res.status(404).json({ error: 'Hostname not recognized' })
         }
 
         // Cache for 5 minutes at the edge / browser. Hostname mappings change
         // rarely, so this dramatically reduces load on the unauthenticated
         // resolution endpoint without staleness concerns.
-        res.setHeader('Cache-Control', 'public, max-age=300')
+        res.setHeader(
+            'Cache-Control',
+            `public, max-age=${SUCCESS_CACHE_MAX_AGE}`
+        )
 
         return res.status(200).json({
             website_id: context.website.id,
