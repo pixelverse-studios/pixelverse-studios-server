@@ -66,6 +66,16 @@ const RICHTEXT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
     },
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
     allowedSchemesAppliedToAttributes: ['href', 'src'],
+    // Auto-inject rel="noopener noreferrer" on all <a> tags to prevent
+    // tabnabbing attacks via target="_blank". The `true` argument merges
+    // with any existing rel value (e.g., editor-set rel="nofollow").
+    transformTags: {
+        a: sanitizeHtml.simpleTransform(
+            'a',
+            { rel: 'noopener noreferrer' },
+            true
+        ),
+    },
     // Strip everything else (including event handlers, style attributes,
     // and any tag not in allowedTags)
     disallowedTagsMode: 'discard',
