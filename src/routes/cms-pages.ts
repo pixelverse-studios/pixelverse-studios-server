@@ -5,6 +5,11 @@ import controller from '../controllers/cms-pages'
 import { VALID_PUBLISH_STATUSES } from '../services/cms-pages'
 import { requireAuth, requireCmsAccess } from './auth-middleware'
 import { validateRequest } from './middleware'
+import {
+    publicReadLimit,
+    authReadLimit,
+    authWriteLimit,
+} from './rate-limits'
 
 const router = Router()
 
@@ -15,6 +20,7 @@ const PATCH_STATUSES = ['draft', 'archived']
 // fetch published CMS content. Only returns pages with status = 'published'.
 router.get(
     '/api/cms/clients/:clientId/pages/:slug/published',
+    publicReadLimit,
     [
         param('clientId').isUUID().withMessage('clientId must be a UUID'),
         param('slug')
@@ -32,6 +38,7 @@ router.get(
 
 router.get(
     '/api/cms/clients/:clientId/pages',
+    authReadLimit,
     requireAuth,
     requireCmsAccess('view'),
     [
@@ -59,6 +66,7 @@ router.get(
 
 router.get(
     '/api/cms/pages/:id',
+    authReadLimit,
     requireAuth,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
@@ -67,6 +75,7 @@ router.get(
 
 router.post(
     '/api/cms/clients/:clientId/pages',
+    authWriteLimit,
     requireAuth,
     requireCmsAccess('edit'),
     [
@@ -98,6 +107,7 @@ router.post(
 
 router.patch(
     '/api/cms/pages/:id',
+    authWriteLimit,
     requireAuth,
     [
         param('id').isUUID().withMessage('id must be a UUID'),
@@ -126,6 +136,7 @@ router.patch(
 
 router.post(
     '/api/cms/pages/:id/publish',
+    authWriteLimit,
     requireAuth,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,
@@ -134,6 +145,7 @@ router.post(
 
 router.delete(
     '/api/cms/pages/:id',
+    authWriteLimit,
     requireAuth,
     [param('id').isUUID().withMessage('id must be a UUID')],
     validateRequest,

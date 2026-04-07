@@ -7,6 +7,7 @@ import {
     requireCmsAccess,
     requirePvsAdmin,
 } from './auth-middleware'
+import { authReadLimit, sensitiveWriteLimit } from './rate-limits'
 
 const router = Router()
 
@@ -14,6 +15,7 @@ const SLUG_REGEX = /^[a-z0-9-]+$/
 
 router.get(
     '/api/cms/clients/:clientId/templates',
+    authReadLimit,
     requireAuth,
     requireCmsAccess('view'),
     [
@@ -26,6 +28,7 @@ router.get(
 
 router.get(
     '/api/cms/templates/:id',
+    authReadLimit,
     requireAuth,
     [param('id').isUUID().withMessage('id must be a valid UUID')],
     controller.getById
@@ -33,6 +36,7 @@ router.get(
 
 router.post(
     '/api/cms/clients/:clientId/templates',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [
@@ -66,6 +70,7 @@ router.post(
 
 router.patch(
     '/api/cms/templates/:id',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [
@@ -98,6 +103,7 @@ router.patch(
 
 router.delete(
     '/api/cms/templates/:id',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [param('id').isUUID().withMessage('id must be a valid UUID')],

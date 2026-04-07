@@ -3,6 +3,7 @@ import { body, param } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import { requireAuth, requirePvsAdmin } from './auth-middleware'
+import { authReadLimit, sensitiveWriteLimit } from './rate-limits'
 import controller from '../controllers/client-users'
 
 const cmsUsersRouter: Router = Router()
@@ -10,10 +11,11 @@ const cmsUsersRouter: Router = Router()
 const ROLES = ['admin', 'editor', 'viewer'] as const
 const INVITE_ROLES = ['editor', 'viewer'] as const
 
-cmsUsersRouter.get('/api/cms/me', requireAuth, controller.me)
+cmsUsersRouter.get('/api/cms/me', authReadLimit, requireAuth, controller.me)
 
 cmsUsersRouter.get(
     '/api/cms/clients/:clientId/users',
+    authReadLimit,
     requireAuth,
     requirePvsAdmin,
     [
@@ -27,6 +29,7 @@ cmsUsersRouter.get(
 
 cmsUsersRouter.post(
     '/api/cms/clients/:clientId/users',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [
@@ -52,6 +55,7 @@ cmsUsersRouter.post(
 
 cmsUsersRouter.patch(
     '/api/cms/users/:id',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [
@@ -66,6 +70,7 @@ cmsUsersRouter.patch(
 
 cmsUsersRouter.delete(
     '/api/cms/users/:id',
+    sensitiveWriteLimit,
     requireAuth,
     requirePvsAdmin,
     [param('id').isUUID().withMessage('id must be a valid UUID')],

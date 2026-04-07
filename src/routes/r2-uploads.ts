@@ -4,6 +4,7 @@ import { body, param } from 'express-validator'
 import controller from '../controllers/r2-uploads'
 import { requireAuth } from './auth-middleware'
 import { validateRequest } from './middleware'
+import { authWriteLimit } from './rate-limits'
 
 const router = Router()
 
@@ -16,6 +17,7 @@ const ALLOWED_CONTENT_TYPES = [
 
 router.post(
     '/api/cms/websites/:websiteId/upload/presign',
+    authWriteLimit,
     requireAuth,
     [
         param('websiteId').isUUID().withMessage('websiteId must be a UUID'),
@@ -42,6 +44,7 @@ router.post(
 
 router.delete(
     '/api/cms/websites/:websiteId/upload',
+    authWriteLimit,
     requireAuth,
     [
         param('websiteId').isUUID().withMessage('websiteId must be a UUID'),
