@@ -1250,8 +1250,8 @@ app.use(testimonialsRouter)
 ## Known Issues & Gaps
 
 ### Security
-- ⚠️ **Mixed endpoint authentication** - CMS endpoints under `/api/cms/*` use Supabase JWT auth via `requireAuth`/`requireCmsAccess`/`requirePvsAdmin`. Legacy endpoints (clients, websites, contact-forms, etc.) remain publicly accessible.
-- ✅ **Rate limiting** - Per-route tier limiters (publicReadLimit, authReadLimit, authWriteLimit, sensitiveWriteLimit) on CMS routes; `generalApiLimit` catch-all on non-CMS routes. See `src/routes/rate-limits.ts`.
+- ❌ **No endpoint authentication/authorization** - All endpoints are publicly accessible
+- ❌ **No rate limiting** - Vulnerable to abuse
 - ⚠️ **reCAPTCHA not implemented** - `routes/recaptcha.ts` is a placeholder
 - ⚠️ **CSRF protection not implemented**
 

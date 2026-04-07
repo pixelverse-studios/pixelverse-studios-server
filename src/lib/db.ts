@@ -13,6 +13,7 @@ export const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 export const Tables = {
     CLIENTS: 'clients',
+    CMS: 'cms',
     NEWSLETTER: 'newsletter',
     CONTACT_FORMS: 'contact_form_submissions',
     WEBSITES: 'websites',
@@ -30,10 +31,6 @@ export const Tables = {
     SEO_AUDITS: 'seo_audits',
     SEO_KEYWORDS: 'seo_keywords',
     SEO_COMPETITORS: 'seo_competitors',
-    CLIENT_USERS: 'client_users',
-    CMS_TEMPLATES: 'cms_templates',
-    CMS_PAGES: 'cms_pages',
-    WEBSITE_DOMAINS: 'website_domains',
 }
 
 // Valid project status values for websites and apps
@@ -64,10 +61,4 @@ export const COLUMNS = {
     CALENDLY_EVENT_URI: 'calendly_event_uri',
     PROSPECT_SOURCE: 'source',
     PROSPECT_STATUS: 'status',
-    AUTH_UID: 'auth_uid',
-    TEMPLATE_ID: 'template_id',
-    CMS_SLUG: 'slug',
-    IS_PVS_ADMIN: 'is_pvs_admin',
-    WEBSITE_ID: 'website_id',
-    HOSTNAME: 'hostname',
 }
