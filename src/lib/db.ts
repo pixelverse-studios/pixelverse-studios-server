@@ -13,7 +13,6 @@ export const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 export const Tables = {
     CLIENTS: 'clients',
-    CMS: 'cms',
     NEWSLETTER: 'newsletter',
     CONTACT_FORMS: 'contact_form_submissions',
     WEBSITES: 'websites',

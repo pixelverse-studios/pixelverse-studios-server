@@ -4,7 +4,6 @@ import cors from 'cors'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
-import cmsRouter from './routes/cms'
 import contactFormsRouter from './routes/contact-forms'
 import leadsRouter from './routes/leads'
 import auditRouter from './routes/audit'
@@ -36,7 +35,6 @@ app.use(cors())
 // Routes
 app.use(clientsRouter)
 app.use(newsletterRouter)
-app.use(cmsRouter)
 app.use(contactFormsRouter)
 app.use(leadsRouter)
 app.use(auditRouter)
