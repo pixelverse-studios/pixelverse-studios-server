@@ -4,7 +4,6 @@ import cors from 'cors'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
-import cmsRouter from './routes/cms'
 import contactFormsRouter from './routes/contact-forms'
 import leadsRouter from './routes/leads'
 import auditRouter from './routes/audit'
@@ -18,6 +17,11 @@ import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
+import cmsUsersRouter from './routes/cms-users'
+import cmsTemplatesRouter from './routes/cms-templates'
+import cmsPagesRouter from './routes/cms-pages'
+import websiteDomainsRouter from './routes/website-domains'
+import r2UploadsRouter from './routes/r2-uploads'
 
 import 'dotenv/config'
 
@@ -31,7 +35,6 @@ app.use(cors())
 // Routes
 app.use(clientsRouter)
 app.use(newsletterRouter)
-app.use(cmsRouter)
 app.use(contactFormsRouter)
 app.use(leadsRouter)
 app.use(auditRouter)
@@ -45,6 +48,11 @@ app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
 app.use(emailCampaignsRouter)
 app.use(seoRouter)
+app.use(cmsUsersRouter)
+app.use(cmsTemplatesRouter)
+app.use(cmsPagesRouter)
+app.use(websiteDomainsRouter)
+app.use(r2UploadsRouter)
 
 // Error handling middleware
 app.use(
