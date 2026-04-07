@@ -67,16 +67,16 @@ Call `supabase.auth.signOut()` on the frontend. No server endpoint needed.
 
 ### Role Hierarchy
 
-| Role | Scope | Can View | Can Edit | Can Manage Templates | Can Manage Users |
-|------|-------|----------|----------|---------------------|-----------------|
+| Role | Scope | Can View | Can Edit Pages | Can Manage Templates | Can Manage Users |
+|------|-------|----------|----------------|---------------------|-----------------|
 | **PVS Admin** | All clients | Yes | Yes | Yes | Yes |
 | **Editor** | Assigned client only | Yes | Yes | No | No |
 | **Viewer** | Assigned client only | Yes | No | No | No |
 
 ### PVS Admin
 
-- `is_pvs_admin: true` in `client_users`
-- Has **no client_id** — access is global across all clients
+- `is_pvs_admin: true` in `client_users`, with `role: "admin"` and `client_id: null`
+- Access is global across all clients
 - Can create/edit/delete templates for any client
 - Can invite/manage users for any client
 - Can create/edit/publish/delete pages for any client
@@ -84,7 +84,7 @@ Call `supabase.auth.signOut()` on the frontend. No server endpoint needed.
 
 ### Editor
 
-- `role: "editor"` with a specific `client_id`
+- `role: "editor"` with a specific `client_id`, `is_pvs_admin: false`
 - Can view templates for their client
 - Can create, edit, publish, and delete pages for their client
 - Cannot modify templates or manage users
@@ -92,10 +92,18 @@ Call `supabase.auth.signOut()` on the frontend. No server endpoint needed.
 
 ### Viewer
 
-- `role: "viewer"` with a specific `client_id`
+- `role: "viewer"` with a specific `client_id`, `is_pvs_admin: false`
 - Can view templates and pages for their client
 - Cannot create, edit, or delete anything
 - Useful for clients who want visibility but PVS manages content
+
+### Note on the `admin` Role Value
+
+The `role` enum includes `"admin"`, but it is **reserved exclusively for PVS admin rows** (paired with `is_pvs_admin: true`). Client-scoped users will only ever have `role: "editor"` or `role: "viewer"`. The database enforces this via a CHECK constraint: `NOT is_pvs_admin OR role = 'admin'`.
+
+The frontend can simplify role display logic:
+- If `is_pvs_admin: true` → "PVS Admin" badge
+- Otherwise, use `role` directly (`editor` or `viewer`)
 
 ### How to Check Roles on the Frontend
 
@@ -118,7 +126,14 @@ Call `GET /api/cms/me` after login. The response tells you everything:
         "firstname": "John",
         "lastname": "Doe",
         "company_name": "Acme Corp"
-      }
+      },
+      "websites": [
+        {
+          "id": "website-uuid",
+          "title": "Acme Portfolio",
+          "domain": "acme.com"
+        }
+      ]
     }
   ]
 }
@@ -129,6 +144,7 @@ Call `GET /api/cms/me` after login. The response tells you everything:
 - If `assignments` has entries → show client dashboard scoped to those clients
 - If `is_pvs_admin: false` and `assignments` is empty → show "no access" screen
 - If a user has multiple assignments → show a client picker
+- The `websites` array on each assignment is the source of truth for `:websiteId` parameters used by the upload endpoints — if the user has access to a client, they have access to all of that client's websites
 
 ---
 
@@ -163,7 +179,7 @@ Every authenticated API call should:
 
 #### `GET /api/cms/me`
 **Auth:** Required
-**Purpose:** Get current user's identity, admin status, and client assignments
+**Purpose:** Get current user's identity, admin status, client assignments, and accessible websites
 
 **Response 200:**
 ```json
@@ -180,11 +196,20 @@ Every authenticated API call should:
         "firstname": "John",
         "lastname": "Doe",
         "company_name": "Acme Corp"
-      }
+      },
+      "websites": [
+        {
+          "id": "uuid",
+          "title": "Acme Portfolio",
+          "domain": "acme.com"
+        }
+      ]
     }
   ]
 }
 ```
+
+**Note:** `assignments[].websites` is the list of websites the user can manage CMS content for. Use these `id` values as the `:websiteId` parameter on the R2 upload endpoints. PVS admins receive a top-level `assignments` array containing all clients and their websites.
 
 ---
 
@@ -307,6 +332,23 @@ Every authenticated API call should:
       "type": "boolean",
       "required": false,
       "default": true
+    },
+    {
+      "key": "cta_style",
+      "label": "CTA Button Style",
+      "type": "select",
+      "required": false,
+      "options": ["primary", "secondary", "ghost"],
+      "default": "primary"
+    },
+    {
+      "key": "max_features",
+      "label": "Max Features to Show",
+      "type": "number",
+      "required": false,
+      "min": 1,
+      "max": 12,
+      "default": 6
     }
   ]
 }
@@ -407,15 +449,7 @@ Every authenticated API call should:
 **Auth:** Editor or Admin
 **Purpose:** Publish a page (sets status to published, records who published and when)
 
-**Response 200:**
-```json
-{
-  "id": "uuid",
-  "status": "published",
-  "published_at": "2026-04-06T...",
-  "published_by": "auth-uid"
-}
-```
+**Response 200:** Full updated page object (same shape as `GET /api/cms/pages/:id`), with `status: "published"`, `published_at` set, and `published_by` set to the current user's auth_uid.
 
 #### `DELETE /api/cms/pages/:id`
 **Auth:** Editor or Admin
@@ -462,7 +496,7 @@ Every authenticated API call should:
   client_id:     UUID | null       -- null for PVS admins
   email:         string
   display_name:  string | null
-  role:          "admin" | "editor" | "viewer"
+  role:          "admin" | "editor" | "viewer"   -- "admin" only valid when is_pvs_admin = true
   is_pvs_admin:  boolean
   active:        boolean
   last_login:    ISO timestamp | null
@@ -522,8 +556,23 @@ Every authenticated API call should:
   min:           number | undefined -- for number
   max:           number | undefined -- for number
   options:       string[] | undefined -- for select type
+  config:        object | undefined  -- type-specific config (currently only image_gallery; see Image Gallery Field section)
 }
 ```
+
+### Image Item (inside image_gallery groups)
+
+```
+{
+  src:           string            -- public URL of the image (returned from R2 presign)
+  alt:           string | undefined -- accessibility text, optional
+  aspect_ratio:  string | undefined -- free-form metadata set on upload (e.g., "portrait", "landscape", "square")
+  r2_key:        string | undefined -- R2 object key, used for delete operations
+  sort_order:    number            -- position within the group
+}
+```
+
+Note: the standalone `image` field type stores just a string URL in content (e.g., `"hero_image": "https://..."`). Only `image_gallery` items use this richer object structure.
 
 ---
 
@@ -568,6 +617,8 @@ The `image_gallery` field is a first-class type for grouped image collections (p
 
 ### Field Definition
 
+The `image_gallery` field uses the standard `FieldDefinition` shape with a type-specific `config` object:
+
 ```json
 {
   "key": "gallery_images",
@@ -583,6 +634,14 @@ The `image_gallery` field is a first-class type for grouped image collections (p
 }
 ```
 
+**`config` properties (image_gallery only):**
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `max_images` | number | Total cap across all groups |
+| `allowed_types` | string[] | MIME types accepted on upload |
+| `sub_categories` | boolean | If true, the dashboard renders grouped sections; if false, a single flat group |
+
 ### Content Value Shape
 
 ```json
@@ -595,10 +654,10 @@ The `image_gallery` field is a first-class type for grouped image collections (p
         "sort_order": 0,
         "images": [
           {
-            "src": "https://pub-....r2.dev/<website-id>/events/baby-shower/baby-shower-01.jpg",
+            "src": "https://pub-....r2.dev/<website-id>/events/baby-shower/1712345678-baby-shower-01.jpg",
             "alt": "Mother-to-be opening gifts",
             "aspect_ratio": "portrait",
-            "r2_key": "<website-id>/events/baby-shower/baby-shower-01.jpg",
+            "r2_key": "<website-id>/events/baby-shower/1712345678-baby-shower-01.jpg",
             "sort_order": 0
           }
         ]
@@ -673,10 +732,11 @@ Image uploads bypass the server entirely. The dashboard requests a presigned URL
 
 **Notes:**
 - Allowed content types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
-- `folder` must be lowercase, alphanumeric + hyphens + slashes (e.g., `events/baby-shower`)
+- `folder` must be lowercase, alphanumeric + hyphens + slashes (e.g., `events/baby-shower`); no leading/trailing slash
 - Presigned URL expires in 15 minutes
 - Filenames are sanitized server-side to prevent unsafe characters
-- The `r2_key` is automatically prefixed with the website ID for tenant isolation
+- **Final r2_key structure:** `<website-id>/<folder>/<timestamp>-<sanitized-filename>` — the website ID is always automatically prefixed by the server (the dashboard does not include it), the timestamp prevents collisions, and the folder comes from the request body
+- **Permission check:** the server resolves the website's `client_id` and verifies the caller has `editor` or `admin` access to that client. Frontend can preflight by checking `assignments[].websites` from `/api/cms/me`
 
 ### `DELETE /api/cms/websites/:websiteId/upload`
 **Auth:** Editor or Admin for the website's client
@@ -725,6 +785,17 @@ The dashboard supports custom per-website domains (e.g., `dashboard.ifferspictur
 **Response 404:** Hostname not recognized
 
 **Caching:** Response is cached for 5 minutes (`Cache-Control: public, max-age=300`).
+
+**`purpose` values:**
+
+| Value | Meaning |
+|-------|---------|
+| `dashboard` | The hostname serves the CMS dashboard UI (e.g., `dashboard.ifferspictures.com`) |
+| `production` | The hostname serves the live client website (e.g., `ifferspictures.com`) |
+| `staging` | A staging/preview environment for the website |
+| `preview` | An ephemeral preview deployment (PR previews, etc.) |
+
+The dashboard frontend should expect `purpose: "dashboard"` for normal access. Other values exist so the same `website_domains` table can be reused for non-CMS hostname tracking.
 
 ### Frontend Flow
 
