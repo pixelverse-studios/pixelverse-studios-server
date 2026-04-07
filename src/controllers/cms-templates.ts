@@ -17,34 +17,129 @@ const VALID_FIELD_TYPES: FieldType[] = [
     'select',
     'array',
     'json',
-    'image_gallery',
 ]
+
+const MAX_FIELDS_PER_TEMPLATE = 100
+const FIELD_KEY_REGEX = /^[a-z][a-z0-9_]{0,63}$/
+
+export interface FieldValidationError {
+    error: string
+    field?: string
+    message: string
+}
 
 /**
  * Validates the shape of a field definitions array. Each field must have a
- * string `key`, string `label`, and a `type` in the allowed enum. Returns an
- * error message string when invalid, or null when valid.
+ * well-formed `key`, string `label`, and a `type` in the allowed enum. Also
+ * enforces a max field count, unique keys, and per-type option/range checks.
+ * Returns a structured error object when invalid, or null when valid.
  */
-const validateFieldDefinitions = (fields: unknown): string | null => {
+const validateFieldDefinitions = (
+    fields: unknown
+): FieldValidationError | null => {
     if (!Array.isArray(fields)) {
-        return 'fields must be an array'
+        return {
+            error: 'Invalid field definition',
+            message: 'fields must be an array',
+        }
     }
+    if (fields.length > MAX_FIELDS_PER_TEMPLATE) {
+        return {
+            error: 'Invalid field definition',
+            message: `fields array must contain at most ${MAX_FIELDS_PER_TEMPLATE} entries`,
+        }
+    }
+
+    const seenKeys = new Set<string>()
     for (let i = 0; i < fields.length; i++) {
         const f = fields[i] as Partial<FieldDefinition> | null
         if (!f || typeof f !== 'object') {
-            return `fields[${i}] must be an object`
+            return {
+                error: 'Invalid field definition',
+                message: `fields[${i}] must be an object`,
+            }
         }
         if (typeof f.key !== 'string' || f.key.length === 0) {
-            return `fields[${i}].key must be a non-empty string`
+            return {
+                error: 'Invalid field definition',
+                field: typeof f.key === 'string' ? f.key : undefined,
+                message: `fields[${i}].key must be a non-empty string`,
+            }
         }
+        if (!FIELD_KEY_REGEX.test(f.key)) {
+            return {
+                error: 'Invalid field definition',
+                field: f.key,
+                message: `fields[${i}].key must match ${FIELD_KEY_REGEX} (lowercase, alphanumeric + underscore, starts with a letter, max 64 chars)`,
+            }
+        }
+        if (seenKeys.has(f.key)) {
+            return {
+                error: 'Invalid field definition',
+                field: f.key,
+                message: `duplicate field key: ${f.key}`,
+            }
+        }
+        seenKeys.add(f.key)
+
         if (typeof f.label !== 'string' || f.label.length === 0) {
-            return `fields[${i}].label must be a non-empty string`
+            return {
+                error: 'Invalid field definition',
+                field: f.key,
+                message: `fields[${i}].label must be a non-empty string`,
+            }
         }
         if (
             typeof f.type !== 'string' ||
             !VALID_FIELD_TYPES.includes(f.type as FieldType)
         ) {
-            return `fields[${i}].type must be one of ${VALID_FIELD_TYPES.join(', ')}`
+            return {
+                error: 'Invalid field definition',
+                field: f.key,
+                message: `fields[${i}].type must be one of ${VALID_FIELD_TYPES.join(', ')}`,
+            }
+        }
+
+        if (f.type === 'select') {
+            if (
+                !Array.isArray(f.options) ||
+                f.options.length === 0 ||
+                !f.options.every(
+                    opt => typeof opt === 'string' && opt.length > 0
+                )
+            ) {
+                return {
+                    error: 'Invalid field definition',
+                    field: f.key,
+                    message: 'select type requires non-empty options array of strings',
+                }
+            }
+        }
+
+        if (f.type === 'number') {
+            if (
+                typeof f.min === 'number' &&
+                typeof f.max === 'number' &&
+                f.min > f.max
+            ) {
+                return {
+                    error: 'Invalid field definition',
+                    field: f.key,
+                    message: 'number field min must be <= max',
+                }
+            }
+        }
+
+        if (f.type === 'text' || f.type === 'richtext') {
+            if (f.max_length !== undefined) {
+                if (typeof f.max_length !== 'number' || f.max_length <= 0) {
+                    return {
+                        error: 'Invalid field definition',
+                        field: f.key,
+                        message: `${f.type} field max_length must be a positive number`,
+                    }
+                }
+            }
         }
     }
     return null
@@ -98,7 +193,9 @@ const getById = async (req: Request, res: Response) => {
             a => a.client_id === template.client_id
         )
         if (!isPvsAdmin && !hasClientAccess) {
-            return res.status(403).json({ error: 'Forbidden' })
+            // Return 404 (not 403) to avoid leaking template existence to
+            // unauthorized callers (IDOR enumeration protection).
+            return res.status(404).json({ error: 'Template not found' })
         }
 
         return res.status(200).json(template)
@@ -119,17 +216,7 @@ const create = async (req: Request, res: Response) => {
 
         const fieldError = validateFieldDefinitions(fields)
         if (fieldError) {
-            return res.status(400).json({ error: fieldError })
-        }
-
-        const existing = await cmsTemplatesService.findByClientAndSlug(
-            clientId,
-            slug
-        )
-        if (existing) {
-            return res.status(409).json({
-                error: 'Template slug already exists for this client',
-            })
+            return res.status(400).json(fieldError)
         }
 
         const template = await cmsTemplatesService.insert({
@@ -161,25 +248,7 @@ const update = async (req: Request, res: Response) => {
         if (fields !== undefined) {
             const fieldError = validateFieldDefinitions(fields)
             if (fieldError) {
-                return res.status(400).json({ error: fieldError })
-            }
-        }
-
-        const existing = await cmsTemplatesService.findById(id)
-        if (!existing) {
-            return res.status(404).json({ error: 'Template not found' })
-        }
-
-        // If the slug is changing, check uniqueness within the client scope.
-        if (slug !== undefined && slug !== existing.slug) {
-            const conflict = await cmsTemplatesService.findByClientAndSlug(
-                existing.client_id,
-                slug
-            )
-            if (conflict) {
-                return res.status(409).json({
-                    error: 'Template slug already exists for this client',
-                })
+                return res.status(400).json(fieldError)
             }
         }
 

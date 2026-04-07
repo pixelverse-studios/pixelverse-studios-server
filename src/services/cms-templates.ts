@@ -9,7 +9,6 @@ export type FieldType =
     | 'select'
     | 'array'
     | 'json'
-    | 'image_gallery'
 
 export interface FieldDefinition {
     key: string
@@ -62,7 +61,6 @@ const findByClientId = async (clientId: string): Promise<CmsTemplateRow[]> => {
         .from(Tables.CMS_TEMPLATES)
         .select('*')
         .eq(COLUMNS.CLIENT_ID, clientId)
-        .eq('active', true)
         .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -114,7 +112,16 @@ const insert = async (
         .select('*')
         .single()
 
-    if (error) throw error
+    if (error) {
+        // Unique constraint violation on (client_id, slug)
+        if ((error as { code?: string }).code === '23505') {
+            throw {
+                status: 409,
+                message: 'Template slug already exists for this client',
+            }
+        }
+        throw error
+    }
     return data as CmsTemplateRow
 }
 
@@ -133,8 +140,15 @@ const update = async (
     if (payload.description !== undefined) patch.description = payload.description
     if (payload.active !== undefined) patch.active = payload.active
     if (payload.fields !== undefined) {
+        // Only bump the version when the fields payload differs from the
+        // existing stored fields. A structural deep-compare via JSON avoids
+        // accidentally incrementing versions on no-op field updates.
+        const existingFieldsJson = JSON.stringify(existing.fields ?? [])
+        const nextFieldsJson = JSON.stringify(payload.fields)
         patch.fields = payload.fields
-        patch.version = (existing.version || 1) + 1
+        if (existingFieldsJson !== nextFieldsJson) {
+            patch.version = (existing.version || 1) + 1
+        }
     }
 
     const { data, error } = await db
@@ -144,7 +158,16 @@ const update = async (
         .select('*')
         .single()
 
-    if (error) throw error
+    if (error) {
+        // Unique constraint violation on (client_id, slug)
+        if ((error as { code?: string }).code === '23505') {
+            throw {
+                status: 409,
+                message: 'Template slug already exists for this client',
+            }
+        }
+        throw error
+    }
     return data as CmsTemplateRow
 }
 

@@ -44,9 +44,20 @@ router.post(
             .matches(SLUG_REGEX)
             .withMessage(
                 'slug must contain only lowercase letters, numbers, and hyphens'
-            ),
-        body('label').isString().notEmpty().withMessage('label required'),
-        body('description').optional({ nullable: true }).isString(),
+            )
+            .isLength({ max: 64 })
+            .withMessage('slug must be at most 64 characters'),
+        body('label')
+            .isString()
+            .notEmpty()
+            .withMessage('label required')
+            .isLength({ max: 200 })
+            .withMessage('label must be at most 200 characters'),
+        body('description')
+            .optional({ nullable: true })
+            .isString()
+            .isLength({ max: 2000 })
+            .withMessage('description must be at most 2000 characters'),
         body('fields').isArray({ min: 0 }).withMessage('fields must be an array'),
         body('active').optional().isBoolean(),
     ],
@@ -65,9 +76,20 @@ router.patch(
             .matches(SLUG_REGEX)
             .withMessage(
                 'slug must contain only lowercase letters, numbers, and hyphens'
-            ),
-        body('label').optional().isString().notEmpty(),
-        body('description').optional({ nullable: true }).isString(),
+            )
+            .isLength({ max: 64 })
+            .withMessage('slug must be at most 64 characters'),
+        body('label')
+            .optional()
+            .isString()
+            .notEmpty()
+            .isLength({ max: 200 })
+            .withMessage('label must be at most 200 characters'),
+        body('description')
+            .optional({ nullable: true })
+            .isString()
+            .isLength({ max: 2000 })
+            .withMessage('description must be at most 2000 characters'),
         body('fields').optional().isArray(),
         body('active').optional().isBoolean(),
     ],
