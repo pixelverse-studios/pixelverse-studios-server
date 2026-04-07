@@ -34,6 +34,7 @@ export const Tables = {
     CLIENT_USERS: 'client_users',
     CMS_TEMPLATES: 'cms_templates',
     CMS_PAGES: 'cms_pages',
+    WEBSITE_DOMAINS: 'website_domains',
 }
 
 // Valid project status values for websites and apps
@@ -68,4 +69,6 @@ export const COLUMNS = {
     TEMPLATE_ID: 'template_id',
     CMS_SLUG: 'slug',
     IS_PVS_ADMIN: 'is_pvs_admin',
+    WEBSITE_ID: 'website_id',
+    HOSTNAME: 'hostname',
 }
