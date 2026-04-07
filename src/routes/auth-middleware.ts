@@ -219,6 +219,36 @@ export const requireCmsAccess = (permission: CmsPermission) => {
 }
 
 /**
+ * Checks whether the authenticated user has edit access to a specific client.
+ * Used by routes where the permission check happens in the controller after
+ * resolving a client_id from a resource lookup (e.g., routes keyed on
+ * websiteId instead of clientId).
+ *
+ * PVS admins always pass. Returns false if req.authUser is missing.
+ */
+export const hasEditAccessToClient = async (
+    req: Request,
+    clientId: string | null
+): Promise<boolean> => {
+    if (!req.authUser || !clientId) return false
+
+    const assignments =
+        req.cmsUserAssignments ||
+        (await clientUsersService.findByAuthUid(req.authUser.uid))
+
+    if (!req.cmsUserAssignments) {
+        req.cmsUserAssignments = assignments
+    }
+
+    const pvsAdmin = assignments.find(a => a.is_pvs_admin)
+    if (pvsAdmin) return true
+
+    const assignment = assignments.find(a => a.client_id === clientId)
+    if (!assignment) return false
+    return ROLE_PERMISSIONS.edit.includes(assignment.role)
+}
+
+/**
  * Allows only PVS admins (is_pvs_admin = true). Used for global operations
  * like template management and user management.
  */

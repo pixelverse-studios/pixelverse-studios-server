@@ -24,6 +24,26 @@ const R2_DEFAULT_PUBLIC_BASE_URL = process.env.R2_DEFAULT_PUBLIC_BASE_URL || ''
 
 let cachedClient: S3Client | null = null
 
+const validateKeyPrefix = (prefix: unknown): void => {
+    if (prefix === null || prefix === undefined || prefix === '') return
+    if (typeof prefix !== 'string') {
+        throw new R2ConfigError('r2_config.key_prefix must be a string')
+    }
+    if (prefix.length > 200) {
+        throw new R2ConfigError('r2_config.key_prefix exceeds 200 chars')
+    }
+    if (prefix.includes('..') || prefix.includes('//')) {
+        throw new R2ConfigError(
+            'r2_config.key_prefix contains invalid segments'
+        )
+    }
+    if (!/^[a-z0-9][a-z0-9_/-]*$/.test(prefix)) {
+        throw new R2ConfigError(
+            'r2_config.key_prefix contains invalid characters'
+        )
+    }
+}
+
 const getClient = (): S3Client => {
     if (cachedClient) return cachedClient
     if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
@@ -57,6 +77,7 @@ export const resolveR2Config = (
                 'Website r2_config is missing bucket or public_base_url'
             )
         }
+        validateKeyPrefix(cfg.key_prefix)
         return cfg
     }
     if (!R2_DEFAULT_BUCKET || !R2_DEFAULT_PUBLIC_BASE_URL) {
@@ -64,11 +85,13 @@ export const resolveR2Config = (
             'R2 default config not set (R2_DEFAULT_BUCKET, R2_DEFAULT_PUBLIC_BASE_URL)'
         )
     }
-    return {
+    const defaultConfig: R2Config = {
         bucket: R2_DEFAULT_BUCKET,
         public_base_url: R2_DEFAULT_PUBLIC_BASE_URL,
         key_prefix: null,
     }
+    validateKeyPrefix(defaultConfig.key_prefix)
+    return defaultConfig
 }
 
 /**

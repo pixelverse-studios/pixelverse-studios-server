@@ -2,27 +2,9 @@ import { Request, Response } from 'express'
 import { validationResult } from 'express-validator'
 
 import r2UploadsService from '../services/r2-uploads'
-import clientUsersService from '../services/client-users'
+import { R2ConfigError } from '../lib/r2'
+import { hasEditAccessToClient } from '../routes/auth-middleware'
 import { handleGenericError } from '../utils/http'
-
-const hasEditAccessToClient = async (
-    req: Request,
-    clientId: string | null
-): Promise<boolean> => {
-    if (!req.authUser || !clientId) return false
-
-    // Use cached assignments if present (loaded by prior middleware), otherwise fetch
-    const assignments =
-        req.cmsUserAssignments ||
-        (await clientUsersService.findByAuthUid(req.authUser.uid))
-
-    const pvsAdmin = assignments.find(a => a.is_pvs_admin)
-    if (pvsAdmin) return true
-
-    const assignment = assignments.find(a => a.client_id === clientId)
-    if (!assignment) return false
-    return assignment.role === 'editor' || assignment.role === 'admin'
-}
 
 const presign = async (req: Request, res: Response) => {
     try {
@@ -57,6 +39,12 @@ const presign = async (req: Request, res: Response) => {
 
         return res.status(201).json(result)
     } catch (err) {
+        if (err instanceof R2ConfigError) {
+            console.error('R2 config error:', err.message)
+            return res
+                .status(503)
+                .json({ error: 'R2 storage not configured' })
+        }
         return handleGenericError(err, res)
     }
 }
@@ -88,6 +76,12 @@ const remove = async (req: Request, res: Response) => {
 
         return res.status(200).json({ success: true })
     } catch (err) {
+        if (err instanceof R2ConfigError) {
+            console.error('R2 config error:', err.message)
+            return res
+                .status(503)
+                .json({ error: 'R2 storage not configured' })
+        }
         return handleGenericError(err, res)
     }
 }

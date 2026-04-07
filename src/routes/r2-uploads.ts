@@ -33,7 +33,7 @@ router.post(
             .optional({ nullable: true, checkFalsy: true })
             .isString()
             .isLength({ max: 200 })
-            .matches(/^[a-z0-9][a-z0-9-/]*[a-z0-9]$|^[a-z0-9]$/)
+            .matches(/^[a-z0-9]([a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*)?$/)
             .withMessage('folder must be lowercase and safe'),
     ],
     validateRequest,

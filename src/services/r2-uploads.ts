@@ -41,8 +41,10 @@ const sanitizeFilename = (filename: string): string => {
     const lower = filename.toLowerCase()
     const replaced = lower.replace(/[^a-z0-9._-]/g, '-')
     const collapsed = replaced.replace(/-+/g, '-')
-    const trimmed = collapsed.replace(/^-+|-+$/g, '')
-    return trimmed || 'file'
+    const noLeadingDots = collapsed.replace(/^\.+/, '')
+    const trimmed = noLeadingDots.replace(/^-+|-+$/g, '')
+    if (!trimmed || /^\.+$/.test(trimmed)) return 'file'
+    return trimmed
 }
 
 const buildKeyPrefix = (config: R2Config): string => {
