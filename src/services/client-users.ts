@@ -51,19 +51,27 @@ const findUnlinkedByEmail = async (email: string): Promise<ClientUserRow[]> => {
 }
 
 /**
- * Populates auth_uid on a client_users row (one-time first-login linking).
- * Also sets last_login.
+ * Atomically populates auth_uid on a client_users row (one-time first-login
+ * linking). The update is guarded by `auth_uid IS NULL` to prevent races
+ * where two concurrent requests try to link the same row, or where a row
+ * was already linked by another flow.
+ *
+ * Returns true if the row was successfully linked, false if it was already
+ * linked (no-op).
  */
-const linkAuthUid = async (id: string, authUid: string): Promise<void> => {
-    const { error } = await db
+const linkAuthUid = async (id: string, authUid: string): Promise<boolean> => {
+    const { data, error } = await db
         .from(Tables.CLIENT_USERS)
         .update({
             auth_uid: authUid,
             last_login: new Date().toISOString(),
         })
         .eq('id', id)
+        .is(COLUMNS.AUTH_UID, null)
+        .select('id')
 
     if (error) throw error
+    return Array.isArray(data) && data.length > 0
 }
 
 /**

@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express'
 
-import { verifySupabaseToken, SupabaseAuthUser } from '../lib/auth'
+import {
+    verifySupabaseToken,
+    SupabaseAuthUser,
+    AuthConfigError,
+} from '../lib/auth'
 import clientUsersService, {
     ClientUserRow,
     CmsRole,
@@ -31,21 +35,48 @@ const ROLE_PERMISSIONS: Record<CmsPermission, CmsRole[]> = {
     admin: ['admin'],
 }
 
+// Throttle last_login writes to once per N minutes per user to avoid
+// hot-path write amplification on every authenticated request.
+const LAST_LOGIN_THROTTLE_MS = 5 * 60 * 1000
+
 const extractBearerToken = (req: Request): string | null => {
     const header = req.headers['authorization']
     if (typeof header !== 'string') return null
     const [scheme, token] = header.split(' ')
-    if (scheme !== 'Bearer' || !token) return null
+    if (!scheme || !token) return null
+    if (scheme.toLowerCase() !== 'bearer') return null
     return token.trim()
 }
 
+/**
+ * Extracts a target client_id from the request.
+ *
+ * Only reads from URL params and query string — NOT request body.
+ * Body fallback would let an attacker pass an arbitrary client_id
+ * unrelated to the URL path.
+ *
+ * For routes where the resource itself determines the client_id
+ * (e.g., PATCH /api/cms/pages/:id), the controller should look up
+ * the resource and perform its own authorization check rather than
+ * relying on this middleware.
+ */
 const extractClientId = (req: Request): string | null => {
     const fromParams =
         typeof req.params?.clientId === 'string' ? req.params.clientId : null
     if (fromParams) return fromParams
-    const fromBody =
-        typeof req.body?.client_id === 'string' ? req.body.client_id : null
-    return fromBody
+    const fromQuery =
+        typeof req.query?.client_id === 'string' ? req.query.client_id : null
+    return fromQuery
+}
+
+const shouldUpdateLastLogin = (assignments: ClientUserRow[]): boolean => {
+    if (assignments.length === 0) return false
+    const now = Date.now()
+    return assignments.some(a => {
+        if (!a.last_login) return true
+        const lastLoginMs = new Date(a.last_login).getTime()
+        return now - lastLoginMs > LAST_LOGIN_THROTTLE_MS
+    })
 }
 
 /**
@@ -62,20 +93,23 @@ const loadAssignments = async (req: Request): Promise<ClientUserRow[]> => {
     let assignments = await clientUsersService.findByAuthUid(req.authUser.uid)
 
     if (assignments.length === 0) {
-        // First-login linking: find unlinked rows for this email and populate auth_uid
+        // First-login linking: find unlinked rows for this email and link them.
+        // The link is atomic (guarded by `auth_uid IS NULL` in the UPDATE).
         const pending = await clientUsersService.findUnlinkedByEmail(
             req.authUser.email
         )
         if (pending.length > 0) {
-            for (const row of pending) {
-                await clientUsersService.linkAuthUid(row.id, req.authUser.uid)
-            }
+            await Promise.all(
+                pending.map(row =>
+                    clientUsersService.linkAuthUid(row.id, req.authUser!.uid)
+                )
+            )
             assignments = await clientUsersService.findByAuthUid(
                 req.authUser.uid
             )
         }
-    } else {
-        // Fire-and-forget last_login update — don't block the request on this
+    } else if (shouldUpdateLastLogin(assignments)) {
+        // Throttled fire-and-forget last_login update
         clientUsersService.updateLastLogin(req.authUser.uid).catch(err => {
             console.error('Failed to update last_login:', err)
         })
@@ -88,6 +122,9 @@ const loadAssignments = async (req: Request): Promise<ClientUserRow[]> => {
 /**
  * Verifies the Supabase JWT from the Authorization header and attaches
  * { uid, email } to req.authUser. Returns 401 if missing or invalid.
+ *
+ * Server misconfiguration (missing JWT secret) returns 500 — config errors
+ * are not the client's fault.
  *
  * Does NOT touch the database — pair with requireCmsAccess or requirePvsAdmin
  * for endpoints that need role checks.
@@ -107,6 +144,11 @@ export const requireAuth = (
         req.authUser = verifySupabaseToken(token)
         next()
     } catch (err) {
+        if (err instanceof AuthConfigError) {
+            console.error('Auth misconfigured:', err.message)
+            res.status(500).json({ error: 'Internal server error' })
+            return
+        }
         res.status(401).json({ error: 'Unauthorized' })
     }
 }
@@ -114,7 +156,7 @@ export const requireAuth = (
 /**
  * Checks that the authenticated user has the required permission level for
  * the target client. PVS admins always pass. The target client_id is read
- * from req.params.clientId, then req.body.client_id.
+ * from req.params.clientId, then req.query.client_id.
  *
  * Permission levels:
  *   view  → viewer, editor, admin
