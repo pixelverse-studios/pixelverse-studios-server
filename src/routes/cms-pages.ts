@@ -11,6 +11,25 @@ const router = Router()
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 const PATCH_STATUSES = ['draft', 'archived']
 
+// Public endpoint — NO auth middleware. Used by client websites to
+// fetch published CMS content. Only returns pages with status = 'published'.
+router.get(
+    '/api/cms/clients/:clientId/pages/:slug/published',
+    [
+        param('clientId').isUUID().withMessage('clientId must be a UUID'),
+        param('slug')
+            .isString()
+            .notEmpty()
+            .isLength({ max: 64 })
+            .matches(SLUG_REGEX)
+            .withMessage(
+                'slug must be lowercase alphanumeric with optional hyphens'
+            ),
+    ],
+    validateRequest,
+    controller.getPublished
+)
+
 router.get(
     '/api/cms/clients/:clientId/pages',
     requireAuth,

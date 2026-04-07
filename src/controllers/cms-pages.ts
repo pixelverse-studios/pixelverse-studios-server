@@ -264,4 +264,56 @@ const remove = async (req: Request, res: Response) => {
     }
 }
 
-export default { list, getById, create, update, publish, remove }
+// GET /api/cms/clients/:clientId/pages/:slug/published — public, no auth.
+// Used by client websites to fetch published CMS content at build time
+// or on request. Only returns pages where status = 'published'.
+//
+// Intentionally does NOT return r2_config or any operational metadata.
+// Only safe public fields from the page and a trimmed template shape.
+const getPublished = async (req: Request, res: Response) => {
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() })
+        }
+
+        const { clientId, slug } = req.params
+        const page = await cmsPagesService.findPublishedByClientAndSlug(
+            clientId,
+            slug
+        )
+        if (!page) {
+            return res.status(404).json({ error: 'Page not found' })
+        }
+
+        // Cache at the edge / browser for 60s. Short enough that editors
+        // see fresh content quickly after publishing, long enough to
+        // cushion the DB from high-traffic client sites.
+        res.setHeader('Cache-Control', 'public, max-age=60')
+
+        return res.status(200).json({
+            id: page.id,
+            slug: page.slug,
+            content: page.content,
+            template: {
+                slug: page.template.slug,
+                label: page.template.label,
+                fields: page.template.fields,
+            },
+            published_at: page.published_at,
+            updated_at: page.updated_at,
+        })
+    } catch (err) {
+        return handleGenericError(err, res)
+    }
+}
+
+export default {
+    list,
+    getById,
+    create,
+    update,
+    publish,
+    remove,
+    getPublished,
+}
