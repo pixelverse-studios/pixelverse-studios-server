@@ -131,6 +131,46 @@ const findByClientAndSlug = async (
     return (data as CmsPageRow) || null
 }
 
+/**
+ * Looks up a published page by client + slug with its template joined.
+ * Used by the public endpoint that client websites consume.
+ * Only returns rows where status = 'published'. Returns null for
+ * missing pages, draft pages, or archived pages.
+ *
+ * Uses !inner on cms_templates — ON DELETE RESTRICT on template_id
+ * prevents orphaned pages from existing.
+ */
+const findPublishedByClientAndSlug = async (
+    clientId: string,
+    slug: string
+): Promise<CmsPageWithTemplate | null> => {
+    const { data, error } = await db
+        .from(Tables.CMS_PAGES)
+        .select(
+            `
+            *,
+            template:cms_templates!inner (*)
+        `
+        )
+        .eq(COLUMNS.CLIENT_ID, clientId)
+        .eq(COLUMNS.CMS_SLUG, slug)
+        .eq('status', 'published')
+        .maybeSingle()
+
+    if (error) throw error
+    if (!data) return null
+
+    const raw = data as unknown as CmsPageRow & {
+        template: CmsTemplateRow | CmsTemplateRow[] | null
+    }
+    const template = Array.isArray(raw.template)
+        ? raw.template[0]
+        : raw.template
+    if (!template) return null
+
+    return { ...raw, template } as CmsPageWithTemplate
+}
+
 const insert = async (payload: CmsPageInsertPayload): Promise<CmsPageRow> => {
     const row = {
         client_id: payload.client_id,
@@ -226,6 +266,7 @@ export default {
     findById,
     findByIdWithTemplate,
     findByClientAndSlug,
+    findPublishedByClientAndSlug,
     insert,
     update,
     publish,
