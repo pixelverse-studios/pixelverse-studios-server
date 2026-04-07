@@ -21,18 +21,23 @@ DECLARE
     existing_auth_uid UUID;
 BEGIN
     FOR i IN 1..array_length(admin_emails, 1) LOOP
+        -- Reset between iterations — SELECT ... INTO does not clear the
+        -- variable when no match is found, which would cause the previous
+        -- iteration's auth_uid to leak into the next insert.
+        existing_auth_uid := NULL;
+
         -- Look up auth.users.id if it exists
         SELECT id INTO existing_auth_uid
         FROM auth.users
         WHERE email = admin_emails[i]
         LIMIT 1;
 
-        -- Only insert if no active PVS admin row exists for this email
+        -- Only insert if no PVS admin row exists for this email.
+        -- Includes inactive rows so a soft-deactivated admin is not duplicated.
         IF NOT EXISTS (
             SELECT 1 FROM public.client_users
             WHERE email = admin_emails[i]
               AND is_pvs_admin = true
-              AND active = true
         ) THEN
             INSERT INTO public.client_users (
                 auth_uid,
