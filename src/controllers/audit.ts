@@ -8,7 +8,14 @@ import auditRequestsService, { AuditRequestRecord } from '../services/audit-requ
 const auditSchema = z.object({
     name: z.string().min(1).max(200),
     email: z.string().email().max(254),
-    websiteUrl: z.string().url().max(2048),
+    websiteUrl: z
+        .string()
+        .trim()
+        .max(2048)
+        .regex(
+            /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[\S]*)?$/i,
+            'Enter a valid website URL (e.g. yourbusiness.com).'
+        ),
     phoneNumber: z.string().optional(),
     specifics: z
         .union([z.string(), z.array(z.string())])

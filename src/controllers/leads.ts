@@ -20,7 +20,16 @@ const leadsSchema = z.object({
         .array(z.enum(['web-design', 'seo', 'unsure']))
         .min(1)
         .optional(),
-    currentWebsite: z.string().url().optional().or(z.literal('')),
+    currentWebsite: z
+        .string()
+        .trim()
+        .max(2048)
+        .regex(
+            /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[\S]*)?$/i,
+            'Enter a valid website URL (e.g. yourbusiness.com).'
+        )
+        .optional()
+        .or(z.literal('')),
     improvements: z.array(z.string().min(1).max(200)).min(1).max(20),
     briefSummary: z.string().max(2000).optional(),
     promoCode: z
