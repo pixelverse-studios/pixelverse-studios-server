@@ -10,6 +10,7 @@ export interface LeadSubmissionPayload {
     improvements: string[]
     interestedIn?: string[]
     briefSummary?: string
+    promoCode?: string
 }
 
 export interface LeadSubmissionRecord {
@@ -23,6 +24,7 @@ export interface LeadSubmissionRecord {
     improvements: string[]
     interested_in: string[] | null
     brief_summary: string | null
+    promo_code: string | null
     created_at: string
 }
 
@@ -41,6 +43,7 @@ export const createLeadSubmission = async (
             improvements: payload.improvements,
             interested_in: payload.interestedIn ?? null,
             brief_summary: payload.briefSummary || null,
+            promo_code: payload.promoCode || null,
         })
         .select()
         .single()
