@@ -23,6 +23,12 @@ const leadsSchema = z.object({
     currentWebsite: z.string().url().optional().or(z.literal('')),
     improvements: z.array(z.string().min(1).max(200)).min(1).max(20),
     briefSummary: z.string().max(2000).optional(),
+    promoCode: z
+        .string()
+        .trim()
+        .max(32)
+        .optional()
+        .transform(v => (v && v.length > 0 ? v : undefined)),
     website_confirm: z.string().optional(), // honeypot
 })
 
@@ -36,7 +42,7 @@ const resolveWebhookUrl = (): string => {
 }
 
 const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
-    return [
+    const lines = [
         '──────────────────────────',
         `👤 Name:      ${data.name}`,
         `📧 Email:     ${data.email}`,
@@ -48,7 +54,11 @@ const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
         `🎯 Services:  ${data.interestedIn?.join(', ') || 'Not specified'}`,
         `🔧 Needs:     ${data.improvements.join(', ')}`,
         `📝 Notes:     ${data.briefSummary || 'None'}`,
-    ].join('\n')
+    ]
+    if (data.promoCode) {
+        lines.push(`🎟 Promo:     ${data.promoCode}`)
+    }
+    return lines.join('\n')
 }
 
 const sendLeadAlertToDiscord = async (
@@ -104,6 +114,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             currentWebsite,
             improvements,
             briefSummary,
+            promoCode,
         } = parsed
 
         const prospectId = await upsertProspect(email, name, 'details_form')
@@ -118,6 +129,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             currentWebsite,
             improvements,
             briefSummary,
+            promoCode,
         })
 
         sendLeadAlertToDiscord(parsed).catch((err) =>
