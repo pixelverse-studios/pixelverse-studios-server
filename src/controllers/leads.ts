@@ -38,7 +38,7 @@ const leadsSchema = z.object({
         .max(32)
         .optional()
         .transform(v => (v && v.length > 0 ? v : undefined)),
-    website_confirm: z.string().optional(), // honeypot
+    honeypot: z.string().optional(),
 })
 
 const DISCORD_USERNAME = 'PixelVerse Lead Alerts'
@@ -108,7 +108,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
         const parsed = leadsSchema.parse(req.body)
 
         // Honeypot: return 200 silently to not tip off bots
-        if (parsed.website_confirm) {
+        if (parsed.honeypot) {
             return res.status(200).json({ message: 'Message received.' })
         }
 
