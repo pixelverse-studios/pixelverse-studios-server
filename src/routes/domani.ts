@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { body, query } from 'express-validator'
 
-import { validateRequest, requireBlastSecret } from './middleware'
+import { validateRequest } from './middleware'
 import domani from '../controllers/domani'
 import {
     FEEDBACK_CATEGORIES,
@@ -82,76 +82,6 @@ router.post(
     [body('email').isEmail().withMessage('Valid email is required')],
     validateRequest,
     domani.unsubscribeUser
-)
-
-// POST /api/domani/beta-launch/send - Send beta launch emails
-router.post(
-    '/api/domani/beta-launch/send',
-    requireBlastSecret,
-    [
-        body('recipients')
-            .isArray({ min: 1, max: 50 })
-            .withMessage('recipients must be a non-empty array (max 50)'),
-        body('recipients.*.email')
-            .isEmail()
-            .withMessage('Each recipient must have a valid email'),
-        body('recipients.*.name')
-            .optional()
-            .isString()
-            .withMessage('Recipient name must be a string'),
-        body('iosLink')
-            .optional()
-            .isURL()
-            .withMessage('iosLink must be a valid URL'),
-        body('androidLink')
-            .optional()
-            .isURL()
-            .withMessage('androidLink must be a valid URL'),
-        body('delayBetweenEmails')
-            .optional()
-            .isInt({ min: 100, max: 10000 })
-            .withMessage('delayBetweenEmails must be between 100 and 10000ms')
-    ],
-    validateRequest,
-    domani.sendBetaLaunchEmailBlast
-)
-
-// POST /api/domani/beta-update/send - Send beta update emails to all active users
-router.post(
-    '/api/domani/beta-update/send',
-    requireBlastSecret,
-    [
-        body('delayBetweenEmails')
-            .optional()
-            .isInt({ min: 100, max: 10000 })
-            .withMessage('delayBetweenEmails must be between 100 and 10000ms')
-    ],
-    validateRequest,
-    domani.sendBetaUpdateEmailBlast
-)
-
-// POST /api/domani/beta-update/test - Send test beta update emails to specific recipients
-router.post(
-    '/api/domani/beta-update/test',
-    requireBlastSecret,
-    [
-        body('recipients')
-            .isArray({ min: 1, max: 50 })
-            .withMessage('recipients must be a non-empty array (max 50)'),
-        body('recipients.*.email')
-            .isEmail()
-            .withMessage('Each recipient must have a valid email'),
-        body('recipients.*.name')
-            .optional()
-            .isString()
-            .withMessage('Recipient name must be a string'),
-        body('delayBetweenEmails')
-            .optional()
-            .isInt({ min: 100, max: 10000 })
-            .withMessage('delayBetweenEmails must be between 100 and 10000ms')
-    ],
-    validateRequest,
-    domani.sendBetaUpdateTestEmails
 )
 
 // GET /api/domani/users - List user profiles

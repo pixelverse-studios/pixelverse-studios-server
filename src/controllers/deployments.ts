@@ -4,7 +4,7 @@ import { validationResult } from 'express-validator'
 import { db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 import deploymentsService from '../services/deployments'
-import { sendDeploymentEmail } from '../lib/nylas-mailer'
+import { sendDeploymentEmail } from '../lib/mailer'
 
 const create = async (req: Request, res: Response): Promise<Response> => {
     try {

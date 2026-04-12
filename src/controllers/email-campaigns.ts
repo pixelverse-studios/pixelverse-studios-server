@@ -4,7 +4,7 @@ import { validationResult } from 'express-validator'
 import { handleGenericError } from '../utils/http'
 import { sanitizeRichText } from '../utils/html'
 import emailCampaignService from '../services/email-campaigns'
-import { sendCampaignEmails, CampaignRecipient } from '../lib/nylas-mailer'
+import { sendCampaignEmails, CampaignRecipient } from '../lib/resend-mailer'
 import { generateVersionReleaseEmailHtml } from '../utils/mailer/emails'
 
 // Hardcoded preview recipients
