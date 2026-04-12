@@ -8,6 +8,7 @@ import {
     DOMANI_BETA_UPDATE_SUBJECT,
     generateDomaniBetaUpdateEmailHtml,
 } from '../utils/mailer/emails'
+import { sendEmail as sendGmailEmail } from './mailer'
 
 const NYLAS_API_KEY = process.env.NYLAS_API_KEY!
 const NYLAS_GRANT_ID = process.env.NYLAS_GRANT_ID!
@@ -171,14 +172,11 @@ export async function sendDeploymentEmail({
 </html>
     `
 
-    await sendEmail({
+    await sendGmailEmail({
         to,
         subject: `🚀 New Deployment: ${websiteTitle}`,
         html,
-        cc: [
-            'sami@pixelversestudios.io',
-            'phil@pixelversestudios.io',
-        ],
+        cc: ['sami@pixelversestudios.io', 'phil@pixelversestudios.io'],
     })
 }
 

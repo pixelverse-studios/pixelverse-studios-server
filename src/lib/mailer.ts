@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer'
-import { OAuth2Client } from 'google-auth-library'
 import { convert } from 'html-to-text'
 
 import {
@@ -8,12 +7,15 @@ import {
 } from '../utils/mailer/emails'
 
 const GMAIL_USER = process.env.GMAIL_USER!
-const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID!
-const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET!
-const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN!
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!
 
-const oAuth2Client = new OAuth2Client(GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET)
-oAuth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN })
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: GMAIL_USER,
+        pass: GMAIL_APP_PASSWORD,
+    },
+})
 
 interface ContactSubmissionEmailParams {
     to: string | string[]
@@ -104,20 +106,6 @@ const sendMail = async ({
     meta
 }: SendMailOptions): Promise<void> => {
     try {
-        const accessToken = await oAuth2Client.getAccessToken()
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                type: 'OAuth2',
-                user: GMAIL_USER,
-                clientId: GMAIL_CLIENT_ID,
-                clientSecret: GMAIL_CLIENT_SECRET,
-                refreshToken: GMAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token || ''
-            }
-        })
-
         const text = convert(html)
 
         const mailOptions = {
@@ -144,29 +132,17 @@ interface SendEmailParams {
     subject: string
     html: string
     text?: string
+    cc?: string | string[]
 }
 
 export async function sendEmail({
     to,
     subject,
     html,
-    text
+    text,
+    cc
 }: SendEmailParams): Promise<void> {
     try {
-        const accessToken = await oAuth2Client.getAccessToken()
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                type: 'OAuth2',
-                user: GMAIL_USER,
-                clientId: GMAIL_CLIENT_ID,
-                clientSecret: GMAIL_CLIENT_SECRET,
-                refreshToken: GMAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token || ''
-            }
-        })
-
         const plainText = text || convert(html)
 
         const mailOptions = {
@@ -174,7 +150,8 @@ export async function sendEmail({
             to: formatRecipients(to),
             subject,
             text: plainText,
-            html
+            html,
+            ...(cc && { cc: formatRecipients(cc) }),
         }
 
         const result = await transporter.sendMail(mailOptions)
