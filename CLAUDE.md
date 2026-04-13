@@ -48,7 +48,10 @@ src/
 
 ### Scripts
 ```bash
-npm run start         # Development with nodemon + ts-node
+npm run dev           # Development with nodemon + ts-node (auto-reload)
+npm run build         # Compile TypeScript to dist/
+npm run start         # Production: run compiled JS (requires build first)
+npm run start:ts      # Run directly via ts-node (no build needed)
 npm test              # Not implemented (placeholder)
 ```
 
@@ -1275,8 +1278,9 @@ app.use(testimonialsRouter)
 
 ### Starting the Server
 ```bash
-npm run start
+npm run dev
 # Server runs on http://localhost:5001 (configured in .env)
+# Uses nodemon + ts-node — auto-reloads on file changes
 ```
 
 ### Testing for Claude Code Agents
@@ -1291,7 +1295,7 @@ npm run start
    lsof -ti:5002 | xargs kill -9 2>/dev/null
 
    # Start server on test port (after changing .env PORT to 5002)
-   npm run start
+   npm run start:ts
    ```
 4. **Test the endpoints** on the test port (e.g., `http://localhost:5002`)
 5. **ALWAYS kill the test server when done:**
@@ -1304,7 +1308,7 @@ npm run start
 ```bash
 # 1. Change .env PORT from 5001 to 5002
 # 2. Start test server
-npm run start
+npm run start:ts
 
 # 3. Test endpoints
 curl http://localhost:5002/api/clients
