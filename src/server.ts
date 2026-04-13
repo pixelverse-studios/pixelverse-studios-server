@@ -30,11 +30,13 @@ import 'dotenv/config'
 const app: Application = express()
 const PORT = process.env.PORT || 3000
 
-// Trust the first proxy hop in front of the server (Render/Fly/etc.) so
-// express-rate-limit can read req.ip from X-Forwarded-For correctly.
-// IMPORTANT: do NOT use `true` here — it would trust ANY hop, allowing
-// X-Forwarded-For spoofing.
-app.set('trust proxy', 1)
+// Trust the proxy chain in front of the server so Express reads the
+// real client IP from X-Forwarded-For. DigitalOcean App Platform uses
+// multiple proxy hops (load balancer + internal router), so a numeric
+// value like 1 can resolve req.ip incorrectly. 'loopback, linklocal,
+// uniquelocal' trusts only private/internal IPs as proxies, which is
+// correct for any cloud platform where the app sits behind a VPC.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal')
 
 // Middleware
 app.use(bodyParser.json())
@@ -80,4 +82,6 @@ app.use(
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
+    console.log(`trust proxy: ${app.get('trust proxy')}`)
+    console.log(`environment: ${process.env.NODE_ENVIRONMENT || 'not set'}`)
 })

@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { Request, Response } from 'express'
-import rateLimit, { Options } from 'express-rate-limit'
+import rateLimit, { Options, ipKeyGenerator } from 'express-rate-limit'
 
 import 'dotenv/config'
 
@@ -62,11 +62,26 @@ const baseSkip = (req: Request): boolean => {
  * grouping all such requests into a single shared bucket.
  */
 const userOrIpKey = (req: Request): string => {
-    const key = req.authUser?.uid || req.ip
-    if (!key) {
-        throw new Error('rate-limit key unavailable: no auth uid and no req.ip')
+    if (req.authUser?.uid) return req.authUser.uid
+    if (req.ip) return ipKeyGenerator(req.ip)
+    throw new Error('rate-limit key unavailable: no auth uid and no req.ip')
+}
+
+/**
+ * Returns the client IP from the request, normalized via ipKeyGenerator
+ * for correct IPv6 subnet handling. Falls back to x-forwarded-for header
+ * then 'unknown'. Unlike userOrIpKey this never throws — used by public
+ * and global limiters where we'd rather bucket unknown callers together
+ * than crash.
+ */
+const safeIpKey = (req: Request): string => {
+    if (req.ip) return ipKeyGenerator(req.ip)
+    const forwarded = req.headers['x-forwarded-for']
+    if (typeof forwarded === 'string') {
+        const first = forwarded.split(',')[0]?.trim()
+        if (first) return ipKeyGenerator(first)
     }
-    return key
+    return 'unknown'
 }
 
 const handler = (
@@ -92,12 +107,13 @@ const baseConfig = {
 
 /**
  * Public endpoints (no auth) — generous to accommodate client websites
- * fetching published content. Keyed by IP.
+ * fetching published content. Keyed by IP via safeIpKey.
  */
 export const publicReadLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
     max: 120,
+    keyGenerator: safeIpKey,
 })
 
 /**
@@ -139,6 +155,10 @@ export const sensitiveWriteLimit = rateLimit({
  * Loose enough not to interfere with normal traffic but tight enough
  * to blunt simple flooding attacks. Keyed by IP.
  *
+ * Uses safeIpKey instead of the default keyGenerator to avoid
+ * bucketing all traffic under "undefined" when req.ip is unavailable
+ * (e.g., proxy misconfiguration).
+ *
  * Skips:
  * - Development environment
  * - Internal service-to-service calls (X-Blast-Secret)
@@ -148,6 +168,7 @@ export const generalApiLimit = rateLimit({
     ...baseConfig,
     windowMs: ONE_MINUTE,
     max: 200,
+    keyGenerator: safeIpKey,
     skip: (req: Request) => {
         if (baseSkip(req)) return true
         if (req.path === '/api/cms' || req.path.startsWith('/api/cms/')) {
