@@ -10,6 +10,7 @@ import {
     INLINE_OWNERSHIP_BUFFER_MS,
     WebsiteContext,
 } from '../lib/webhook-processor'
+import { assertNever } from '../utils/assert'
 
 // DEV-701: Deploy-window resilience.
 // This endpoint is hit by client CI/CD with data that is generated once and
@@ -52,29 +53,37 @@ const create = async (req: Request, res: Response): Promise<Response> => {
             website as WebsiteContext,
         )
 
-        if (result.status === 'success') {
-            return res.status(201).json(result.deployment)
+        switch (result.status) {
+            case 'success':
+                if (result.warning) {
+                    // Deployment row was created but the notification email
+                    // failed. The queue row is marked status='done' with
+                    // last_error set so ops can query for degraded events.
+                    console.warn(
+                        `⚠️  deployment ${result.deployment.id} created but email failed (${result.warning})`,
+                    )
+                }
+                return res.status(201).json(result.deployment)
+            case 'permanent_failure':
+                // Rare: website existed at step 1 but disappeared before
+                // processEvent re-validated, or an unknown event_type
+                // slipped through. Row is kept as status='failed' for
+                // audit; the 24h cleanup removes it after 90 days.
+                return res.status(400).json({
+                    error: 'Deployment could not be processed',
+                    reason: result.reason,
+                })
+            case 'retry_scheduled':
+                // The row is durable; the background poller will retry on
+                // its schedule. Return 202 so the client's CI treats this
+                // as an accepted hand-off.
+                return res.status(202).json({
+                    queued: true,
+                    event_id: pendingEvent.id,
+                })
+            default:
+                return assertNever(result)
         }
-
-        if (result.status === 'permanent_failure') {
-            // Rare: website existed at step 1 but disappeared before
-            // processEvent re-validated, or an unknown event_type slipped
-            // through. The row is kept as status='failed' for audit; the
-            // 24h cleanup will remove it after 90 days.
-            return res.status(400).json({
-                error: 'Deployment could not be processed',
-                reason: result.reason,
-            })
-        }
-
-        // result.status === 'retry_scheduled'
-        // The row is durable; the background poller will retry on its
-        // schedule. Return 202 so the client's CI treats this as an
-        // accepted hand-off.
-        return res.status(202).json({
-            queued: true,
-            event_id: pendingEvent.id,
-        })
     } catch (err) {
         return handleGenericError(err, res)
     }

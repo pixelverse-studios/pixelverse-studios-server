@@ -2,10 +2,15 @@ import { db, Tables } from '../lib/db'
 
 export type PendingWebhookStatus = 'pending' | 'done' | 'failed'
 
-export interface PendingWebhookEvent {
+/**
+ * Queue row shape. `payload` is typed via the generic parameter so consumers
+ * that know the event type can avoid the `as unknown as T` dance. Defaults
+ * to an opaque record for callers that don't care.
+ */
+export interface PendingWebhookEvent<P = Record<string, unknown>> {
     id: string
     event_type: string
-    payload: Record<string, unknown>
+    payload: P
     status: PendingWebhookStatus
     attempts: number
     next_retry_at: string
@@ -16,10 +21,6 @@ export interface PendingWebhookEvent {
     processed_at: string | null
 }
 
-// Retry schedule for failed attempts. Index 0 is used after the first failure,
-// index 1 after the second, and so on. Once attempts exceeds the array length,
-// the event is marked 'failed' via markFailed() — scheduleNextRetry no longer
-// encodes the "give up" decision.
 const RETRY_DELAYS_SECONDS = [60, 300, 1800]
 
 // ±25% jitter on scheduled retries to prevent thundering herd when many
@@ -35,6 +36,10 @@ const jitter = (seconds: number): number => {
  * means the column never contains raw supabase/nylas error strings that
  * could leak schema hints, API response snippets, or connection details.
  * Raw errors are still console.error'd for operators.
+ *
+ * Note: `last_error` on a `status='done'` row is a non-fatal warning (e.g.
+ * deployment row was created but the notification email failed). Operator
+ * query for "done but degraded" events: `WHERE status='done' AND last_error IS NOT NULL`.
  */
 export const ErrorReasons = {
     WEBSITE_NOT_FOUND: 'website_not_found',
@@ -46,16 +51,48 @@ export const ErrorReasons = {
 export type ErrorReason = (typeof ErrorReasons)[keyof typeof ErrorReasons]
 
 /**
+ * Best-effort retry wrapper for transient DB bookkeeping writes (setResultRef,
+ * setEmailSent). These writes happen AFTER user-facing work has already
+ * succeeded, so a single transient Supabase failure cannot be allowed to
+ * cascade into "retry the whole event" (which would duplicate the user-facing
+ * work). Retries linearly for up to ~2s total before giving up.
+ */
+const withRetries = async <T>(
+    label: string,
+    fn: () => Promise<T>,
+    attempts = 3,
+): Promise<T> => {
+    let lastErr: unknown
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await fn()
+        } catch (err) {
+            lastErr = err
+            if (i < attempts - 1) {
+                await new Promise(resolve =>
+                    setTimeout(resolve, 200 * (i + 1)),
+                )
+            }
+        }
+    }
+    console.error(
+        `❌ ${label} failed after ${attempts} attempts:`,
+        lastErr,
+    )
+    throw lastErr
+}
+
+/**
  * Insert a fresh event row. `initialDelayMs` pushes next_retry_at into the
  * future so the background poller cannot claim the row while the inline
  * handler is still processing it (otherwise double-processing is possible
  * when the inline attempt is slow).
  */
-const insertPending = async (
+const insertPending = async <P extends Record<string, unknown>>(
     eventType: string,
-    payload: Record<string, unknown>,
+    payload: P,
     initialDelayMs: number,
-): Promise<PendingWebhookEvent> => {
+): Promise<PendingWebhookEvent<P>> => {
     const nextRetryAt = new Date(Date.now() + initialDelayMs).toISOString()
     const { data, error } = await db
         .from(Tables.PENDING_WEBHOOK_EVENTS)
@@ -72,43 +109,52 @@ const insertPending = async (
         .single()
 
     if (error) throw error
-    return data as PendingWebhookEvent
+    return data as PendingWebhookEvent<P>
 }
 
 /**
  * Record that the downstream record was created so an idempotent retry
- * (after a crash between createDeployment and markDone) will not
- * re-create it. Called inside processDeploymentEvent immediately after
- * the website_deployments row is persisted, *before* the email send.
+ * (after a crash between createDeployment and markDone) will not re-create
+ * it. Wrapped in withRetries because this write happens AFTER a successful
+ * user-facing side effect — a transient failure here cannot be allowed to
+ * trigger a duplicate of that side effect.
  */
 const setResultRef = async (id: string, resultRef: string): Promise<void> => {
-    const { error } = await db
-        .from(Tables.PENDING_WEBHOOK_EVENTS)
-        .update({ result_ref: resultRef })
-        .eq('id', id)
-
-    if (error) throw error
+    await withRetries(`setResultRef(${id})`, async () => {
+        const { error } = await db
+            .from(Tables.PENDING_WEBHOOK_EVENTS)
+            .update({ result_ref: resultRef })
+            .eq('id', id)
+        if (error) throw error
+    })
 }
 
 /**
- * Record that the notification email for this event succeeded. Retries
- * check this column and skip the email send when set, preventing the
- * client from receiving the same notification twice if a crash occurs
- * after sendEmail succeeds but before markDone.
+ * Record that the notification email succeeded. Retries check this column
+ * and skip the email block when set, preventing duplicate notifications if
+ * a crash happens after sendEmail succeeds but before markDone. Wrapped
+ * in withRetries for the same reason as setResultRef.
  */
 const setEmailSent = async (id: string): Promise<void> => {
-    const { error } = await db
-        .from(Tables.PENDING_WEBHOOK_EVENTS)
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq('id', id)
-
-    if (error) throw error
+    await withRetries(`setEmailSent(${id})`, async () => {
+        const { error } = await db
+            .from(Tables.PENDING_WEBHOOK_EVENTS)
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq('id', id)
+        if (error) throw error
+    })
 }
 
+/**
+ * Mark the event as successfully processed. `warning` optionally persists
+ * a last_error marker on an otherwise-successful event (e.g. deployment
+ * row created but email bounced). Leave undefined for a clean success.
+ */
 const markDone = async (
     id: string,
     attempts: number,
-    resultRef?: string | null,
+    resultRef: string,
+    warning?: ErrorReason,
 ): Promise<void> => {
     const { error } = await db
         .from(Tables.PENDING_WEBHOOK_EVENTS)
@@ -116,8 +162,8 @@ const markDone = async (
             status: 'done',
             attempts,
             processed_at: new Date().toISOString(),
-            result_ref: resultRef ?? null,
-            last_error: null,
+            result_ref: resultRef,
+            last_error: warning ?? null,
         })
         .eq('id', id)
 
@@ -149,11 +195,12 @@ const markFailed = async (
 
 /**
  * Schedule the next retry attempt. `attempts` is the total number of
- * attempts made so far *including the one that just failed* (so on the
- * first failure attempts=1, on the second attempts=2, etc.).
+ * attempts made so far *including the one that just failed* (on the first
+ * failure attempts=1, on the second attempts=2, etc.).
  *
- * Returns true if a retry was scheduled, false if the retry budget is
- * exhausted and the caller should invoke markFailed.
+ * Returns `scheduled=true` if a retry was scheduled, `scheduled=false`
+ * when the retry budget is exhausted and the caller should invoke
+ * markFailed.
  */
 const scheduleNextRetry = async (
     id: string,
@@ -197,20 +244,6 @@ const fetchDue = async (limit: number): Promise<PendingWebhookEvent[]> => {
 
     if (error) throw error
     return (data || []) as PendingWebhookEvent[]
-}
-
-/**
- * Hard-delete an event row. Used when the payload is garbage (e.g. the
- * controller's pre-validation caught a non-existent website_id) so it
- * never permanently bloats the queue table.
- */
-const deleteEvent = async (id: string): Promise<void> => {
-    const { error } = await db
-        .from(Tables.PENDING_WEBHOOK_EVENTS)
-        .delete()
-        .eq('id', id)
-
-    if (error) throw error
 }
 
 /**
@@ -258,7 +291,6 @@ export default {
     markFailed,
     scheduleNextRetry,
     fetchDue,
-    deleteEvent,
     cleanupOldEvents,
     RETRY_DELAYS_SECONDS,
 }
