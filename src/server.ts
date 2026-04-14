@@ -4,7 +4,6 @@ import cors from 'cors'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
-import cmsRouter from './routes/cms'
 import contactFormsRouter from './routes/contact-forms'
 import leadsRouter from './routes/leads'
 import auditRouter from './routes/audit'
@@ -18,6 +17,16 @@ import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
+import cmsUsersRouter from './routes/cms-users'
+import cmsTemplatesRouter from './routes/cms-templates'
+import cmsPagesRouter from './routes/cms-pages'
+import websiteDomainsRouter from './routes/website-domains'
+import r2UploadsRouter from './routes/r2-uploads'
+import { generalApiLimit } from './routes/rate-limits'
+import {
+    startWebhookProcessor,
+    stopWebhookProcessor,
+} from './lib/webhook-processor'
 
 import 'dotenv/config'
 
@@ -25,13 +34,24 @@ import 'dotenv/config'
 const app: Application = express()
 const PORT = process.env.PORT || 3000
 
+// Trust the proxy chain in front of the server so Express reads the
+// real client IP from X-Forwarded-For. DigitalOcean App Platform uses
+// multiple proxy hops (load balancer + internal router), so a numeric
+// value like 1 can resolve req.ip incorrectly. 'loopback, linklocal,
+// uniquelocal' trusts only private/internal IPs as proxies, which is
+// correct for any cloud platform where the app sits behind a VPC.
+app.set('trust proxy', 'loopback, linklocal, uniquelocal')
+
 // Middleware
 app.use(bodyParser.json())
 app.use(cors())
+// Catch-all rate limit for non-CMS routes. The CMS routes apply their
+// own per-tier limits explicitly and are skipped by this middleware
+// (see src/routes/rate-limits.ts).
+app.use(generalApiLimit)
 // Routes
 app.use(clientsRouter)
 app.use(newsletterRouter)
-app.use(cmsRouter)
 app.use(contactFormsRouter)
 app.use(leadsRouter)
 app.use(auditRouter)
@@ -45,6 +65,11 @@ app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
 app.use(emailCampaignsRouter)
 app.use(seoRouter)
+app.use(cmsUsersRouter)
+app.use(cmsTemplatesRouter)
+app.use(cmsPagesRouter)
+app.use(websiteDomainsRouter)
+app.use(r2UploadsRouter)
 
 // Error handling middleware
 app.use(
@@ -59,6 +84,29 @@ app.use(
 )
 
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
+    console.log(`trust proxy: ${app.get('trust proxy')}`)
+    console.log(`environment: ${process.env.NODE_ENVIRONMENT || 'not set'}`)
+    startWebhookProcessor()
 })
+
+let shuttingDown = false
+const shutdown = (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`Received ${signal}, shutting down...`)
+    stopWebhookProcessor()
+    server.close(() => {
+        console.log('HTTP server closed.')
+        process.exit(0)
+    })
+    // Hard-exit if graceful close hangs (e.g. open sockets).
+    setTimeout(() => {
+        console.error('Forced exit after shutdown timeout')
+        process.exit(1)
+    }, 10_000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

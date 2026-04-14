@@ -1,5 +1,8 @@
 node_modules
+dist
 .env
 config.ts
 /repomix-output.txt
 .mcp.json
+supabase/.temp/
+.claude/

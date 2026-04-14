@@ -4,8 +4,24 @@ import { validationResult } from 'express-validator'
 import { db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 import deploymentsService from '../services/deployments'
-import { sendDeploymentEmail } from '../lib/mailer'
+import pendingWebhookEvents from '../services/pending-webhook-events'
+import {
+    processEvent,
+    INLINE_OWNERSHIP_BUFFER_MS,
+    WebsiteContext,
+} from '../lib/webhook-processor'
+import { assertNever } from '../utils/assert'
 
+// DEV-701: Deploy-window resilience.
+// This endpoint is hit by client CI/CD with data that is generated once and
+// never re-sent. Flow:
+//   1. Pre-validate website_id (fetches full row so processEvent can skip
+//      the re-SELECT on the inline path).
+//   2. Persist payload to pending_webhook_events (next_retry_at is pushed
+//      past the inline attempt so the poller can't claim this row mid-work).
+//   3. Attempt the real work inline. On success → 201 with the deployment.
+//      On transient failure → 202; the poller will retry.
+//      On permanent failure → markFailed stands as audit trail.
 const create = async (req: Request, res: Response): Promise<Response> => {
     try {
         const errors = validationResult(req)
@@ -16,7 +32,6 @@ const create = async (req: Request, res: Response): Promise<Response> => {
         const { website_id, changed_urls, deploy_summary, internal_notes } =
             req.body
 
-        // 1. Verify website exists
         const { data: website, error: websiteError } = await db
             .from(Tables.WEBSITES)
             .select('id, title, contact_email, client_id')
@@ -27,39 +42,48 @@ const create = async (req: Request, res: Response): Promise<Response> => {
             return res.status(404).json({ error: 'Website not found' })
         }
 
-        // 2. Create deployment record
-        const deployment = await deploymentsService.createDeployment({
-            website_id,
-            changed_urls,
-            deploy_summary,
-            internal_notes
-        })
+        const pendingEvent = await pendingWebhookEvents.insertPending(
+            'deployment',
+            { website_id, changed_urls, deploy_summary, internal_notes },
+            INLINE_OWNERSHIP_BUFFER_MS,
+        )
 
-        // 3. Send email notification (if contact email exists)
-        if (website.contact_email) {
-            try {
-                await sendDeploymentEmail({
-                    to: website.contact_email,
-                    websiteTitle: website.title,
-                    deploymentDate: new Date(
-                        deployment.created_at
-                    ).toLocaleDateString(),
-                    summaryMarkdown: deploy_summary
+        const result = await processEvent(
+            pendingEvent,
+            website as WebsiteContext,
+        )
+
+        switch (result.status) {
+            case 'success':
+                if (result.warning) {
+                    // Deployment row was created but the notification email
+                    // failed. The queue row is marked status='done' with
+                    // last_error set so ops can query for degraded events.
+                    console.warn(
+                        `⚠️  deployment ${result.deployment.id} created but email failed (${result.warning})`,
+                    )
+                }
+                return res.status(201).json(result.deployment)
+            case 'permanent_failure':
+                // Rare: website existed at step 1 but disappeared before
+                // processEvent re-validated, or an unknown event_type
+                // slipped through. Row is kept as status='failed' for
+                // audit; the 24h cleanup removes it after 90 days.
+                return res.status(400).json({
+                    error: 'Deployment could not be processed',
+                    reason: result.reason,
                 })
-                console.log(
-                    '✅ Deployment email sent:',
-                    website.contact_email,
-                    'for',
-                    website.title
-                )
-            } catch (emailError) {
-                console.error('❌ Error sending deployment email:', emailError)
-                // Don't fail the request if email fails
-            }
+            case 'retry_scheduled':
+                // The row is durable; the background poller will retry on
+                // its schedule. Return 202 so the client's CI treats this
+                // as an accepted hand-off.
+                return res.status(202).json({
+                    queued: true,
+                    event_id: pendingEvent.id,
+                })
+            default:
+                return assertNever(result)
         }
-
-        // 4. Return deployment record
-        return res.status(201).json(deployment)
     } catch (err) {
         return handleGenericError(err, res)
     }
