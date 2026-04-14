@@ -249,7 +249,7 @@ const classifyError = (err: unknown): ErrorReason => {
     if (/\b(insert|duplicate|constraint|relation|column|pgrst)\b/i.test(msg)) {
         return ErrorReasons.DB_INSERT_FAILED
     }
-    if (/\b(nylas|smtp|sendgrid|mailer|failed to send)\b/i.test(msg)) {
+    if (/\b(smtp|sendgrid|mailer|failed to send)\b/i.test(msg)) {
         return ErrorReasons.EMAIL_SEND_FAILED
     }
     return ErrorReasons.UNKNOWN

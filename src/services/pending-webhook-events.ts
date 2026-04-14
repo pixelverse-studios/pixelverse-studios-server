@@ -33,7 +33,7 @@ const jitter = (seconds: number): number => {
 
 /**
  * Error taxonomy stored in last_error. Keeping this a small closed set
- * means the column never contains raw supabase/nylas error strings that
+ * means the column never contains raw supabase/mailer error strings that
  * could leak schema hints, API response snippets, or connection details.
  * Raw errors are still console.error'd for operators.
  *
