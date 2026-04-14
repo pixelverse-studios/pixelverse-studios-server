@@ -48,9 +48,22 @@ export class NonRetryableWebhookError extends Error {
     }
 }
 
+export interface WebsiteContext {
+    id: string
+    title: string
+    contact_email: string | null
+    client_id: string
+}
+
+export interface DeploymentRecord {
+    id: string
+    created_at: string
+    [key: string]: unknown
+}
+
 export interface SuccessResult {
     status: 'success'
-    deploymentId: string
+    deployment: DeploymentRecord
     attempts: number
 }
 export interface RetryScheduledResult {
@@ -70,83 +83,92 @@ export type ProcessResult =
     | PermanentFailureResult
 
 /**
- * Process a deployment event: verify the website, create the deployment row,
- * persist result_ref for idempotency, then send the notification email.
+ * Process a deployment event: optionally skip the website re-fetch when the
+ * caller already has it (the inline controller path), create/reuse the
+ * deployment row, persist result_ref + email_sent_at for idempotency, then
+ * send the notification email.
  *
- * Idempotency: if the event already has result_ref set (i.e. a prior attempt
- * created the deployment row but crashed before markDone), skip straight to
- * the email step using the existing deployment. This prevents duplicate
- * website_deployments rows if the Node process dies between createDeployment
- * and markDone.
+ * Idempotency:
+ * - result_ref set → reuse the existing deployment row; do not INSERT again.
+ * - email_sent_at set → skip the email send; do not notify the client again.
+ * Both flags persist before the next fallible step so a crash between any
+ * two steps cannot cause duplicate DB rows or duplicate emails.
  *
- * Email failures are swallowed — once the deployment row is persisted, the
- * client-facing data is safe. A missed email is annoying, not catastrophic.
+ * Returns the full deployment record so callers (the controller) can
+ * respond without another round-trip to Supabase.
  */
 export const processDeploymentEvent = async (
     event: PendingWebhookEvent,
-): Promise<string> => {
+    prefetchedWebsite?: WebsiteContext,
+): Promise<DeploymentRecord> => {
     const payload = event.payload as unknown as DeploymentEventPayload
     const { website_id, changed_urls, deploy_summary, internal_notes } = payload
 
-    const { data: website, error: websiteError } = await db
-        .from(Tables.WEBSITES)
-        .select('id, title, contact_email, client_id')
-        .eq('id', website_id)
-        .single()
+    let website: WebsiteContext
+    if (prefetchedWebsite && prefetchedWebsite.id === website_id) {
+        website = prefetchedWebsite
+    } else {
+        const { data, error: websiteError } = await db
+            .from(Tables.WEBSITES)
+            .select('id, title, contact_email, client_id')
+            .eq('id', website_id)
+            .single()
 
-    if (websiteError || !website) {
-        throw new NonRetryableWebhookError(
-            ErrorReasons.WEBSITE_NOT_FOUND,
-            `website_id=${website_id}`,
-        )
+        if (websiteError || !data) {
+            throw new NonRetryableWebhookError(
+                ErrorReasons.WEBSITE_NOT_FOUND,
+                `website_id=${website_id}`,
+            )
+        }
+        website = data as WebsiteContext
     }
 
-    let deploymentId: string
-    let deploymentCreatedAt: string
+    let deployment: DeploymentRecord
 
     if (event.result_ref) {
         const existing = await deploymentsService.getDeploymentById(
             event.result_ref,
         )
         if (existing) {
-            deploymentId = existing.id
-            deploymentCreatedAt = existing.created_at
+            deployment = existing as unknown as DeploymentRecord
         } else {
+            console.warn(
+                `⚠️  event ${event.id}: result_ref ${event.result_ref} missing; recreating deployment`,
+            )
             const fresh = await deploymentsService.createDeployment({
                 website_id,
                 changed_urls,
                 deploy_summary,
                 internal_notes,
             })
-            deploymentId = fresh.id
-            deploymentCreatedAt = fresh.created_at
-            await pendingWebhookEvents.setResultRef(event.id, deploymentId)
+            deployment = fresh as DeploymentRecord
+            await pendingWebhookEvents.setResultRef(event.id, deployment.id)
         }
     } else {
-        const deployment = await deploymentsService.createDeployment({
+        const fresh = await deploymentsService.createDeployment({
             website_id,
             changed_urls,
             deploy_summary,
             internal_notes,
         })
-        deploymentId = deployment.id
-        deploymentCreatedAt = deployment.created_at
+        deployment = fresh as DeploymentRecord
         // Persist result_ref BEFORE attempting email so a crash between
         // createDeployment and markDone cannot cause duplicate rows on
         // the next retry.
-        await pendingWebhookEvents.setResultRef(event.id, deploymentId)
+        await pendingWebhookEvents.setResultRef(event.id, deployment.id)
     }
 
-    if (website.contact_email) {
+    if (!event.email_sent_at && website.contact_email) {
         try {
             await sendDeploymentEmail({
                 to: website.contact_email,
                 websiteTitle: website.title,
                 deploymentDate: new Date(
-                    deploymentCreatedAt,
+                    deployment.created_at,
                 ).toLocaleDateString(),
                 summaryMarkdown: deploy_summary,
             })
+            await pendingWebhookEvents.setEmailSent(event.id)
             console.log(
                 '✅ Deployment email sent:',
                 website.contact_email,
@@ -161,13 +183,16 @@ export const processDeploymentEvent = async (
         }
     }
 
-    return deploymentId
+    return deployment
 }
 
-const runProcessor = async (event: PendingWebhookEvent): Promise<string> => {
+const runProcessor = async (
+    event: PendingWebhookEvent,
+    prefetchedWebsite?: WebsiteContext,
+): Promise<DeploymentRecord> => {
     switch (event.event_type as WebhookEventType) {
         case 'deployment':
-            return processDeploymentEvent(event)
+            return processDeploymentEvent(event, prefetchedWebsite)
         default:
             throw new NonRetryableWebhookError(
                 ErrorReasons.UNKNOWN,
@@ -179,9 +204,14 @@ const runProcessor = async (event: PendingWebhookEvent): Promise<string> => {
 const classifyError = (err: unknown): ErrorReason => {
     if (err instanceof NonRetryableWebhookError) return err.reason
     const msg = err instanceof Error ? err.message : String(err)
-    if (/email|nylas|smtp/i.test(msg)) return ErrorReasons.EMAIL_SEND_FAILED
-    if (/insert|duplicate|constraint|relation/i.test(msg)) {
+    // Order matters: DB-shape errors often mention 'email' as a column
+    // name in leads/contact-forms tables, so check DB-failure patterns
+    // first to avoid mis-classifying them as EMAIL_SEND_FAILED.
+    if (/\b(insert|duplicate|constraint|relation|column|pgrst)\b/i.test(msg)) {
         return ErrorReasons.DB_INSERT_FAILED
+    }
+    if (/\b(nylas|smtp|sendgrid|mailer|failed to send)\b/i.test(msg)) {
+        return ErrorReasons.EMAIL_SEND_FAILED
     }
     return ErrorReasons.UNKNOWN
 }
@@ -195,12 +225,13 @@ const classifyError = (err: unknown): ErrorReason => {
  */
 export const processEvent = async (
     event: PendingWebhookEvent,
+    prefetchedWebsite?: WebsiteContext,
 ): Promise<ProcessResult> => {
     const attempts = event.attempts + 1
     try {
-        const deploymentId = await runProcessor(event)
-        await pendingWebhookEvents.markDone(event.id, attempts, deploymentId)
-        return { status: 'success', deploymentId, attempts }
+        const deployment = await runProcessor(event, prefetchedWebsite)
+        await pendingWebhookEvents.markDone(event.id, attempts, deployment.id)
+        return { status: 'success', deployment, attempts }
     } catch (err) {
         const isNonRetryable = err instanceof NonRetryableWebhookError
         const reason = classifyError(err)

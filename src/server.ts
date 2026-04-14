@@ -91,7 +91,10 @@ const server = app.listen(PORT, () => {
     startWebhookProcessor()
 })
 
+let shuttingDown = false
 const shutdown = (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
     console.log(`Received ${signal}, shutting down...`)
     stopWebhookProcessor()
     server.close(() => {

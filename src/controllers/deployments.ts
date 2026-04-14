@@ -8,17 +8,19 @@ import pendingWebhookEvents from '../services/pending-webhook-events'
 import {
     processEvent,
     INLINE_OWNERSHIP_BUFFER_MS,
+    WebsiteContext,
 } from '../lib/webhook-processor'
 
 // DEV-701: Deploy-window resilience.
 // This endpoint is hit by client CI/CD with data that is generated once and
 // never re-sent. Flow:
-//   1. Pre-validate website_id so invalid UUIDs don't pollute the queue.
+//   1. Pre-validate website_id (fetches full row so processEvent can skip
+//      the re-SELECT on the inline path).
 //   2. Persist payload to pending_webhook_events (next_retry_at is pushed
 //      past the inline attempt so the poller can't claim this row mid-work).
 //   3. Attempt the real work inline. On success → 201 with the deployment.
 //      On transient failure → 202; the poller will retry.
-//      On permanent failure → delete the row and return the error.
+//      On permanent failure → markFailed stands as audit trail.
 const create = async (req: Request, res: Response): Promise<Response> => {
     try {
         const errors = validationResult(req)
@@ -31,7 +33,7 @@ const create = async (req: Request, res: Response): Promise<Response> => {
 
         const { data: website, error: websiteError } = await db
             .from(Tables.WEBSITES)
-            .select('id')
+            .select('id, title, contact_email, client_id')
             .eq('id', website_id)
             .single()
 
@@ -45,20 +47,20 @@ const create = async (req: Request, res: Response): Promise<Response> => {
             INLINE_OWNERSHIP_BUFFER_MS,
         )
 
-        const result = await processEvent(pendingEvent)
+        const result = await processEvent(
+            pendingEvent,
+            website as WebsiteContext,
+        )
 
         if (result.status === 'success') {
-            const deployment = await deploymentsService.getDeploymentById(
-                result.deploymentId,
-            )
-            return res.status(201).json(deployment)
+            return res.status(201).json(result.deployment)
         }
 
         if (result.status === 'permanent_failure') {
             // Rare: website existed at step 1 but disappeared before
             // processEvent re-validated, or an unknown event_type slipped
-            // through. Delete the row so garbage doesn't accumulate.
-            await pendingWebhookEvents.deleteEvent(pendingEvent.id)
+            // through. The row is kept as status='failed' for audit; the
+            // 24h cleanup will remove it after 90 days.
             return res.status(400).json({
                 error: 'Deployment could not be processed',
                 reason: result.reason,

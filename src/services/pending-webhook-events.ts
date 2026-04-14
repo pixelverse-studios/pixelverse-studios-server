@@ -11,6 +11,7 @@ export interface PendingWebhookEvent {
     next_retry_at: string
     last_error: string | null
     result_ref: string | null
+    email_sent_at: string | null
     created_at: string
     processed_at: string | null
 }
@@ -20,8 +21,6 @@ export interface PendingWebhookEvent {
 // the event is marked 'failed' via markFailed() — scheduleNextRetry no longer
 // encodes the "give up" decision.
 const RETRY_DELAYS_SECONDS = [60, 300, 1800]
-
-export const MAX_ATTEMPTS = RETRY_DELAYS_SECONDS.length + 1
 
 // ±25% jitter on scheduled retries to prevent thundering herd when many
 // events fail at the same moment (e.g. transient DB outage) and would
@@ -86,6 +85,21 @@ const setResultRef = async (id: string, resultRef: string): Promise<void> => {
     const { error } = await db
         .from(Tables.PENDING_WEBHOOK_EVENTS)
         .update({ result_ref: resultRef })
+        .eq('id', id)
+
+    if (error) throw error
+}
+
+/**
+ * Record that the notification email for this event succeeded. Retries
+ * check this column and skip the email send when set, preventing the
+ * client from receiving the same notification twice if a crash occurs
+ * after sendEmail succeeds but before markDone.
+ */
+const setEmailSent = async (id: string): Promise<void> => {
+    const { error } = await db
+        .from(Tables.PENDING_WEBHOOK_EVENTS)
+        .update({ email_sent_at: new Date().toISOString() })
         .eq('id', id)
 
     if (error) throw error
@@ -239,6 +253,7 @@ const cleanupOldEvents = async (): Promise<{
 export default {
     insertPending,
     setResultRef,
+    setEmailSent,
     markDone,
     markFailed,
     scheduleNextRetry,
