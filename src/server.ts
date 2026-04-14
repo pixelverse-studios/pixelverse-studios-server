@@ -23,6 +23,10 @@ import cmsPagesRouter from './routes/cms-pages'
 import websiteDomainsRouter from './routes/website-domains'
 import r2UploadsRouter from './routes/r2-uploads'
 import { generalApiLimit } from './routes/rate-limits'
+import {
+    startWebhookProcessor,
+    stopWebhookProcessor,
+} from './lib/webhook-processor'
 
 import 'dotenv/config'
 
@@ -80,8 +84,29 @@ app.use(
 )
 
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
     console.log(`trust proxy: ${app.get('trust proxy')}`)
     console.log(`environment: ${process.env.NODE_ENVIRONMENT || 'not set'}`)
+    startWebhookProcessor()
 })
+
+let shuttingDown = false
+const shutdown = (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`Received ${signal}, shutting down...`)
+    stopWebhookProcessor()
+    server.close(() => {
+        console.log('HTTP server closed.')
+        process.exit(0)
+    })
+    // Hard-exit if graceful close hangs (e.g. open sockets).
+    setTimeout(() => {
+        console.error('Forced exit after shutdown timeout')
+        process.exit(1)
+    }, 10_000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
