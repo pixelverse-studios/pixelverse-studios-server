@@ -5,13 +5,20 @@ import { db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 import deploymentsService from '../services/deployments'
 import pendingWebhookEvents from '../services/pending-webhook-events'
-import { processEvent } from '../lib/webhook-processor'
+import {
+    processEvent,
+    INLINE_OWNERSHIP_BUFFER_MS,
+} from '../lib/webhook-processor'
 
 // DEV-701: Deploy-window resilience.
 // This endpoint is hit by client CI/CD with data that is generated once and
-// never re-sent. Persist the payload to `pending_webhook_events` first, then
-// attempt the real work (create deployment row + send email). If the inline
-// attempt fails, the row is already safe — the background poller will retry.
+// never re-sent. Flow:
+//   1. Pre-validate website_id so invalid UUIDs don't pollute the queue.
+//   2. Persist payload to pending_webhook_events (next_retry_at is pushed
+//      past the inline attempt so the poller can't claim this row mid-work).
+//   3. Attempt the real work inline. On success → 201 with the deployment.
+//      On transient failure → 202; the poller will retry.
+//      On permanent failure → delete the row and return the error.
 const create = async (req: Request, res: Response): Promise<Response> => {
     try {
         const errors = validationResult(req)
@@ -22,31 +29,46 @@ const create = async (req: Request, res: Response): Promise<Response> => {
         const { website_id, changed_urls, deploy_summary, internal_notes } =
             req.body
 
+        const { data: website, error: websiteError } = await db
+            .from(Tables.WEBSITES)
+            .select('id')
+            .eq('id', website_id)
+            .single()
+
+        if (websiteError || !website) {
+            return res.status(404).json({ error: 'Website not found' })
+        }
+
         const pendingEvent = await pendingWebhookEvents.insertPending(
             'deployment',
             { website_id, changed_urls, deploy_summary, internal_notes },
+            INLINE_OWNERSHIP_BUFFER_MS,
         )
 
-        const succeeded = await processEvent(pendingEvent)
+        const result = await processEvent(pendingEvent)
 
-        if (succeeded) {
-            const resultRef = await getResultRef(pendingEvent.id)
-            const deployment = resultRef
-                ? await deploymentsService.getDeploymentById(resultRef)
-                : null
+        if (result.status === 'success') {
+            const deployment = await deploymentsService.getDeploymentById(
+                result.deploymentId,
+            )
+            return res.status(201).json(deployment)
+        }
 
-            if (deployment) {
-                return res.status(201).json(deployment)
-            }
-            return res.status(201).json({
-                queued: false,
-                event_id: pendingEvent.id,
+        if (result.status === 'permanent_failure') {
+            // Rare: website existed at step 1 but disappeared before
+            // processEvent re-validated, or an unknown event_type slipped
+            // through. Delete the row so garbage doesn't accumulate.
+            await pendingWebhookEvents.deleteEvent(pendingEvent.id)
+            return res.status(400).json({
+                error: 'Deployment could not be processed',
+                reason: result.reason,
             })
         }
 
-        // Inline attempt failed. The event row is safe and will be retried by
-        // the background poller. Respond 202 so the client's CI/CD pipeline
-        // treats this as a successful hand-off.
+        // result.status === 'retry_scheduled'
+        // The row is durable; the background poller will retry on its
+        // schedule. Return 202 so the client's CI treats this as an
+        // accepted hand-off.
         return res.status(202).json({
             queued: true,
             event_id: pendingEvent.id,
@@ -54,17 +76,6 @@ const create = async (req: Request, res: Response): Promise<Response> => {
     } catch (err) {
         return handleGenericError(err, res)
     }
-}
-
-const getResultRef = async (eventId: string): Promise<string | null> => {
-    const { data, error } = await db
-        .from(Tables.PENDING_WEBHOOK_EVENTS)
-        .select('result_ref')
-        .eq('id', eventId)
-        .single()
-
-    if (error || !data) return null
-    return (data as { result_ref: string | null }).result_ref
 }
 
 const getByWebsite = async (req: Request, res: Response): Promise<Response> => {

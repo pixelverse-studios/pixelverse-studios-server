@@ -85,3 +85,23 @@ That means retries are exhausting for a real reason (website deleted, DB schema 
 - `src/services/pending-webhook-events.ts` — queue service layer
 - `src/controllers/deployments.ts` — insert-first request handler
 - `supabase/migrations/20260414_create_pending_webhook_events.sql` — schema
+
+## Multi-instance safety
+
+The webhook processor runs **in-process** inside the Express server. If we ever scale the DO App Platform component past one instance, every instance will poll the same queue rows and race — resulting in duplicate deployment records and duplicate emails.
+
+**Until this is hardened (e.g. moved to pg_cron / Supabase Edge Functions, or using `FOR UPDATE SKIP LOCKED` via an RPC), only ONE instance should run the processor.**
+
+Gate via the `WEBHOOK_PROCESSOR_ENABLED` env var. Default is `true` (processor runs). For multi-instance deploys, set `WEBHOOK_PROCESSOR_ENABLED=false` on all but one instance.
+
+## Idempotency
+
+`processDeploymentEvent` reads `result_ref` from the queue row at the start of each attempt. If a previous attempt already created a `website_deployments` row but crashed before `markDone`, the retry uses the existing deployment id (no duplicate row, no duplicate email).
+
+## Data retention
+
+`cleanupOldEvents` runs every 24 hours and deletes:
+- `status='done'` rows older than 30 days
+- `status='failed'` rows older than 90 days
+
+If you need to audit an incident older than those windows, grab the rows before they're purged (or disable the cleanup interval temporarily via code).

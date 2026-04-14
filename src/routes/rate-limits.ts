@@ -151,6 +151,20 @@ export const sensitiveWriteLimit = rateLimit({
 })
 
 /**
+ * Public write endpoints that persist durable state from unauthenticated
+ * callers (currently POST /api/deployments from client CI/CD). Stricter
+ * than the general limiter because each accepted request creates a row
+ * in `pending_webhook_events` even when processing fails; abuse would
+ * bloat the queue table. Keyed by IP via safeIpKey.
+ */
+export const webhookWriteLimit = rateLimit({
+    ...baseConfig,
+    windowMs: ONE_MINUTE,
+    max: 10,
+    keyGenerator: safeIpKey,
+})
+
+/**
  * Catch-all default applied at the app level for non-CMS routes.
  * Loose enough not to interfere with normal traffic but tight enough
  * to blunt simple flooding attacks. Keyed by IP.

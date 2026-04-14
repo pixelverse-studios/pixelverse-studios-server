@@ -3,6 +3,7 @@ import { body, param, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import deployments from '../controllers/deployments'
+import { webhookWriteLimit } from './rate-limits'
 
 const router = Router()
 
@@ -12,24 +13,35 @@ const statusValidator = body('status')
     .withMessage('status must be either "requested" or "indexed"')
 
 // POST /api/deployments - Create a new deployment record
+// Called by client CI/CD pipelines post-deploy. Public endpoint; field
+// length caps + webhookWriteLimit protect the queue table from abuse.
 router.post(
     '/api/deployments',
+    webhookWriteLimit,
     [
         body('website_id')
             .isUUID()
             .withMessage('website_id must be a valid UUID'),
         body('changed_urls')
-            .isArray({ min: 1 })
-            .withMessage('changed_urls must be a non-empty array'),
-        body('changed_urls.*').isURL().withMessage('Each URL must be valid'),
+            .isArray({ min: 1, max: 500 })
+            .withMessage('changed_urls must be between 1 and 500 items'),
+        body('changed_urls.*')
+            .isURL()
+            .withMessage('Each URL must be valid')
+            .isLength({ max: 2048 })
+            .withMessage('Each URL must be 2048 characters or less'),
         body('deploy_summary')
             .isString()
             .notEmpty()
-            .withMessage('deploy_summary is required and must be markdown'),
+            .withMessage('deploy_summary is required and must be markdown')
+            .isLength({ max: 20000 })
+            .withMessage('deploy_summary must be 20000 characters or less'),
         body('internal_notes')
             .optional()
             .isString()
             .withMessage('internal_notes must be a string if provided')
+            .isLength({ max: 5000 })
+            .withMessage('internal_notes must be 5000 characters or less')
     ],
     validateRequest,
     deployments.create
