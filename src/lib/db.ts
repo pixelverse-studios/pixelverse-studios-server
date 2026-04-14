@@ -34,6 +34,7 @@ export const Tables = {
     CMS_TEMPLATES: 'cms_templates',
     CMS_PAGES: 'cms_pages',
     WEBSITE_DOMAINS: 'website_domains',
+    PENDING_WEBHOOK_EVENTS: 'pending_webhook_events',
 }
 
 // Valid project status values for websites and apps

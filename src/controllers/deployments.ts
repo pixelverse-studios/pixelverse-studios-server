@@ -4,8 +4,14 @@ import { validationResult } from 'express-validator'
 import { db, Tables } from '../lib/db'
 import { handleGenericError } from '../utils/http'
 import deploymentsService from '../services/deployments'
-import { sendDeploymentEmail } from '../lib/nylas-mailer'
+import pendingWebhookEvents from '../services/pending-webhook-events'
+import { processEvent } from '../lib/webhook-processor'
 
+// DEV-701: Deploy-window resilience.
+// This endpoint is hit by client CI/CD with data that is generated once and
+// never re-sent. Persist the payload to `pending_webhook_events` first, then
+// attempt the real work (create deployment row + send email). If the inline
+// attempt fails, the row is already safe — the background poller will retry.
 const create = async (req: Request, res: Response): Promise<Response> => {
     try {
         const errors = validationResult(req)
@@ -16,53 +22,49 @@ const create = async (req: Request, res: Response): Promise<Response> => {
         const { website_id, changed_urls, deploy_summary, internal_notes } =
             req.body
 
-        // 1. Verify website exists
-        const { data: website, error: websiteError } = await db
-            .from(Tables.WEBSITES)
-            .select('id, title, contact_email, client_id')
-            .eq('id', website_id)
-            .single()
+        const pendingEvent = await pendingWebhookEvents.insertPending(
+            'deployment',
+            { website_id, changed_urls, deploy_summary, internal_notes },
+        )
 
-        if (websiteError || !website) {
-            return res.status(404).json({ error: 'Website not found' })
-        }
+        const succeeded = await processEvent(pendingEvent)
 
-        // 2. Create deployment record
-        const deployment = await deploymentsService.createDeployment({
-            website_id,
-            changed_urls,
-            deploy_summary,
-            internal_notes
-        })
+        if (succeeded) {
+            const resultRef = await getResultRef(pendingEvent.id)
+            const deployment = resultRef
+                ? await deploymentsService.getDeploymentById(resultRef)
+                : null
 
-        // 3. Send email notification (if contact email exists)
-        if (website.contact_email) {
-            try {
-                await sendDeploymentEmail({
-                    to: website.contact_email,
-                    websiteTitle: website.title,
-                    deploymentDate: new Date(
-                        deployment.created_at
-                    ).toLocaleDateString(),
-                    summaryMarkdown: deploy_summary
-                })
-                console.log(
-                    '✅ Deployment email sent:',
-                    website.contact_email,
-                    'for',
-                    website.title
-                )
-            } catch (emailError) {
-                console.error('❌ Error sending deployment email:', emailError)
-                // Don't fail the request if email fails
+            if (deployment) {
+                return res.status(201).json(deployment)
             }
+            return res.status(201).json({
+                queued: false,
+                event_id: pendingEvent.id,
+            })
         }
 
-        // 4. Return deployment record
-        return res.status(201).json(deployment)
+        // Inline attempt failed. The event row is safe and will be retried by
+        // the background poller. Respond 202 so the client's CI/CD pipeline
+        // treats this as a successful hand-off.
+        return res.status(202).json({
+            queued: true,
+            event_id: pendingEvent.id,
+        })
     } catch (err) {
         return handleGenericError(err, res)
     }
+}
+
+const getResultRef = async (eventId: string): Promise<string | null> => {
+    const { data, error } = await db
+        .from(Tables.PENDING_WEBHOOK_EVENTS)
+        .select('result_ref')
+        .eq('id', eventId)
+        .single()
+
+    if (error || !data) return null
+    return (data as { result_ref: string | null }).result_ref
 }
 
 const getByWebsite = async (req: Request, res: Response): Promise<Response> => {

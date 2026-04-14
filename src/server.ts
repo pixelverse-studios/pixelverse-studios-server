@@ -23,6 +23,7 @@ import cmsPagesRouter from './routes/cms-pages'
 import websiteDomainsRouter from './routes/website-domains'
 import r2UploadsRouter from './routes/r2-uploads'
 import { generalApiLimit } from './routes/rate-limits'
+import { startWebhookProcessor } from './lib/webhook-processor'
 
 import 'dotenv/config'
 
@@ -84,4 +85,5 @@ app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
     console.log(`trust proxy: ${app.get('trust proxy')}`)
     console.log(`environment: ${process.env.NODE_ENVIRONMENT || 'not set'}`)
+    startWebhookProcessor()
 })
