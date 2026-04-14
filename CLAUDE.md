@@ -8,9 +8,38 @@
 
 ---
 
+## ⚠️ CRITICAL: Branch & Deployment Discipline
+
+**Environments and their branches:**
+
+| Branch | Environment | Auto-deploys |
+|---|---|---|
+| `main` | **Production** | Yes — DigitalOcean App Platform |
+| `staging` | **Staging** | Yes — DigitalOcean App Platform |
+| `dev/{milestone-slug}` | Milestone integration (no deploy) | No |
+| `epic/{epic-ticket-id}` | Epic rollup (no deploy) | No |
+| `<ticket-id>` | Feature work (no deploy) | No |
+
+**Hard rules:**
+
+1. **NEVER push directly to `main` or `staging` without explicit approval from Phil.** Both branches auto-deploy. Any push is a production or staging deploy.
+2. **NEVER merge PRs into `main` or `staging` without explicit approval from Phil.** Same reason.
+3. **NEVER force-push, `git reset --hard`, or rewrite history on `main` or `staging`** under any circumstance.
+4. **If a merge would go to `main` or `staging`, stop and ask first.** Phil orchestrates staging → production cutovers manually.
+
+**Normal merge flow (allowed without asking — still confirm before executing):**
+
+```
+feature-branch → epic branch → dev/{milestone-slug} → (pause, await approval) → staging → (pause, await approval) → main
+```
+
+The last two hops are Phil's decision. Everything up to `dev/{milestone-slug}` is normal engineering flow.
+
+---
+
 ## ⚠️ CRITICAL: Testing Protocol for Claude Code
 
-**NEVER test on port 5001** - The production server is always running on this port.
+**NEVER test on port 5001** — the production server is always running on this port.
 
 When testing code changes:
 1. Change `.env` PORT to a test port (5002, 5003, etc.)
@@ -28,22 +57,43 @@ See [Testing for Claude Code Agents](#testing-for-claude-code-agents) for detail
 ### Tech Stack
 - **Runtime:** Node.js with TypeScript (ES6 target, CommonJS modules)
 - **Framework:** Express.js 4.21.0
-- **Database:** Supabase (@supabase/supabase-js 2.45.4)
-- **Email:** nodemailer (Gmail OAuth2), Resend, Discord webhooks
+- **Database:** Supabase (@supabase/supabase-js 2.45.4) — Postgres + Auth (HS256 JWT)
+- **Auth:** Supabase JWT verified locally via `jsonwebtoken`; per-route `requireAuth` / `requireCmsAccess` / `requirePvsAdmin` middleware
+- **Rate limiting:** `express-rate-limit` with per-tier limiters (public / authRead / authWrite / sensitive / webhookWrite) + a catch-all for non-CMS routes
+- **Email:** nodemailer (Gmail App Password for transactional deployment/lead emails), Resend (optional alternate), Discord webhooks (ops notifications)
+- **Image storage:** Cloudflare R2 (per-website `r2_config`, signed upload URLs)
 - **Validation:** express-validator 7.2.0, zod 3.23.8
+- **Durable webhook queue:** `pending_webhook_events` table + in-process poller (see DEV-701 / `src/lib/webhook-processor.ts`)
 - **Dev Tools:** ts-node, nodemon, Prettier
 
 ### Project Structure
 ```
 src/
 ├── controllers/      # Business logic organized by domain
+│   ├── cms-pages.ts, cms-templates.ts, client-users.ts
+│   ├── website-domains.ts, r2-uploads.ts
+│   └── leads, audit, deployments, contact-forms, etc.
 ├── routes/           # Express route definitions + validation
+│   ├── auth-middleware.ts  # requireAuth / requireCmsAccess / requirePvsAdmin
+│   ├── rate-limits.ts      # per-tier limiters (DEV-663)
+│   ├── cms-*.ts            # CMS routes (all authenticated)
+│   └── ...
 ├── services/         # Supabase data access layer
-├── lib/              # Infrastructure (db client, mailer)
-├── utils/            # Helper functions (error handling, emails)
-│   └── mailer/       # Email template generation
+├── lib/
+│   ├── db.ts                # Supabase client + Tables/COLUMNS enums
+│   ├── auth.ts              # Supabase JWT verification
+│   ├── mailer.ts            # Gmail App Password transactional email
+│   ├── resend-mailer.ts     # optional alternate sender
+│   ├── r2.ts                # Cloudflare R2 signed upload URLs
+│   └── webhook-processor.ts # DEV-701 durable queue + retry poller
+├── utils/            # escapeHtml, http error handler, hostname, cms-validation, assert
 ├── media/            # Static assets (logos)
-└── server.ts         # Express app bootstrap
+└── server.ts         # Express app bootstrap (trust proxy, routers, SIGTERM handler)
+
+supabase/migrations/  # Applied forward-only. Never rewrite or reorder.
+docs/audits/          # One-off audits (webhook durability, admin endpoint coverage, ...)
+docs/runbooks/        # Operational runbooks (deploy-window, cms-provisioning, ...)
+docs/postmortems/     # Incident postmortems
 ```
 
 ### Scripts
@@ -261,6 +311,63 @@ export const COLUMNS = {
 
 ---
 
+## CMS, Auth, Rate Limiting & Webhook Queue
+
+### CMS multi-controller architecture
+
+The `/api/cms/*` namespace is driven by separate controllers by concern, all authenticated:
+
+| Module | Responsibility |
+|---|---|
+| `cms-templates` | Per-client schema definitions (fields, types, validation) |
+| `cms-pages` | Content instances bound to a template; draft/published/archived state machine |
+| `cms-users` (`client_users`) | Per-client access with roles (`admin`/`editor`/`viewer`); `is_pvs_admin` flag grants cross-client superadmin |
+| `website-domains` | `hostname → website_id` mapping; public resolve-hostname returns branding + `cms_slug` |
+| `r2-uploads` | Signed upload URLs for image fields in CMS pages |
+
+### Authentication middleware
+
+Located in `src/routes/auth-middleware.ts`. Supabase HS256 JWTs verified locally via `src/lib/auth.ts` using `SUPABASE_JWT_SECRET`.
+
+- `requireAuth` — rejects missing/invalid JWT with 401
+- `requireCmsAccess` — `requireAuth` + the authenticated user has a matching `client_users` row for the `clientId` path param (or is `is_pvs_admin`)
+- `requirePvsAdmin` — `requireAuth` + `is_pvs_admin = true`
+
+### Rate limiting tiers
+
+`src/routes/rate-limits.ts` — each tier is an `express-rate-limit` instance with the right `keyGenerator`:
+
+| Tier | Window / limit | Keyed by | Use on |
+|---|---|---|---|
+| `publicReadLimit` | 1m / 120 | IP | Unauthenticated reads |
+| `authReadLimit` | 1m / 300 | auth `uid` | Authenticated reads (mount AFTER `requireAuth`) |
+| `authWriteLimit` | 1m / 30 | auth `uid` | Authenticated writes (mount AFTER `requireAuth`) |
+| `sensitiveWriteLimit` | 5m / 10 | auth `uid` | Privileged ops (user invites, role changes, template delete) |
+| `webhookWriteLimit` | 1m / 10 | IP | Public write webhooks that persist durable state (e.g. `/api/deployments`) |
+| `generalApiLimit` | 1m / 200 | IP | App-level catch-all for non-CMS routes |
+
+Development bypasses all limiters (see `baseSkip`). Internal service-to-service calls with a valid `X-Blast-Secret` header also bypass.
+
+### Hostname-based tenant resolution
+
+`website_domains.hostname` → `website_id`. The CMS dashboard (separate repo) hits a public resolve-hostname endpoint on boot with its current hostname; the response returns the website's branding blob and (post-DEV-734) `cms_slug`. The dashboard's `BrandingProvider` caches these.
+
+### Durable webhook queue (DEV-701)
+
+`pending_webhook_events` table + in-process poller in `src/lib/webhook-processor.ts`.
+
+- **Purpose:** irrecoverable webhook payloads (currently: `POST /api/deployments` from client CI/CD) are persisted before any fallible processing, so server restarts or handler failures don't drop the payload.
+- **Flow:** controller INSERTs row → attempts inline processing → on success updates to `status='done'` with `result_ref` + `email_sent_at` idempotency markers; on transient failure schedules retry at 1m / 5m / 30m with jitter; on retry exhaustion marks `status='failed'` with a sanitized `last_error` taxonomy.
+- **Background:** `setInterval` poller (60s) picks up `status='pending'` rows with `next_retry_at <= now`. Concurrency 3. 24h cleanup removes `done > 30d` and `failed > 90d`.
+- **Scaling:** gated by `WEBHOOK_PROCESSOR_ENABLED` env flag — set to `false` on all but one instance if scaling horizontally.
+- **Reference:** `docs/audits/webhook-durability-audit.md`, `docs/runbooks/deploy-window.md`.
+
+### `cms_slug` / dashboard subdomains
+
+Pattern: `{cms_slug}.cms.pixelversestudios.io` (e.g. `jpwnj.cms.pixelversestudios.io`). DEV-734 adds a `websites.cms_slug` column that auto-provisions the corresponding `website_domains` row. Netlify domain alias provisioning is a separate step (DEV-736 — manual CLI script for now).
+
+---
+
 ## Database Access Patterns
 
 ### Always Use Enums for Tables/Columns
@@ -437,422 +544,23 @@ throw error
 
 ## Deployment Tracking API
 
-The deployment tracking system records website deployments, tracks changed URLs needing Google Search Console re-indexing with a three-state workflow, and sends email notifications to clients.
+Records website deployments from client CI/CD, tracks changed URLs through a three-state GSC re-indexing workflow, and sends email notifications.
 
-### Three-State Indexing System
+**Endpoints** — see `src/routes/deployments.ts` for the authoritative list and validators.
 
-The system uses a three-state workflow to properly track the GSC indexing process:
+**Three-state indexing** (per-URL and deployment-level):
 
-| Status | Description |
-|--------|-------------|
-| `pending` | Fresh deployment, needs indexing request |
-| `requested` | Submitted to Google Search Console, awaiting indexing |
-| `indexed` | Confirmed indexed by Google |
+| State | Meaning |
+|---|---|
+| `pending` | Fresh, needs GSC indexing request |
+| `requested` | Submitted to GSC, awaiting indexing |
+| `indexed` | Confirmed indexed |
 
-**Status Progression:**
-- Status can only progress forward: `pending` → `requested` → `indexed`
-- Cannot go backward (e.g., from `indexed` back to `requested`)
+Forward-only (`pending` → `requested` → `indexed`). Deployment-level status is computed from URLs: `pending` if any URL is pending, `requested` if any is requested and none pending, `indexed` only when all are indexed.
 
-**Deployment-level status is calculated from URLs:**
-- `pending` if ANY URL is pending
-- `requested` if no pending URLs but ANY URL is requested
-- `indexed` only if ALL URLs are indexed
+**Durability (DEV-701):** `POST /api/deployments` is a fire-and-forget webhook from client CI/CD — payload cannot be reconstructed if dropped. The controller writes to `pending_webhook_events` first, then attempts inline processing. On transient failure, the background poller retries at 1m / 5m / 30m. See `src/lib/webhook-processor.ts` and `docs/runbooks/deploy-window.md`.
 
-### Database Schema
-
-**Table:** `website_deployments`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key (auto-generated) |
-| website_id | UUID | Foreign key to websites table (CASCADE delete) |
-| changed_urls | JSONB | Array of URL objects with status |
-| deploy_summary | TEXT | Markdown summary of changes |
-| internal_notes | TEXT | Optional internal notes |
-| created_at | TIMESTAMPTZ | Deployment timestamp (auto-set) |
-| indexing_status | TEXT | 'pending' \| 'requested' \| 'indexed' |
-| indexing_requested_at | TIMESTAMPTZ | When submitted to GSC (nullable) |
-| indexed_at | TIMESTAMPTZ | When confirmed indexed (nullable) |
-
-**Per-URL Structure (in changed_urls JSONB):**
-
-```typescript
-interface ChangedUrl {
-    url: string
-    indexing_status: 'pending' | 'requested' | 'indexed'
-    indexing_requested_at: string | null  // ISO timestamp
-    indexed_at: string | null              // ISO timestamp
-}
-```
-
-### Endpoints
-
-#### 1. Create Deployment
-**POST /api/deployments**
-
-Records a new deployment and sends email notification to the website's contact email.
-
-**Request Body:**
-```json
-{
-  "website_id": "uuid-here",
-  "changed_urls": [
-    "https://example.com/page1",
-    "https://example.com/page2"
-  ],
-  "deploy_summary": "- Updated homepage hero\n- Added new features section",
-  "internal_notes": "Optional internal notes"
-}
-```
-
-**Validation:**
-- `website_id`: Must be a valid UUID of an existing website
-- `changed_urls`: Non-empty array of valid URLs
-- `deploy_summary`: Non-empty string (markdown format)
-- `internal_notes`: Optional string
-
-**Response:** `201 Created`
-```json
-{
-  "id": "deployment-uuid",
-  "website_id": "website-uuid",
-  "changed_urls": [
-    {
-      "url": "https://example.com/page1",
-      "indexing_status": "pending",
-      "indexing_requested_at": null,
-      "indexed_at": null
-    }
-  ],
-  "deploy_summary": "...",
-  "created_at": "2025-11-24T00:17:37.328336+00:00",
-  "indexing_status": "pending",
-  "indexing_requested_at": null,
-  "indexed_at": null
-}
-```
-
-**Implementation:** `src/controllers/deployments.ts:9`
-
----
-
-#### 2. Get Deployment History by Website
-**GET /api/websites/:websiteId/deployments**
-
-Retrieves all deployments for a specific website with pagination. Returns non-indexed deployments (any age) OR indexed deployments from past 3 months.
-
-**Query Parameters:**
-- `limit` (optional): 1-100, defaults to 20
-- `offset` (optional): Non-negative integer, defaults to 0
-
-**Response:** `200 OK`
-```json
-{
-  "website_id": "uuid",
-  "website_title": "Website Name",
-  "total": 42,
-  "limit": 20,
-  "offset": 0,
-  "deployments": [
-    {
-      "id": "uuid",
-      "website_id": "uuid",
-      "changed_urls": [
-        {
-          "url": "https://example.com/page1",
-          "indexing_status": "indexed",
-          "indexing_requested_at": "2025-12-01T15:30:00Z",
-          "indexed_at": "2025-12-02T10:00:00Z"
-        }
-      ],
-      "deploy_summary": "...",
-      "created_at": "...",
-      "indexing_status": "indexed",
-      "indexing_requested_at": "2025-12-01T15:30:00Z",
-      "indexed_at": "2025-12-02T10:00:00Z"
-    }
-  ]
-}
-```
-
-**Implementation:** `src/controllers/deployments.ts:66`
-
----
-
-#### 3. Get Single Deployment
-**GET /api/deployments/:id**
-
-Retrieves a specific deployment by ID with website and client context.
-
-**Response:** `200 OK`
-```json
-{
-  "id": "uuid",
-  "website_id": "uuid",
-  "changed_urls": [
-    {
-      "url": "https://example.com/page1",
-      "indexing_status": "pending",
-      "indexing_requested_at": null,
-      "indexed_at": null
-    }
-  ],
-  "deploy_summary": "- Updated content",
-  "internal_notes": null,
-  "created_at": "2025-12-01T14:00:00.000Z",
-  "indexing_status": "pending",
-  "indexing_requested_at": null,
-  "indexed_at": null,
-  "website": {
-    "id": "uuid",
-    "title": "Website Name",
-    "domain": "example.com"
-  },
-  "client": {
-    "id": "uuid",
-    "firstname": "John",
-    "lastname": "Doe"
-  }
-}
-```
-
-**Error Response:** `404 Not Found`
-```json
-{
-  "error": "Deployment not found"
-}
-```
-
-**Implementation:** `src/controllers/deployments.ts:110`, `src/services/deployments.ts:206`
-
----
-
-#### 4. Update Deployment Status (Bulk)
-**PATCH /api/deployments/:id/status**
-
-Bulk updates ALL URLs in a deployment to the specified status.
-
-**Request Body:**
-```json
-{
-  "status": "requested"
-}
-```
-
-**Valid status values:** `"requested"` or `"indexed"`
-
-**Behavior:**
-- Updates all URLs to the target status
-- Sets appropriate timestamps on all URLs
-- Recalculates deployment-level status and timestamps
-- Skips URLs that are already `indexed` (cannot go backward)
-
-**Response:** `200 OK`
-```json
-{
-  "id": "deployment-uuid",
-  "changed_urls": [
-    {
-      "url": "https://example.com/page1",
-      "indexing_status": "requested",
-      "indexing_requested_at": "2025-12-02T15:30:00Z",
-      "indexed_at": null
-    }
-  ],
-  "indexing_status": "requested",
-  "indexing_requested_at": "2025-12-02T15:30:00Z",
-  "indexed_at": null
-}
-```
-
-**Implementation:** `src/controllers/deployments.ts:131`
-
----
-
-#### 5. Update Single URL Status
-**PATCH /api/deployments/:id/urls/status**
-
-Updates a single URL's status within a deployment.
-
-**Request Body:**
-```json
-{
-  "url": "https://example.com/page1",
-  "status": "indexed"
-}
-```
-
-**Valid status values:** `"requested"` or `"indexed"`
-
-**Behavior:**
-- If `status: "requested"`: Sets URL's `indexing_status` to 'requested', sets `indexing_requested_at` to now
-- If `status: "indexed"`: Sets URL's `indexing_status` to 'indexed', sets `indexed_at` to now
-- Recalculates deployment-level `indexing_status` based on all URLs
-- Updates deployment-level timestamps accordingly
-
-**Response:** `200 OK` with updated deployment
-
-**Error Responses:**
-- `404`: URL not found in deployment
-- `400`: Cannot change status: URL is already indexed
-
-**Implementation:** `src/controllers/deployments.ts:164`
-
----
-
-#### 6. Batch Update URL Statuses
-**PATCH /api/deployments/:id/urls/batch**
-
-Updates multiple specific URLs' status within a deployment.
-
-**Request Body:**
-```json
-{
-  "urls": [
-    "https://example.com/page1",
-    "https://example.com/page2"
-  ],
-  "status": "requested"
-}
-```
-
-**Valid status values:** `"requested"` or `"indexed"`
-
-**Behavior:**
-- Updates only the specified URLs to the target status
-- Skips URLs that are already `indexed`
-- Recalculates deployment-level status and timestamps
-
-**Response:** `200 OK` with updated deployment
-
-**Error Responses:**
-- `404`: One or more URLs not found in deployment
-
-**Implementation:** `src/controllers/deployments.ts:197`
-
----
-
-#### 7. Get Unindexed Deployments
-**GET /api/deployments/unindexed**
-
-Retrieves all deployments where `indexing_status` is not 'indexed' (pending or requested).
-
-**Query Parameters:**
-- `limit` (optional): 1-100, defaults to 50
-
-**Response:** `200 OK`
-```json
-{
-  "total": 3,
-  "deployments": [
-    {
-      "id": "uuid",
-      "website_id": "uuid",
-      "changed_urls": [...],
-      "deploy_summary": "...",
-      "created_at": "...",
-      "indexing_status": "requested",
-      "indexing_requested_at": "2025-12-01T15:30:00Z",
-      "indexed_at": null
-    }
-  ]
-}
-```
-
-**Implementation:** `src/controllers/deployments.ts:230`
-
-**Important:** This route must come BEFORE `/api/deployments/:id` in route definitions to avoid "unindexed" being treated as a UUID parameter.
-
----
-
-### Legacy Endpoints (Deprecated)
-
-These endpoints are maintained for backward compatibility:
-
-**PATCH /api/deployments/:id/indexed**
-- @deprecated Use `PATCH /api/deployments/:id/status` with `{ status: 'indexed' }`
-- Marks entire deployment as indexed
-
-**PATCH /api/deployments/:id/urls/indexed**
-- @deprecated Use `PATCH /api/deployments/:id/urls/status` with `{ url, status: 'indexed' }`
-- Marks specific URL as indexed
-
----
-
-### Backward Compatibility
-
-The service layer automatically normalizes legacy URL data (old format with only `indexed_at`) to the new three-state format:
-
-```typescript
-// Old format
-{ url: "https://...", indexed_at: null }
-
-// Normalized to new format
-{
-    url: "https://...",
-    indexing_status: "pending",
-    indexing_requested_at: null,
-    indexed_at: null
-}
-```
-
----
-
-### Service Layer
-
-**Location:** `src/services/deployments.ts`
-
-**Methods:**
-- `createDeployment(payload)`: Insert new deployment with three-state tracking
-- `getDeploymentsByWebsiteId(websiteId, limit, offset)`: Get paginated history (auto-normalized)
-- `getDeploymentById(id)`: Get single deployment (auto-normalized)
-- `updateDeploymentStatus(id, status)`: Bulk update all URLs to status
-- `updateUrlStatus(deploymentId, url, status)`: Update single URL status
-- `updateUrlsBatchStatus(deploymentId, urls, status)`: Batch update multiple URLs
-- `getUnindexedDeployments(limit)`: Get deployments needing indexing
-
-**Pattern:**
-```typescript
-const { data, error } = await db.from(Tables.DEPLOYMENTS).select()
-if (error) throw error
-return normalizeDeployment(data)  // Auto-normalizes legacy data
-```
-
----
-
-### Integration Example
-
-**Typical workflow from GitHub Actions / Netlify webhook:**
-
-```bash
-# 1. After deployment succeeds, POST to API
-curl -X POST https://api.pixelversestudios.io/api/deployments \
-  -H "Content-Type: application/json" \
-  -d '{
-    "website_id": "uuid-from-config",
-    "changed_urls": [
-      "https://example.com/updated-page-1",
-      "https://example.com/updated-page-2"
-    ],
-    "deploy_summary": "- Fixed bug in contact form\n- Updated team photos"
-  }'
-
-# 2. After submitting URLs to GSC, mark as requested
-curl -X PATCH https://api.pixelversestudios.io/api/deployments/{id}/status \
-  -H "Content-Type: application/json" \
-  -d '{ "status": "requested" }'
-
-# 3. After GSC confirms indexing, mark as indexed
-curl -X PATCH https://api.pixelversestudios.io/api/deployments/{id}/status \
-  -H "Content-Type: application/json" \
-  -d '{ "status": "indexed" }'
-```
-
-**Result:**
-1. Deployment record created with all URLs in `pending` status
-2. Email sent to client with deployment summary
-3. URLs tracked through `pending` → `requested` → `indexed` workflow
-4. Deployment appears in unindexed list until all URLs are indexed
+**Service layer:** `src/services/deployments.ts` exposes CRUD + state-transition helpers. URL payloads are auto-normalized between legacy `{ url, indexed_at }` and the three-state shape.
 
 ---
 
@@ -908,147 +616,82 @@ console.error('Unhandled error:', err.message, err.stack)
 
 ## Email & Notifications
 
-### Email Services Available
-1. **Gmail (nodemailer + OAuth2):** Contact form submissions
-2. **Resend:** Lead notifications (optional, flag-controlled)
-3. **Discord Webhooks:** Lead/audit notifications (alternative to email)
+### Services
 
-### Email Template Pattern
-```typescript
-// src/utils/mailer/emails.ts
+- **Gmail (nodemailer + App Password)** — all PVS transactional email (deployment notifications, leads, audits, contact forms). Entry point: `src/lib/mailer.ts`.
+- **Resend** — optional alternate transport for lead notifications (flag-controlled via `LEAD_NOTIFY_USE_RESEND`) and email blasts. Entry point: `src/lib/resend-mailer.ts`.
+- **Discord webhooks** — ops alerts and alternate lead/audit notification path.
+- **Nylas** — Domani email blasts only, not PVS transactional.
 
-// HTML version (with inline styles)
-const buildLeadHtml = (lead: LeadRecord): string => {
-    const summary = escapeHtml(lead.brief_summary).replace(/\n/g, '<br />')
+### Non-obvious rules
 
-    return `<!doctype html>
-    <html>
-    <head>
-        <style>
-            body { font-family: system-ui, sans-serif; }
-            .container { max-width: 600px; margin: 0 auto; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>New Lead Submission</h1>
-            <p><strong>Name:</strong> ${escapeHtml(lead.name)}</p>
-            <p><strong>Email:</strong> ${escapeHtml(lead.email)}</p>
-            <p><strong>Summary:</strong><br>${summary}</p>
-        </div>
-    </body>
-    </html>`
-}
+- **Always `escapeHtml` before interpolating user input into email HTML.** The helper lives next to the templates in `src/utils/mailer/`. DEV-733 tracks a gap where `markdownToHtml` doesn't escape — fix that before using markdown fields in any new template.
+- **Always provide a plain-text fallback** alongside HTML (better deliverability, fewer spam flags).
+- **Use brand constants** (`#3f00e9` primary, `#c947ff` secondary, gradient `linear-gradient(90deg, #3f00e9, #c947ff)`) rather than hardcoded hex.
+- **Discord payloads follow a fixed embed shape** (`username`, `content`, `embeds[{description, color, timestamp, footer}]`); see `src/controllers/leads.ts` for a reference call.
 
-// Plain text version (fallback)
-const buildLeadText = (lead: LeadRecord): string => {
-    return [
-        'New Lead Submission',
-        '',
-        `Name: ${lead.name}`,
-        `Email: ${lead.email}`,
-        `Summary: ${lead.brief_summary}`,
-    ].join('\n')
-}
-
-// ALWAYS escape HTML to prevent XSS
-const escapeHtml = (value: string): string => {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;')
-}
-```
-
-### Sending Email (Gmail)
-```typescript
-import { sendEmail } from '../lib/mailer'
-
-await sendEmail({
-    to: recipient.email,
-    subject: 'Subject line',
-    html: buildHtmlTemplate(data),
-    text: buildTextTemplate(data),
-})
-```
-
-### Discord Webhooks
-```typescript
-const response = await fetch(process.env.DISCORD_WEBHOOK_URL!, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        username: 'Bot Name',
-        content: 'Title',
-        embeds: [{
-            description: message,
-            color: 0x3f00e9,
-            timestamp: new Date().toISOString(),
-            footer: { text: 'Footer text' },
-        }],
-    }),
-})
-
-if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Discord webhook failed (${response.status}): ${errorText}`)
-}
-```
-
-### Brand Constants
-```typescript
-const BRAND = {
-    primary: '#3f00e9',
-    secondary: '#c947ff',
-    gradient: 'linear-gradient(90deg, #3f00e9, #c947ff)',
-    background: '#ffffff',
-    surface: '#f7f7fb',
-    text: '#111111',
-    muted: '#666666',
-    border: '#e6e6ef',
-}
-```
+Canonical examples: `src/utils/mailer/emails.ts` (template builders), `src/lib/mailer.ts` (send), `src/controllers/leads.ts` (Discord).
 
 ---
 
 ## Configuration & Environment
 
 ### Required Environment Variables
+
+Authoritative list lives in `.env.example`. Summary of the important groups:
+
 ```bash
-# Supabase (PVS Dashboard)
+# Server
+PORT=5001                              # Production port — DO NOT use for testing (5002+ for tests)
+NODE_ENVIRONMENT=development           # development | staging | production
+
+# Supabase (PVS)
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=xxx
+SUPABASE_JWT_SECRET=xxx                # HS256 secret from Supabase → Settings → API → JWT Settings.
+                                       # Required for CMS auth (requireAuth middleware).
 
-# Supabase (Domani App) - Read-only access for dashboard visibility
-DOMANI_SUPABASE_URL=https://exxnnlhxcjujxnnwwrxv.supabase.co
+# Supabase (Domani App) — read-only for dashboard visibility
+DOMANI_SUPABASE_URL=https://...
 DOMANI_SUPABASE_SERVICE_KEY=xxx
 
-# Gmail (OAuth2)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_CLIENT_ID=xxx.apps.googleusercontent.com
-SMTP_CLIENT_SECRET=xxx
-SMTP_REFRESH_TOKEN=xxx
-SMTP_FROM_EMAIL=info@pixelversestudios.io
+# Gmail (App Password — NOT OAuth2 anymore)
+GMAIL_USER=info@pixelversestudios.io
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
-# Resend (optional)
+# Webhook processor (DEV-701)
+WEBHOOK_PROCESSOR_ENABLED=true         # Set to false on all but one instance when scaling horizontally
+
+# Cloudflare R2 (CMS image uploads)
+R2_ACCOUNT_ID=xxx
+R2_ACCESS_KEY_ID=xxx
+R2_SECRET_ACCESS_KEY=xxx
+R2_DEFAULT_BUCKET=pvs-cms-default
+R2_DEFAULT_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
+
+# Internal service-to-service secret (used by skipBlastSecret in rate-limits)
+BLAST_SECRET=xxx                       # Generate with: openssl rand -hex 32
+
+# Resend (optional — email blasts / alternate transport)
 RESEND_API_KEY=re_xxx
 
-# Discord (optional)
+# Calendly (booking webhook)
+CALENDLY_API_TOKEN=xxx
+
+# Nylas (Domani email blasts — NOT for PVS transactional; see note below)
+NYLAS_API_KEY=xxx
+NYLAS_GRANT_ID=xxx
+
+# Discord (ops notifications, optional)
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx
 
 # Lead notifications
 LEAD_NOTIFY_TO=ops@pixelversestudios.io,info@pixelversestudios.io
 LEAD_NOTIFY_USE_RESEND=false
 LEAD_NOTIFY_LOGO_URL=https://...
-
-# Environment
-NODE_ENVIRONMENT=development
-PORT=5001  # Production server port - DO NOT use for testing (use 5002+ for tests)
 ```
+
+**Note on email services:** PVS transactional email (deployment notifications, lead notifications) runs through `src/lib/mailer.ts` using Gmail App Password via nodemailer — Nylas was removed from PVS transactional paths. Nylas vars above are for Domani-specific email flows only.
 
 ### Configuration Patterns
 ```typescript
@@ -1167,110 +810,39 @@ if (existingLead) {
    - Check email delivery
    - Test error cases
 
-### Example: Adding a New Resource
+### Canonical examples in-repo
 
-```typescript
-// 1. src/services/testimonials.ts
-import { db, Tables } from '../lib/db'
+Rather than duplicate a walkthrough that will drift, read existing domains for the pattern:
 
-const getAll = async () => {
-    const { data, error } = await db.from(Tables.TESTIMONIALS).select('*')
-    if (error) throw error
-    return data
-}
-
-const insert = async (payload: { author: string; content: string }) => {
-    const { data, error } = await db
-        .from(Tables.TESTIMONIALS)
-        .insert([payload])
-        .select()
-        .single()
-    if (error) throw error
-    return data
-}
-
-export default { getAll, insert }
-
-// 2. src/controllers/testimonials.ts
-import { Request, Response } from 'express'
-import { validationResult } from 'express-validator'
-import service from '../services/testimonials'
-import { handleGenericError } from '../utils/http'
-
-const getAll = async (req: Request, res: Response) => {
-    try {
-        const testimonials = await service.getAll()
-        return res.status(200).json(testimonials)
-    } catch (err) {
-        return handleGenericError(err, res)
-    }
-}
-
-const create = async (req: Request, res: Response) => {
-    try {
-        const errors = validationResult(req)
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() })
-        }
-
-        const { author, content } = req.body
-        const testimonial = await service.insert({ author, content })
-        return res.status(201).json(testimonial)
-    } catch (err) {
-        return handleGenericError(err, res)
-    }
-}
-
-export default { getAll, create }
-
-// 3. src/routes/testimonials.ts
-import { Router } from 'express'
-import { body } from 'express-validator'
-import controller from '../controllers/testimonials'
-
-const router = Router()
-
-router.get('/api/testimonials', controller.getAll)
-
-router.post(
-    '/api/testimonials/new',
-    [
-        body('author').isString().notEmpty(),
-        body('content').isString().notEmpty(),
-    ],
-    controller.create
-)
-
-export default router
-
-// 4. src/server.ts
-import testimonialsRouter from './routes/testimonials'
-app.use(testimonialsRouter)
-```
+| Use case | Read |
+|---|---|
+| Simplest public endpoint (service + controller + route + zod validation) | `src/{services,controllers,routes}/leads.ts` |
+| Authenticated CMS endpoint with `requireAuth` / `requirePvsAdmin` and rate-limit tiers | `src/{services,controllers,routes}/cms-templates.ts` + `src/routes/cms-templates.ts` |
+| Hostname-resolved public endpoint with branding lookup | `src/{services,controllers,routes}/website-domains.ts` |
+| Durable webhook with retry queue | `src/controllers/deployments.ts` + `src/lib/webhook-processor.ts` |
 
 ---
 
 ## Known Issues & Gaps
 
 ### Security
-- ❌ **No endpoint authentication/authorization** - All endpoints are publicly accessible
-- ❌ **No rate limiting** - Vulnerable to abuse
-- ⚠️ **reCAPTCHA not implemented** - `routes/recaptcha.ts` is a placeholder
-- ⚠️ **CSRF protection not implemented**
+- ⚠️ **Mixed endpoint authentication** — CMS endpoints under `/api/cms/*` use Supabase JWT auth via `requireAuth` / `requireCmsAccess` / `requirePvsAdmin`. Legacy public endpoints (clients, websites, contact-forms, leads, audit-requests, deployments) intentionally remain unauthenticated or rate-limit-only; admin-coverage audit tracked in DEV-735.
+- ✅ **Rate limiting** — Per-route tier limiters (publicReadLimit, authReadLimit, authWriteLimit, sensitiveWriteLimit, webhookWriteLimit) on CMS/webhook routes; `generalApiLimit` catch-all on non-CMS routes. See `src/routes/rate-limits.ts`.
+- ⚠️ **Email markdown renderer** — `src/lib/mailer.ts` `markdownToHtml` doesn't HTML-escape before markdown regex. Tracked in DEV-733.
+- ⚠️ **Body-parser global limit not explicit** — defaults to 100kb. Tracked in DEV-732.
+- ⚠️ **Distributed-attacker flood on leaked `website_id`** — per-IP `webhookWriteLimit` is shallow defense. Tracked in DEV-731.
 
 ### Testing
-- ❌ **No automated test suite** - `npm test` exits with error
-- Manual testing only (Postman/Insomnia)
+- ❌ **No automated test suite** — `npm test` exits with error. Manual testing only (Postman/Insomnia, or the test-port protocol below).
 
 ### Code Quality
-- ⚠️ **Legacy code exists** - `models/` directory contains unused Mongoose schemas
-- ⚠️ **Some CommonJS utilities** - `src/utils/token.js` is legacy
-- ⚠️ **Inconsistent service patterns** - `services/clients.getClientEmail` logs but doesn't return data
+- ⚠️ **Some CommonJS utilities** — `src/utils/token.js` is legacy
+- ⚠️ **Inconsistent service patterns** — `services/clients.getClientEmail` logs but doesn't return data
 
 ### Documentation
-- Keep `AGENTS.md` in sync with new features
-- Document new environment variables
 - Update this file when patterns change
+- Document new environment variables inline in `.env.example`
+- Use `docs/audits/` for audit outputs, `docs/runbooks/` for operational procedures
 
 ---
 
@@ -1344,9 +916,9 @@ When creating Linear tickets for this project:
 
 | Field    | Value               |
 | -------- | ------------------- |
-| Team     | PixelVerse Studios              |
+| Team     | `Development`       |
 | Assignee | `me`                |
-| Project  | PVS Website |
+| Project  | `PVS Api`           |
 | Priority | Medium (3)          |
 
 **Labels:** Always apply one from each sub-label group:
@@ -1365,37 +937,44 @@ When creating Linear tickets for this project:
 ## Best Practices
 
 ### Do's ✅
+- Ask Phil before merging to `main` or `staging`
 - Use TypeScript types and interfaces
-- Validate all user input
+- Validate all user input (express-validator for simple shape checks; zod for complex schemas)
 - Use `Tables` and `COLUMNS` enums for database access
-- Escape HTML in email templates
+- Escape HTML in email templates (`escapeHtml` helper)
 - Handle `{ data, error }` from Supabase explicitly
 - Log important events and errors
 - Return appropriate HTTP status codes
 - Keep controllers thin (business logic only)
 - Keep services focused (data access only)
+- For irrecoverable webhook payloads, persist to `pending_webhook_events` before any fallible processing (see DEV-701 pattern)
+- For authenticated CMS routes, use the existing `requireAuth` / `requireCmsAccess` / `requirePvsAdmin` middleware — don't invent new auth schemes
 
 ### Don'ts ❌
-- Don't use string literals for table/column names
-- Don't ignore Supabase errors
+- **Don't push to `main` or `staging` without explicit approval from Phil** — both auto-deploy
+- **Don't merge PRs into `main` or `staging` without explicit approval from Phil**
+- **Don't force-push or rewrite history on `main` or `staging`** under any circumstance
+- Don't use string literals for table/column names (use `Tables` / `COLUMNS` enums)
+- Don't ignore Supabase errors — handle `{ data, error }` explicitly
 - Don't commit `.env` file
 - Don't skip validation middleware
 - Don't use `any` type without good reason
-- Don't create new MongoDB schemas (legacy)
-- Don't add authentication without documenting it
+- Don't add authentication without documenting it in this file
 - Don't use synchronous file operations in request handlers
-- **Don't test on port 5001** - Always use a different test port (5002, 5003, etc.) and kill it when done
+- Don't mount `requireAuth`-keyed rate limiters before `requireAuth` (keying falls back to IP, defeating the purpose)
+- **Don't test on port 5001** — always use a different test port (5002, 5003, etc.) and kill it when done
 
 ---
 
 ## Resources
 
-- **AGENTS.md** - Comprehensive project documentation for AI agents
-- **Supabase Docs** - https://supabase.com/docs
-- **Express.js Docs** - https://expressjs.com
-- **TypeScript Handbook** - https://www.typescriptlang.org/docs
-- **express-validator** - https://express-validator.github.io
-- **Zod** - https://zod.dev
+- **`docs/audits/`** — webhook-durability-audit, admin-endpoint-audit, etc.
+- **`docs/runbooks/`** — deploy-window, cms-provisioning, etc.
+- **`docs/postmortems/`** — incident writeups (e.g. 2026-04-07 CMS expansion 504)
+- **Supabase Docs** — https://supabase.com/docs
+- **Express.js Docs** — https://expressjs.com
+- **express-validator** — https://express-validator.github.io
+- **Zod** — https://zod.dev
 
 ---
 
