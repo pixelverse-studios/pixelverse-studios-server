@@ -4,4 +4,5 @@ dist
 config.ts
 /repomix-output.txt
 .mcp.json
-supabase/.temp/.claude/
+supabase/.temp/
+.claude/

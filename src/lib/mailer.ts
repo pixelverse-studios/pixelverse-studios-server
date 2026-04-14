@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer'
-import { OAuth2Client } from 'google-auth-library'
 import { convert } from 'html-to-text'
 
 import {
@@ -8,12 +7,15 @@ import {
 } from '../utils/mailer/emails'
 
 const GMAIL_USER = process.env.GMAIL_USER!
-const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID!
-const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET!
-const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN!
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!
 
-const oAuth2Client = new OAuth2Client(GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET)
-oAuth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN })
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: GMAIL_USER,
+        pass: GMAIL_APP_PASSWORD,
+    },
+})
 
 interface ContactSubmissionEmailParams {
     to: string | string[]
@@ -104,20 +106,6 @@ const sendMail = async ({
     meta
 }: SendMailOptions): Promise<void> => {
     try {
-        const accessToken = await oAuth2Client.getAccessToken()
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                type: 'OAuth2',
-                user: GMAIL_USER,
-                clientId: GMAIL_CLIENT_ID,
-                clientSecret: GMAIL_CLIENT_SECRET,
-                refreshToken: GMAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token || ''
-            }
-        })
-
         const text = convert(html)
 
         const mailOptions = {
@@ -139,34 +127,140 @@ const sendMail = async ({
     }
 }
 
+// Simple markdown to HTML converter for basic formatting
+function markdownToHtml(markdown: string): string {
+    let html = markdown
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .split('\n')
+        .join('<br>')
+
+    html = html.replace(/(<li>.*?<\/li>(<br>)?)+/g, match => {
+        return '<ul>' + match.replace(/<br>/g, '') + '</ul>'
+    })
+
+    return html
+}
+
+interface DeploymentEmailParams {
+    to: string
+    websiteTitle: string
+    deploymentDate: string
+    summaryMarkdown: string
+}
+
+export async function sendDeploymentEmail({
+    to,
+    websiteTitle,
+    deploymentDate,
+    summaryMarkdown
+}: DeploymentEmailParams): Promise<void> {
+    const summaryHtml = markdownToHtml(summaryMarkdown)
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Deployment: ${websiteTitle}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 18px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            color: #999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 New Deployment</h1>
+        <p>${websiteTitle}</p>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <h2>📅 Deployment Details</h2>
+            <p><strong>Date:</strong> ${deploymentDate}</p>
+        </div>
+
+        <div class="section">
+            <h2>📝 Changes Summary</h2>
+            ${summaryHtml}
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>This is an automated deployment notification from PixelVerse Studios</p>
+    </div>
+</body>
+</html>
+    `
+
+    await sendEmail({
+        to,
+        subject: `🚀 New Deployment: ${websiteTitle}`,
+        html,
+        cc: ['sami@pixelversestudios.io', 'phil@pixelversestudios.io'],
+    })
+}
+
 interface SendEmailParams {
     to: string | string[]
     subject: string
     html: string
     text?: string
+    cc?: string | string[]
 }
 
 export async function sendEmail({
     to,
     subject,
     html,
-    text
+    text,
+    cc
 }: SendEmailParams): Promise<void> {
     try {
-        const accessToken = await oAuth2Client.getAccessToken()
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                type: 'OAuth2',
-                user: GMAIL_USER,
-                clientId: GMAIL_CLIENT_ID,
-                clientSecret: GMAIL_CLIENT_SECRET,
-                refreshToken: GMAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token || ''
-            }
-        })
-
         const plainText = text || convert(html)
 
         const mailOptions = {
@@ -174,7 +268,8 @@ export async function sendEmail({
             to: formatRecipients(to),
             subject,
             text: plainText,
-            html
+            html,
+            ...(cc && { cc: formatRecipients(cc) }),
         }
 
         const result = await transporter.sendMail(mailOptions)

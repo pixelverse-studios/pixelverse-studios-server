@@ -8,13 +8,26 @@ import auditRequestsService, { AuditRequestRecord } from '../services/audit-requ
 const auditSchema = z.object({
     name: z.string().min(1).max(200),
     email: z.string().email().max(254),
-    websiteUrl: z.string().url().max(2048),
+    websiteUrl: z
+        .string()
+        .trim()
+        .max(2048)
+        .regex(
+            /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[\S]*)?$/i,
+            'Enter a valid website URL (e.g. yourbusiness.com).'
+        ),
     phoneNumber: z.string().optional(),
     specifics: z
         .union([z.string(), z.array(z.string())])
         .optional()
         .transform((v) => (Array.isArray(v) ? v.join(', ') : v)),
     otherDetail: z.string().max(500).optional(),
+    promoCode: z
+        .string()
+        .trim()
+        .max(32)
+        .optional()
+        .transform(v => (v && v.length > 0 ? v : undefined)),
     honeypot: z.string().optional(),
 })
 
@@ -39,6 +52,10 @@ const buildDiscordDescription = (record: AuditRequestRecord): string => {
 
     if (record.other_detail) {
         lines.push(`📝 Other:       ${record.other_detail}`)
+    }
+
+    if (record.promo_code) {
+        lines.push(`🎟 Promo:       ${record.promo_code}`)
     }
 
     return lines.join('\n')
@@ -89,7 +106,15 @@ const createAuditRequest = async (
             return res.status(200).json({ message: 'Audit request received.' })
         }
 
-        const { name, email, websiteUrl, phoneNumber, specifics, otherDetail } = parsed
+        const {
+            name,
+            email,
+            websiteUrl,
+            phoneNumber,
+            specifics,
+            otherDetail,
+            promoCode,
+        } = parsed
 
         const prospectId = await upsertProspect(email, name, 'review_request')
 
@@ -101,6 +126,7 @@ const createAuditRequest = async (
             specifics,
             otherDetail,
             prospectId,
+            promoCode,
         })
 
         sendAuditAlertToDiscord(record).catch((err) =>

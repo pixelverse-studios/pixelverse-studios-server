@@ -20,10 +20,25 @@ const leadsSchema = z.object({
         .array(z.enum(['web-design', 'seo', 'unsure']))
         .min(1)
         .optional(),
-    currentWebsite: z.string().url().optional().or(z.literal('')),
+    currentWebsite: z
+        .string()
+        .trim()
+        .max(2048)
+        .regex(
+            /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[\S]*)?$/i,
+            'Enter a valid website URL (e.g. yourbusiness.com).'
+        )
+        .optional()
+        .or(z.literal('')),
     improvements: z.array(z.string().min(1).max(200)).min(1).max(20),
     briefSummary: z.string().max(2000).optional(),
-    website_confirm: z.string().optional(), // honeypot
+    promoCode: z
+        .string()
+        .trim()
+        .max(32)
+        .optional()
+        .transform(v => (v && v.length > 0 ? v : undefined)),
+    honeypot: z.string().optional(),
 })
 
 const DISCORD_USERNAME = 'PixelVerse Lead Alerts'
@@ -36,7 +51,7 @@ const resolveWebhookUrl = (): string => {
 }
 
 const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
-    return [
+    const lines = [
         '──────────────────────────',
         `👤 Name:      ${data.name}`,
         `📧 Email:     ${data.email}`,
@@ -48,7 +63,11 @@ const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
         `🎯 Services:  ${data.interestedIn?.join(', ') || 'Not specified'}`,
         `🔧 Needs:     ${data.improvements.join(', ')}`,
         `📝 Notes:     ${data.briefSummary || 'None'}`,
-    ].join('\n')
+    ]
+    if (data.promoCode) {
+        lines.push(`🎟 Promo:     ${data.promoCode}`)
+    }
+    return lines.join('\n')
 }
 
 const sendLeadAlertToDiscord = async (
@@ -89,7 +108,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
         const parsed = leadsSchema.parse(req.body)
 
         // Honeypot: return 200 silently to not tip off bots
-        if (parsed.website_confirm) {
+        if (parsed.honeypot) {
             return res.status(200).json({ message: 'Message received.' })
         }
 
@@ -104,6 +123,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             currentWebsite,
             improvements,
             briefSummary,
+            promoCode,
         } = parsed
 
         const prospectId = await upsertProspect(email, name, 'details_form')
@@ -118,6 +138,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             currentWebsite,
             improvements,
             briefSummary,
+            promoCode,
         })
 
         sendLeadAlertToDiscord(parsed).catch((err) =>

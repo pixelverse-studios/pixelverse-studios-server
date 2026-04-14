@@ -7,7 +7,7 @@ import pendingWebhookEvents, {
 import deploymentsService, {
     DeploymentRecord as DeploymentRow,
 } from '../services/deployments'
-import { sendDeploymentEmail } from './nylas-mailer'
+import { sendDeploymentEmail } from './mailer'
 
 // How often the in-process poller wakes up to check for due retries.
 // The first attempt for any event happens inline in the request handler;
