@@ -93,21 +93,10 @@ const loadAssignments = async (req: Request): Promise<ClientUserRow[]> => {
     let assignments = await clientUsersService.findByAuthUid(req.authUser.uid)
 
     if (assignments.length === 0) {
-        // First-login linking: find unlinked rows for this email and link them.
-        // The link is atomic (guarded by `auth_uid IS NULL` in the UPDATE).
-        const pending = await clientUsersService.findUnlinkedByEmail(
+        assignments = await clientUsersService.resolveAssignments(
+            req.authUser.uid,
             req.authUser.email
         )
-        if (pending.length > 0) {
-            await Promise.all(
-                pending.map(row =>
-                    clientUsersService.linkAuthUid(row.id, req.authUser!.uid)
-                )
-            )
-            assignments = await clientUsersService.findByAuthUid(
-                req.authUser.uid
-            )
-        }
     } else if (shouldUpdateLastLogin(assignments)) {
         // Throttled fire-and-forget last_login update
         clientUsersService.updateLastLogin(req.authUser.uid).catch(err => {
@@ -140,17 +129,19 @@ export const requireAuth = (
         return
     }
 
-    try {
-        req.authUser = verifySupabaseToken(token)
-        next()
-    } catch (err) {
-        if (err instanceof AuthConfigError) {
-            console.error('Auth misconfigured:', err.message)
-            res.status(500).json({ error: 'Internal server error' })
-            return
-        }
-        res.status(401).json({ error: 'Unauthorized' })
-    }
+    void verifySupabaseToken(token)
+        .then(authUser => {
+            req.authUser = authUser
+            next()
+        })
+        .catch(err => {
+            if (err instanceof AuthConfigError) {
+                console.error('Auth misconfigured:', err.message)
+                res.status(500).json({ error: 'Internal server error' })
+                return
+            }
+            res.status(401).json({ error: 'Unauthorized' })
+        })
 }
 
 /**

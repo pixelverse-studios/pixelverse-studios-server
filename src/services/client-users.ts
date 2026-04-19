@@ -18,6 +18,16 @@ export interface ClientUserRow {
     updated_at: string
 }
 
+export class ClientUserLinkConflictError extends Error {
+    email: string
+
+    constructor(email: string) {
+        super(`Multiple active PVS admin rows found for ${email}`)
+        this.name = 'ClientUserLinkConflictError'
+        this.email = email
+    }
+}
+
 /**
  * Returns all active client_users rows for the given auth uid.
  * A user may have multiple rows (one per client they have access to,
@@ -72,6 +82,41 @@ const linkAuthUid = async (id: string, authUid: string): Promise<boolean> => {
 
     if (error) throw error
     return Array.isArray(data) && data.length > 0
+}
+
+/**
+ * Resolves the active client_users assignments for a signed-in user.
+ *
+ * If no rows are linked yet, this performs first-login linking by email.
+ * PVS admin rows are special-cased: there must be at most one active
+ * unlinked admin row for the email, otherwise we fail loudly instead of
+ * racing into the unique auth_uid constraint.
+ */
+const resolveAssignments = async (
+    authUid: string,
+    email: string
+): Promise<ClientUserRow[]> => {
+    let assignments = await findByAuthUid(authUid)
+    if (assignments.length > 0) return assignments
+
+    const pending = await findUnlinkedByEmail(email)
+    if (pending.length === 0) return []
+
+    const pendingPvsAdmins = pending.filter(row => row.is_pvs_admin)
+    if (pendingPvsAdmins.length > 1) {
+        throw new ClientUserLinkConflictError(email)
+    }
+
+    const rowsToLink = pendingPvsAdmins.concat(
+        pending.filter(row => !row.is_pvs_admin)
+    )
+
+    if (rowsToLink.length > 0) {
+        await Promise.all(rowsToLink.map(row => linkAuthUid(row.id, authUid)))
+        assignments = await findByAuthUid(authUid)
+    }
+
+    return assignments
 }
 
 /**
@@ -232,6 +277,7 @@ export default {
     findByAuthUid,
     findUnlinkedByEmail,
     linkAuthUid,
+    resolveAssignments,
     updateLastLogin,
     listByClient,
     findById,

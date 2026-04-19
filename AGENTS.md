@@ -2,136 +2,190 @@
 
 ## Overview
 
--   Pixelverse Studios Server is an Express + TypeScript API that proxies CRUD operations to Supabase tables and sends transactional email via Gmail OAuth.
--   `src/server.ts` wires middleware and mounts routers for clients, newsletter, CMS, and contact-form submissions. Every route should call into a controller in `src/controllers`.
--   Supabase access is centralized in `src/lib/db.ts`, which exposes a preconfigured client plus `Tables`/`COLUMNS` enums so table and column names stay consistent.
--   Email notifications are generated in `src/lib/mailer.ts` and `src/utils/mailer`, primarily for contact-form submissions.
+- Pixelverse Studios Server is a TypeScript + Express REST API backed by Supabase.
+- The server manages clients, CMS content, contact forms, newsletter subscribers, leads, audit requests, website domains, deployment tracking, and related notifications.
+- Architecture is layered: routes -> controllers -> services/lib.
+- `src/server.ts` mounts routers and shared middleware. New endpoints should be registered there before the error handler.
 
-## Local Development
+## Critical Rules
 
-1. Install dependencies (already checked in via `package-lock.json`):
-    ```bash
-    npm install
-    ```
-2. Create a `.env` alongside `package.json` with the variables listed under **Environment Variables**.
-3. Start the API:
-    ```bash
-    npm run start     # single-run with ts-node
-    npm run serve     # live reload via nodemon
-    ```
-4. Server listens on `http://localhost:<PORT>` (defaults to `3000`). Supabase and Gmail credentials must be valid or requests will fail.
+### Branches and Deploys
+
+- `main` auto-deploys to production via DigitalOcean App Platform.
+- `staging` auto-deploys to staging via DigitalOcean App Platform.
+- Never push directly to `main` or `staging` without explicit approval from Phil.
+- Never merge into `main` or `staging` without explicit approval from Phil.
+- Never force-push, rewrite history, or run destructive git recovery on `main` or `staging`.
+- Normal engineering flow is feature branch -> epic branch -> `dev/{milestone-slug}`. Promotion to `staging` and `main` is Phil's decision.
+
+### Local Testing Protocol
+
+- Port `5001` is treated as the normal running app port. Do not use it for agent-driven test runs.
+- For manual test runs, temporarily switch `.env` `PORT` to `5002` or another unused test port.
+- Start the app on the test port, exercise the endpoint, then kill the test server and restore `.env` to `5001`.
+- `npm test` is still a placeholder and does not provide automated coverage.
 
 ## Project Layout
 
--   `src/server.ts` – Express bootstrap, middleware, and error handler.
--   `src/routes/` – Route definitions + validation middleware. New endpoints should live here.
--   `src/controllers/` – Business logic per domain (clients, newsletter, CMS, contact-forms) pulling data through Supabase or services.
--   `src/services/` – Thin data-services for reusable Supabase queries (e.g., websites, contact-forms). Prefer adding shared queries here.
--   `src/lib/` – Infrastructure adapters (Supabase client, Gmail transporter).
--   `src/utils/` – Helper utilities (error handling, email templates, legacy token helpers).
--   `models/` – Legacy Mongoose schemas; currently unused but still referenced historically. Avoid modifying unless migrating back to Mongo.
+- `src/server.ts` - Express bootstrap, trust proxy, router mounting, error handling, shutdown hooks.
+- `src/routes/` - Express routes, validation, auth middleware, rate-limit wiring.
+- `src/controllers/` - Business logic per domain.
+- `src/services/` - Thin Supabase data-access layer and reusable domain queries.
+- `src/lib/` - Infrastructure adapters such as Supabase, auth, mailer, R2, and webhook processing.
+- `src/utils/` - Shared helpers like `escapeHtml`, hostname parsing, validation helpers, and HTTP error utilities.
+- `supabase/migrations/` - Forward-only schema changes. Do not rewrite or reorder old migrations.
+- `docs/audits/`, `docs/runbooks/`, `docs/postmortems/` - Operational references and incident history.
 
-## API Surface
+## Core Stack
 
-All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when adding inputs.
+- Runtime: Node.js + TypeScript
+- Framework: Express 4
+- Database: Supabase / Postgres
+- Auth: Supabase JWT verified locally
+- Validation: `express-validator` and `zod`
+- Email: Gmail via nodemailer App Password, optional Resend, optional Discord alerts
+- Storage: Cloudflare R2 for CMS image uploads
+- Durable webhooks: `pending_webhook_events` + `src/lib/webhook-processor.ts`
 
-| Route | Method | Description | Controller |
-| --- | --- | --- | --- |
-| `/api/leads` | POST | Validate, persist, and email new lead submissions from the frontend honeypot form. | `controllers/leads.createLead` |
-| `/api/clients` | GET | List all clients. | `controllers/clients.getAll` |
-| `/api/clients/new` | POST | Create client (`client`, `client_slug`, `active`, `cms`). | `controllers/clients.add` |
-| `/api/clients/:id` | PATCH | Update `client` or `active`. | `controllers/clients.edit` |
-| `/api/clients/:id` | DELETE | Remove client. | `controllers/clients.remove` |
-| `/api/newsletter` | GET | List newsletter subscribers. | `controllers/newsletter.getAll` |
-| `/api/newsletter/:clientSlug` | POST | Add subscriber for client slug. | `controllers/newsletter.add` |
-| `/api/cms` | GET | Fetch all CMS entries. | `controllers/cms.get` |
-| `/api/cms/:clientSlug` | GET | Fetch CMS entries for client slug. | `controllers/cms.getById` |
-| `/api/cms/:clientSlug/active` | GET | Active CMS entries for client slug. | `controllers/cms.getActiveById` |
-| `/api/cms/:id` | POST | Add CMS page for client (param `id` is client id). | `controllers/cms.add` |
-| `/api/cms/:id` | PATCH | Update CMS entry. | `controllers/cms.edit` |
-| `/api/cms/:id` | DELETE | Delete CMS entry. | `controllers/cms.remove` |
-| `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
-| `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
-| `/api/audit-requests` | POST | Capture Free Website Audit submissions, persist to Supabase, and email ops. | `controllers/audit.createAuditRequest` |
+## Routing and Layering
 
-> `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
+- Keep the flow `route -> controller -> service/lib`.
+- Routes define endpoints and validation middleware only.
+- Controllers orchestrate business logic, call services/lib, and shape responses.
+- Services handle Supabase access and shared domain queries. Keep them thin.
+- Prefer `async/await` consistently. Do not mix callbacks or Promise chains unless required by a dependency.
+- Use `handleGenericError` for centralized error responses.
 
-## Data + External Services
+## Authentication and Rate Limiting
 
--   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`.
-    -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
-    -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
--   **Email (Gmail OAuth2)**
-    -   `sendContactSubmissionEmail` in `src/lib/mailer.ts` requests an access token from Google and dispatches HTML + plaintext using templates from `src/utils/mailer/emails.ts`.
-    -   `process.env.NODE_ENVIRONMENT === 'development'` forces contact-form mail to `info@pixelversestudios.io`; adjust if changing environment semantics.
--   **Resend Notifications**
-    - Lead submissions use the Resend API (`src/controllers/leads.ts`) to notify the ops team. Configure `RESEND_API_KEY`, `LEAD_NOTIFY_TO`, and optionally `LEAD_NOTIFY_FROM`.
--   **Lead Intake Flow**
-    - `/api/leads` intentionally bypasses shared services and calls Supabase REST + Resend directly from the controller for clarity. Keep that file in sync if you expand lead handling.
--   **Legacy Nodemailer Utilities**
-    -   Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
+- `src/routes/auth-middleware.ts` contains the shared CMS auth middleware:
+  - `requireAuth`
+  - `requireCmsAccess`
+  - `requirePvsAdmin`
+- CMS routes are no longer universally public. Do not assume the whole API is unauthenticated.
+- `src/routes/rate-limits.ts` defines limiter tiers including:
+  - `publicReadLimit`
+  - `authReadLimit`
+  - `authWriteLimit`
+  - `sensitiveWriteLimit`
+  - `webhookWriteLimit`
+  - `generalApiLimit`
+- Mount auth-keyed limiters after `requireAuth`, otherwise the limiter falls back to IP-based keying.
+
+## Current API Surface
+
+The repo contains legacy public routes plus newer authenticated CMS and deployment endpoints. Check `src/routes/` for the authoritative surface. Key domains include:
+
+- `clients`
+- `newsletter`
+- `cms`
+- `contact-forms`
+- `leads`
+- `audit-requests`
+- `deployments`
+- `website-domains`
+- `cms-pages`
+- `cms-templates`
+- `client-users`
+- `r2-uploads`
+
+When documenting or extending routes, prefer pointing at the route files instead of duplicating full endpoint tables that can drift.
+
+## Data and External Services
+
+### Supabase
+
+- Import `db`, `Tables`, and `COLUMNS` from `src/lib/db.ts`.
+- Do not introduce string literals for table or column names when enums already exist.
+- Prefer chained query builders like `.select()`, `.eq()`, `.insert()`, `.update()`, `.delete()`.
+- Always inspect `{ data, error }` and throw or handle errors explicitly.
+
+### Durable Webhook Queue
+
+- Deployment webhooks are treated as irrecoverable inputs.
+- Persist webhook payloads to `pending_webhook_events` before fallible processing when following the deployment pattern.
+- Retry behavior and polling live in `src/lib/webhook-processor.ts`.
+- `WEBHOOK_PROCESSOR_ENABLED` should be used carefully if the app is scaled horizontally.
+
+### Email and Notifications
+
+- PVS transactional email uses `src/lib/mailer.ts` with Gmail App Password credentials.
+- Resend is available for optional alternate sending paths.
+- Discord webhooks are used for some ops notifications and fallback alerting.
+- Always escape user-provided values before injecting them into HTML email templates.
+- Always provide plaintext email content alongside HTML.
+- Legacy CommonJS mailer/token utilities still exist; confirm usage before refactoring them.
+
+### Website Domains and CMS
+
+- `website_domains` maps hostnames to websites and supports tenant resolution for the CMS dashboard.
+- `cms_slug` is used for dashboard subdomains like `{cms_slug}.cms.pixelversestudios.io`.
+- Cloudflare R2 signed upload URLs are used for CMS asset flows.
 
 ## Coding Guidelines for Agents
 
--   Default to TypeScript within `src/`. When touching CommonJS utilities, ensure interop does not break ts-node.
--   Follow existing layering: routes → controllers → services/lib. Keep controllers thin and move cross-cutting Supabase logic into `src/services`.
--   Validate all incoming data using `express-validator` and re-use `validateRequest`.
--   Preserve centralized error handling by throwing or returning errors to `handleGenericError`.
--   When adding Supabase queries, prefer `.select().eq()` chaining and always handle `error` alongside `data`.
--   Use `async/await` consistently; avoid mixing Promise chains.
--   Keep `Tables`/`COLUMNS` enums in sync with Supabase schema before referencing new columns.
--   Update or add email templates alongside business logic when new notifications are required.
+- Default to TypeScript for anything under `src/`.
+- Follow existing naming and file patterns. This repo uses kebab-case filenames under `src/`.
+- Reuse existing middleware and helpers before inventing new patterns.
+- Validate all incoming data. Use `express-validator` for straightforward request validation and `zod` for more complex payloads.
+- Keep controllers thin and move reusable Supabase logic into `src/services`.
+- Keep `Tables` and `COLUMNS` in sync before referencing new schema elements.
+- Preserve centralized error handling and explicit HTTP status behavior.
+- Do not add new auth or permission behavior without documenting it here and in `CLAUDE.md`.
+- Do not use synchronous file operations in request handlers.
+
+## Canonical Implementation References
+
+Use existing domains as patterns instead of copying large examples into this file:
+
+- Simple public endpoint with service/controller/route pattern: `src/{services,controllers,routes}/leads.ts`
+- Authenticated CMS route pattern: `src/{services,controllers,routes}/cms-templates.ts`
+- Hostname resolution pattern: `src/{services,controllers,routes}/website-domains.ts`
+- Durable webhook pattern: `src/controllers/deployments.ts` and `src/lib/webhook-processor.ts`
 
 ## Environment Variables
 
-| Variable | Purpose |
-| --- | --- |
-| `PORT` | Express listen port (defaults to `3000`). |
-| `SUPABASE_URL` | Supabase project REST URL. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Preferred service-role key for Supabase access (falls back to `SUPABASE_SERVICE_ROLE_KEY`). |
-| `SUPABASE_SERVICE_ROLE_KEY` | Legacy Supabase anon key fallback. |
-| `GMAIL_USER` | Gmail address used as sender. |
-| `GMAIL_CLIENT_ID` | Google OAuth client id. |
-| `GMAIL_CLIENT_SECRET` | Google OAuth client secret. |
-| `GMAIL_REFRESH_TOKEN` | Refresh token for Gmail OAuth workflow. |
-| `NODE_ENVIRONMENT` | Controls dev-mode email fallback (set to `development` locally). |
-| `TOKEN_SECRET` | Shared secret for JWT helpers in `src/utils/token.js` (legacy). |
-| `TOKEN_EXPIRE` | Lifetime for generated JWTs (legacy, defaults to `24hr`). |
-| `GOOGLE_OAUTH_ID`, `GOOGLE_OAUTH_SECRET`, `GOOGLE_REFRESH_TOKEN`, `EMAIL_USER` | Required only if using legacy CommonJS mailer utilities. |
-| `RESEND_API_KEY` | Resend API token for lead notifications. |
-| `LEAD_NOTIFY_TO` | Comma-separated recipient list for lead notifications (defaults to ops@pixelversestudios.io). |
-| `LEAD_NOTIFY_FROM` | Optional override for the Resend “from” address. |
-| `LEAD_NOTIFY_USE_RESEND` | Toggle Resend lead notifications (`false` to route alerts to Discord). |
-| `LEAD_NOTIFY_DISCORD_WEBHOOK` | Discord webhook endpoint used for lead and audit alerts when Resend is disabled. |
+The authoritative list is `.env.example`. The most important groups are:
 
-Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
+- Server: `PORT`, `NODE_ENVIRONMENT`
+- Supabase: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`
+- Gmail: `GMAIL_USER`, `GMAIL_APP_PASSWORD`
+- Webhook processor: `WEBHOOK_PROCESSOR_ENABLED`
+- R2: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_DEFAULT_BUCKET`, `R2_DEFAULT_PUBLIC_BASE_URL`
+- Internal bypass/ops: `BLAST_SECRET`, `DISCORD_WEBHOOK_URL`
+- Optional senders/integrations: `RESEND_API_KEY`, `CALENDLY_API_TOKEN`, `NYLAS_API_KEY`, `NYLAS_GRANT_ID`
+- Lead notifications: `LEAD_NOTIFY_TO`, `LEAD_NOTIFY_USE_RESEND`, `LEAD_NOTIFY_LOGO_URL`
 
-## Testing & Validation
+Store secrets outside version control. When adding a new variable, update both `.env.example` and this file.
 
--   No automated tests ship with this repo (`npm test` exits). Use Postman/Insomnia or curl to exercise routes and inspect Supabase tables for persistence.
--   When modifying email flows, run locally with test credentials and monitor console logs from nodemailer.
--   For new features, document manual test steps in PR descriptions until a testing strategy is added.
+## Testing and Validation
 
-## Known Gaps / TODOs
+- No automated test suite currently ships with the repo.
+- Use Postman, Insomnia, or curl against a non-5001 test port.
+- Verify persistence in Supabase when changing write paths.
+- When changing email flows, verify logs and outbound delivery behavior.
+- When changing deployment tracking or webhook durability behavior, inspect `pending_webhook_events` and the retry path, not just the immediate HTTP response.
 
--   `services/clients.getClientEmail` logs results but does not return anything; verify intent before using.
--   `routes/recaptcha.ts` lacks implementation.
--   Legacy `models/` and some utilities point to MongoDB and JWT flows that are not wired into the current Supabase-based server. Remove or update once migrations are complete.
--   No rate limiting or authentication is currently guarding endpoints; exercise caution when exposing publicly.
+## Known Gaps
 
-## Audit Trail
-
--   Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
--   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
--   Email notifications via Resend include the lead id and timestamp so operators can cross-reference inbox events with database records.
+- Some legacy CommonJS utilities remain in `src/utils/`.
+- `services/clients.getClientEmail` has historically logged results without returning them; confirm behavior before building on it.
+- Public/admin boundary coverage remains mixed across older endpoints and newer CMS flows.
+- `src/lib/mailer.ts` `markdownToHtml` has a known escaping gap; be cautious with new markdown-backed email content.
+- Body size and webhook abuse hardening are still tracked operational concerns.
 
 ## When Adding Features
 
-1. Extend or create a controller and route under `src/routes` with appropriate validation.
-2. Touch Supabase via `src/services` or directly in the controller, handling `{ data, error }` results explicitly.
-3. Add/update email templates if user-facing communication changes.
-4. Document any new environment variables in this file and the deployment environment.
-5. Smoke-test using `npm run start` and manual API calls.
+1. Add or extend a service in `src/services/`.
+2. Add or extend a controller in `src/controllers/`.
+3. Add or extend a route in `src/routes/` with validation.
+4. Register the router in `src/server.ts`.
+5. Update templates or notifications if the feature changes user-facing email or alerts.
+6. Add any new env vars to `.env.example`, `AGENTS.md`, and `CLAUDE.md`.
+7. Manually test on a non-5001 port and inspect downstream systems.
 
-Keep this document up to date whenever the API surface, environment requirements, or workflows change.
+## Documentation Rule
+
+- `CLAUDE.md` is the detailed source-of-truth operator manual.
+- `AGENTS.md` should remain the concise companion document for agents.
+- When project workflows, auth, deployment behavior, or environment requirements change, update both files together so they do not drift again.

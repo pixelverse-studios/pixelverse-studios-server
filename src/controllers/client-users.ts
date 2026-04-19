@@ -77,8 +77,9 @@ const me = async (req: Request, res: Response): Promise<Response> => {
             return res.status(401).json({ error: 'Unauthorized' })
         }
 
-        const assignments = await clientUsersService.findByAuthUid(
-            req.authUser.uid
+        const assignments = await clientUsersService.resolveAssignments(
+            req.authUser.uid,
+            req.authUser.email
         )
 
         const isPvsAdmin = assignments.some(a => a.is_pvs_admin)

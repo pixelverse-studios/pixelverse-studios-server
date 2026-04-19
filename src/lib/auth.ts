@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import { createClient, User } from '@supabase/supabase-js'
 
 import 'dotenv/config'
 
@@ -18,71 +18,79 @@ export class AuthConfigError extends Error {
     }
 }
 
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || ''
 const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const EXPECTED_AUDIENCE = 'authenticated'
+let authClient: ReturnType<typeof createClient> | null = null
 
-const getExpectedIssuer = (): string => {
-    if (!SUPABASE_URL) return ''
-    return `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1`
-}
-
-/**
- * Verifies a Supabase Auth JWT locally using the project's JWT secret.
- * Returns the user's auth uid and lowercased email.
- *
- * Enforces:
- * - HS256 algorithm (Supabase shared-secret JWTs)
- * - audience = 'authenticated'
- * - issuer = <SUPABASE_URL>/auth/v1
- * - email_verified = true (prevents account hijacking via unverified email)
- *
- * Throws AuthConfigError if SUPABASE_JWT_SECRET or SUPABASE_URL are missing.
- * Throws Error for any token validation failure.
- *
- * NOTE: This assumes Supabase HS256 (shared-secret) JWTs. If the project
- * migrates to asymmetric signing keys (RS256/ES256), this needs updating.
- */
-export const verifySupabaseToken = (token: string): SupabaseAuthUser => {
-    if (!SUPABASE_JWT_SECRET) {
-        throw new AuthConfigError('SUPABASE_JWT_SECRET is not configured')
-    }
+const getAuthClient = () => {
     if (!SUPABASE_URL) {
         throw new AuthConfigError('SUPABASE_URL is not configured')
     }
-
-    const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, {
-        algorithms: ['HS256'],
-        audience: EXPECTED_AUDIENCE,
-        issuer: getExpectedIssuer(),
-        clockTolerance: 5,
-    }) as jwt.JwtPayload
-
-    const uid = decoded.sub
-    const email = decoded.email
-
-    if (typeof uid !== 'string' || !uid) {
-        throw new Error('Invalid token: missing sub claim')
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+        throw new AuthConfigError('SUPABASE_SERVICE_ROLE_KEY is not configured')
     }
-    if (typeof email !== 'string' || !email) {
+
+    if (!authClient) {
+        authClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+                detectSessionInUrl: false,
+            },
+        })
+    }
+
+    return authClient
+}
+
+const isEmailVerified = (user: User): boolean => {
+    if (typeof user.email_confirmed_at === 'string' && user.email_confirmed_at) {
+        return true
+    }
+
+    return user.user_metadata?.email_verified === true
+}
+
+/**
+ * Verifies a Supabase Auth JWT using the project's Auth server.
+ * Returns the user's auth uid and lowercased email.
+ *
+ * Enforces:
+ * - token is valid according to Supabase Auth
+ * - email is present
+ * - email is verified (prevents hijacking via unverified signups)
+ *
+ * Throws AuthConfigError if required Supabase config is missing.
+ * Throws Error for any token validation failure.
+ */
+export const verifySupabaseToken = async (
+    token: string
+): Promise<SupabaseAuthUser> => {
+    const { data, error } = await getAuthClient().auth.getUser(token)
+    if (error) {
+        throw new Error(`Invalid token: ${error.message}`)
+    }
+
+    const user = data.user
+    if (!user) {
+        throw new Error('Invalid token: user not found')
+    }
+
+    if (user.aud !== EXPECTED_AUDIENCE) {
+        throw new Error('Invalid token: unexpected audience')
+    }
+
+    if (typeof user.email !== 'string' || !user.email) {
         throw new Error('Invalid token: missing email claim')
     }
 
-    // Verify email is verified (prevents hijacking via unverified Supabase signups).
-    // Supabase places this claim at the top level for verified users; some flows
-    // also nest it under user_metadata.
-    const topLevelVerified = decoded.email_verified === true
-    const metadataVerified =
-        decoded.user_metadata &&
-        typeof decoded.user_metadata === 'object' &&
-        (decoded.user_metadata as Record<string, unknown>).email_verified === true
-
-    if (!topLevelVerified && !metadataVerified) {
+    if (!isEmailVerified(user)) {
         throw new Error('Invalid token: email not verified')
     }
 
     return {
-        uid,
-        email: email.toLowerCase(),
+        uid: user.id,
+        email: user.email.toLowerCase(),
     }
 }
