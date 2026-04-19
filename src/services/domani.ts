@@ -1,5 +1,5 @@
 import {
-    domaniDb,
+    getDomaniDb,
     DomaniTables,
     FeedbackCategory,
     Platform,
@@ -107,6 +107,7 @@ const getFeedback = async (
     options: FeedbackQueryOptions = {}
 ): Promise<PaginatedResult<BetaFeedback>> => {
     const { limit = 50, offset = 0, category, status, platform } = options
+    const domaniDb = getDomaniDb()
 
     // Get total count
     let countQuery = domaniDb
@@ -150,6 +151,7 @@ const getSupportRequests = async (
     options: SupportQueryOptions = {}
 ): Promise<PaginatedResult<SupportRequest>> => {
     const { limit = 50, offset = 0, category, status, platform } = options
+    const domaniDb = getDomaniDb()
 
     // Get total count
     let countQuery = domaniDb
@@ -193,6 +195,7 @@ const getWaitlist = async (
     options: WaitlistQueryOptions = {}
 ): Promise<PaginatedResult<WaitlistEntry>> => {
     const { limit = 50, offset = 0 } = options
+    const domaniDb = getDomaniDb()
 
     // Get total count
     const { count, error: countError } = await domaniDb
@@ -219,6 +222,7 @@ const getWaitlist = async (
 const unsubscribeFromWaitlist = async (
     email: string
 ): Promise<WaitlistEntry | null> => {
+    const domaniDb = getDomaniDb()
     const { data, error } = await domaniDb
         .from(DomaniTables.WAITLIST)
         .update({ status: 'unsubscribed' })
@@ -236,6 +240,7 @@ const unsubscribeFromWaitlist = async (
 }
 
 const unsubscribeUser = async (email: string): Promise<UserProfile | null> => {
+    const domaniDb = getDomaniDb()
     const { data, error } = await domaniDb
         .from(DomaniTables.PROFILES)
         .update({ deleted_at: new Date().toISOString() })
@@ -266,6 +271,7 @@ const getUsers = async (
         cohort,
         includeDeleted = false
     } = options
+    const domaniDb = getDomaniDb()
 
     let query = domaniDb
         .from(DomaniTables.PROFILES_DASHBOARD)

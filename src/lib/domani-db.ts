@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 import 'dotenv/config'
 
@@ -6,11 +6,33 @@ const DOMANI_SUPABASE_URL = process.env.DOMANI_SUPABASE_URL || ''
 const DOMANI_SUPABASE_SERVICE_KEY =
     process.env.DOMANI_SUPABASE_SERVICE_KEY || ''
 
-// Initialize the Domani Supabase client
-export const domaniDb = createClient(
-    DOMANI_SUPABASE_URL,
-    DOMANI_SUPABASE_SERVICE_KEY
-)
+export class DomaniConfigError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'DomaniConfigError'
+    }
+}
+
+let cachedDomaniDb: SupabaseClient | null = null
+
+export const getDomaniDb = (): SupabaseClient => {
+    if (cachedDomaniDb) return cachedDomaniDb
+    if (!DOMANI_SUPABASE_URL) {
+        throw new DomaniConfigError('DOMANI_SUPABASE_URL is not configured')
+    }
+    if (!DOMANI_SUPABASE_SERVICE_KEY) {
+        throw new DomaniConfigError(
+            'DOMANI_SUPABASE_SERVICE_KEY is not configured'
+        )
+    }
+
+    cachedDomaniDb = createClient(
+        DOMANI_SUPABASE_URL,
+        DOMANI_SUPABASE_SERVICE_KEY
+    )
+
+    return cachedDomaniDb
+}
 
 // Domani database tables
 export const DomaniTables = {

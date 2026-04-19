@@ -1,5 +1,5 @@
 import { db, Tables } from '../lib/db'
-import { domaniDb, DomaniTables } from '../lib/domani-db'
+import { getDomaniDb, DomaniTables } from '../lib/domani-db'
 
 // ============================================================================
 // Type Definitions
@@ -102,6 +102,7 @@ const listCampaigns = async (
 const resolveRecipientIds = async (
     ids: string[]
 ): Promise<{ recipients: ResolvedRecipient[]; missing: string[] }> => {
+    const domaniDb = getDomaniDb()
     const { data, error } = await domaniDb
         .from(DomaniTables.PROFILES)
         .select('id, email, full_name')
