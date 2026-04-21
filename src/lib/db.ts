@@ -65,6 +65,7 @@ export const COLUMNS = {
     AUTH_UID: 'auth_uid',
     TEMPLATE_ID: 'template_id',
     CMS_SLUG: 'slug',
+    CMS_ROUTE: 'route',
     IS_PVS_ADMIN: 'is_pvs_admin',
     WEBSITE_ID: 'website_id',
     HOSTNAME: 'hostname',

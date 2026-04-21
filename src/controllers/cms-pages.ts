@@ -42,6 +42,8 @@ const list = async (req: Request, res: Response) => {
     }
 }
 
+const buildDefaultRouteFromSlug = (slug: string): string => `/${slug}`
+
 // GET /api/cms/pages/:id uses only requireAuth (no requireCmsAccess) because
 // the URL does not contain clientId — the client scope must be resolved from
 // the page record. Authorization is performed here after the resource lookup.
@@ -79,9 +81,10 @@ const create = async (req: Request, res: Response) => {
         }
 
         const { clientId } = req.params
-        const { template_id, slug, content, status } = req.body as {
+        const { template_id, slug, route, content, status } = req.body as {
             template_id: string
             slug: string
+            route?: string
             content: Record<string, unknown>
             status?: CmsPublishStatus
         }
@@ -108,6 +111,7 @@ const create = async (req: Request, res: Response) => {
             client_id: clientId,
             template_id: template.id,
             slug,
+            route: route ?? buildDefaultRouteFromSlug(slug),
             content: validation.content,
             status,
             template_version: template.version,
@@ -142,8 +146,9 @@ const update = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Page not found' })
         }
 
-        const { slug, content, status } = req.body as {
+        const { slug, route, content, status } = req.body as {
             slug?: string
+            route?: string
             content?: Record<string, unknown>
             status?: CmsPublishStatus
         }
@@ -175,6 +180,7 @@ const update = async (req: Request, res: Response) => {
 
         const updated = await cmsPagesService.update(id, {
             slug,
+            route,
             content: validatedContent,
             status,
             last_edited_by: req.authUser.uid,
@@ -294,6 +300,7 @@ const getPublished = async (req: Request, res: Response) => {
         return res.status(200).json({
             id: page.id,
             slug: page.slug,
+            route: page.route,
             content: page.content,
             template: {
                 slug: page.template.slug,

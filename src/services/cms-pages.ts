@@ -14,6 +14,7 @@ export interface CmsPageRow {
     client_id: string
     template_id: string
     slug: string
+    route: string
     content: Record<string, unknown>
     status: CmsPublishStatus
     template_version: number
@@ -32,6 +33,7 @@ export interface CmsPageInsertPayload {
     client_id: string
     template_id: string
     slug: string
+    route: string
     content: Record<string, unknown>
     status?: CmsPublishStatus
     template_version: number
@@ -40,6 +42,7 @@ export interface CmsPageInsertPayload {
 
 export interface CmsPageUpdatePayload {
     slug?: string
+    route?: string
     content?: Record<string, unknown>
     status?: CmsPublishStatus
     last_edited_by?: string | null
@@ -176,6 +179,7 @@ const insert = async (payload: CmsPageInsertPayload): Promise<CmsPageRow> => {
         client_id: payload.client_id,
         template_id: payload.template_id,
         slug: payload.slug,
+        route: payload.route,
         content: payload.content,
         status: payload.status ?? 'draft',
         template_version: payload.template_version,
@@ -193,7 +197,7 @@ const insert = async (payload: CmsPageInsertPayload): Promise<CmsPageRow> => {
         if ((error as { code?: string }).code === '23505') {
             throw {
                 status: 409,
-                message: 'Page slug already exists for this client',
+                message: 'Page slug or route already exists for this client',
             }
         }
         throw error
@@ -207,6 +211,7 @@ const update = async (
 ): Promise<CmsPageRow> => {
     const patch: Record<string, unknown> = {}
     if (payload.slug !== undefined) patch.slug = payload.slug
+    if (payload.route !== undefined) patch.route = payload.route
     if (payload.content !== undefined) patch.content = payload.content
     if (payload.status !== undefined) patch.status = payload.status
     if (payload.last_edited_by !== undefined) {
@@ -227,7 +232,7 @@ const update = async (
         if ((error as { code?: string }).code === '23505') {
             throw {
                 status: 409,
-                message: 'Page slug already exists for this client',
+                message: 'Page slug or route already exists for this client',
             }
         }
         throw error

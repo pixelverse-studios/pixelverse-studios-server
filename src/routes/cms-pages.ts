@@ -14,6 +14,8 @@ import {
 const router = Router()
 
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+const ROUTE_REGEX =
+    /^\/(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*)?$/
 const PATCH_STATUSES = ['draft', 'archived']
 
 // Public endpoint — NO auth middleware. Used by client websites to
@@ -91,6 +93,15 @@ router.post(
             .withMessage(
                 'slug must be lowercase alphanumeric with optional hyphens'
             ),
+        body('route')
+            .optional()
+            .isString()
+            .notEmpty()
+            .isLength({ max: 255 })
+            .matches(ROUTE_REGEX)
+            .withMessage(
+                'route must start with / and use lowercase path segments with optional hyphens'
+            ),
         body('content')
             .isObject()
             .withMessage('content must be an object'),
@@ -118,6 +129,15 @@ router.patch(
             .matches(SLUG_REGEX)
             .withMessage(
                 'slug must be lowercase alphanumeric with optional hyphens'
+            ),
+        body('route')
+            .optional()
+            .isString()
+            .notEmpty()
+            .isLength({ max: 255 })
+            .matches(ROUTE_REGEX)
+            .withMessage(
+                'route must start with / and use lowercase path segments with optional hyphens'
             ),
         body('content')
             .optional()
