@@ -10,6 +10,7 @@ import calendlyBookingsService from '../services/calendly-bookings'
 const calendlyBookingSchema = z.object({
     event_uri: z.string().url(),
     invitee_uri: z.string().url(),
+    attribution: z.unknown().optional(),
 })
 
 // ─── Calendly API client ──────────────────────────────────────────────────────
@@ -134,7 +135,9 @@ const sendBookingNotification = async (
 
 const handleWebhook = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { event_uri, invitee_uri } = calendlyBookingSchema.parse(req.body)
+        const { event_uri, invitee_uri, attribution } = calendlyBookingSchema.parse(
+            req.body
+        )
 
         // Idempotency: skip if already processed
         const existing = await calendlyBookingsService.findBookingByEventUri(event_uri)
@@ -172,6 +175,7 @@ const handleWebhook = async (req: Request, res: Response): Promise<Response> => 
             eventEndAt: end_time,
             cancelUrl: cancel_url,
             rescheduleUrl: reschedule_url,
+            attribution,
         })
 
         sendBookingNotification(name, email, eventTypeName, start_time, cancel_url).catch(
