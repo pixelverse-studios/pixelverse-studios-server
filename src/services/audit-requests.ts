@@ -1,4 +1,5 @@
 import { db, Tables } from '../lib/db'
+import { sanitizeAttribution, AttributionPayload } from '../utils/attribution'
 
 export interface AuditRequestPayload {
     name: string
@@ -9,6 +10,7 @@ export interface AuditRequestPayload {
     otherDetail?: string
     prospectId: string
     promoCode?: string
+    attribution?: unknown
 }
 
 export interface AuditRequestRecord {
@@ -22,6 +24,7 @@ export interface AuditRequestRecord {
     status: string
     prospect_id: string | null
     promo_code: string | null
+    attribution: AttributionPayload | null
     created_at: string
     updated_at: string
 }
@@ -35,6 +38,7 @@ const mapPayloadToRow = ({
     otherDetail,
     prospectId,
     promoCode,
+    attribution,
 }: AuditRequestPayload) => ({
     name,
     email,
@@ -44,6 +48,7 @@ const mapPayloadToRow = ({
     other_detail: otherDetail ?? null,
     prospect_id: prospectId,
     promo_code: promoCode ?? null,
+    attribution: sanitizeAttribution(attribution),
     status: 'pending',
 })
 
