@@ -1,4 +1,5 @@
 import { db, Tables, COLUMNS } from '../lib/db'
+import { sanitizeAttribution, AttributionPayload } from '../utils/attribution'
 
 export interface CalendlyBookingPayload {
     prospectId: string
@@ -9,6 +10,7 @@ export interface CalendlyBookingPayload {
     eventEndAt: string
     cancelUrl: string | null
     rescheduleUrl: string | null
+    attribution?: unknown
 }
 
 export interface CalendlyBookingRecord {
@@ -21,6 +23,7 @@ export interface CalendlyBookingRecord {
     event_end_at: string | null
     cancel_url: string | null
     reschedule_url: string | null
+    attribution: AttributionPayload | null
     canceled: boolean
     canceled_at: string | null
     created_at: string
@@ -53,6 +56,7 @@ export const createBooking = async (
             event_end_at: payload.eventEndAt,
             cancel_url: payload.cancelUrl,
             reschedule_url: payload.rescheduleUrl,
+            attribution: sanitizeAttribution(payload.attribution),
         })
         .select()
         .single()

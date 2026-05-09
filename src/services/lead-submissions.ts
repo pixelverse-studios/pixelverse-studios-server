@@ -1,4 +1,5 @@
 import { db, Tables } from '../lib/db'
+import { sanitizeAttribution, AttributionPayload } from '../utils/attribution'
 
 export interface LeadSubmissionPayload {
     prospectId: string
@@ -11,6 +12,7 @@ export interface LeadSubmissionPayload {
     interestedIn?: string[]
     briefSummary?: string
     promoCode?: string
+    attribution?: unknown
 }
 
 export interface LeadSubmissionRecord {
@@ -25,6 +27,7 @@ export interface LeadSubmissionRecord {
     interested_in: string[] | null
     brief_summary: string | null
     promo_code: string | null
+    attribution: AttributionPayload | null
     created_at: string
 }
 
@@ -44,6 +47,7 @@ export const createLeadSubmission = async (
             interested_in: payload.interestedIn ?? null,
             brief_summary: payload.briefSummary || null,
             promo_code: payload.promoCode || null,
+            attribution: sanitizeAttribution(payload.attribution),
         })
         .select()
         .single()
