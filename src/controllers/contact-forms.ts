@@ -42,14 +42,22 @@ const addRecord = async (req: Request, res: Response): Promise<Response> => {
             data: payload.additional,
         })
 
-        await sendEmail({
-            to:
-                process.env.NODE_ENVIRONMENT === 'development'
-                    ? 'info@pixelversestudios.io'
-                    : sendToEmail,
-            subject: `New Contact Form Submission for ${title}`,
-            html,
-        })
+        try {
+            await sendEmail({
+                to:
+                    process.env.NODE_ENVIRONMENT === 'development'
+                        ? 'info@pixelversestudios.io'
+                        : sendToEmail,
+                subject: `New Contact Form Submission for ${title}`,
+                html,
+            })
+        } catch (emailError) {
+            console.error('Contact form notification email failed:', {
+                website_slug,
+                website_id,
+                emailError
+            })
+        }
 
         return res.status(201).json({})
     } catch (err) {

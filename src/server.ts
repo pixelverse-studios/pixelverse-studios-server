@@ -79,7 +79,20 @@ app.use(
         res: express.Response,
         next: express.NextFunction
     ) => {
-        res.status(500).json({ message: err.message })
+        if (err?.type === 'entity.parse.failed') {
+            return res.status(400).json({ error: 'Invalid JSON body' })
+        }
+
+        const status =
+            typeof err?.status === 'number' && err.status >= 400
+                ? err.status
+                : 500
+        const message =
+            typeof err?.message === 'string' && err.message.length > 0
+                ? err.message
+                : 'Internal server error'
+
+        res.status(status).json({ error: message })
     }
 )
 
