@@ -18,18 +18,20 @@ const getWebsiteEmail = async (id: string) => {
 
 const getWebsiteDetailsForEmail = async (slug: string) => {
     try {
-        const {
-            data: { contact_email, title, id },
-            error
-        } = await db
+        const { data, error } = await db
             .from(Tables.WEBSITES)
-            .select()
+            .select('id, title, contact_email')
             .eq(COLUMNS.WEBSITE_SLUG, slug)
-            .single()
+            .maybeSingle()
 
         if (error) throw new Error(error.message)
+        if (!data) throw { status: 404, message: 'Website not found' }
 
-        return { contact_email, title, id }
+        return {
+            contact_email: data.contact_email,
+            title: data.title,
+            id: data.id
+        }
     } catch (error) {
         throw error
     }
