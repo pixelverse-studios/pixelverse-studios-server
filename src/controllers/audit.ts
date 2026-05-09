@@ -28,6 +28,7 @@ const auditSchema = z.object({
         .max(32)
         .optional()
         .transform(v => (v && v.length > 0 ? v : undefined)),
+    attribution: z.unknown().optional(),
     honeypot: z.string().optional(),
 })
 
@@ -114,6 +115,7 @@ const createAuditRequest = async (
             specifics,
             otherDetail,
             promoCode,
+            attribution,
         } = parsed
 
         const prospectId = await upsertProspect(email, name, 'review_request')
@@ -127,6 +129,7 @@ const createAuditRequest = async (
             otherDetail,
             prospectId,
             promoCode,
+            attribution,
         })
 
         sendAuditAlertToDiscord(record).catch((err) =>

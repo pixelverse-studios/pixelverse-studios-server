@@ -3,3 +3,6 @@ node_modules
 config.ts
 /repomix-output.txt
 .mcp.json
+.claude/
+dist/
+supabase/.temp/

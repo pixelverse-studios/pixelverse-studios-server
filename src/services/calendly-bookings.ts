@@ -45,6 +45,8 @@ export const findBookingByEventUri = async (
 export const createBooking = async (
     payload: CalendlyBookingPayload
 ): Promise<CalendlyBookingRecord> => {
+    const attribution = sanitizeAttribution(payload.attribution)
+
     const { data, error } = await db
         .from(Tables.CALENDLY_BOOKINGS)
         .insert({
@@ -56,7 +58,7 @@ export const createBooking = async (
             event_end_at: payload.eventEndAt,
             cancel_url: payload.cancelUrl,
             reschedule_url: payload.rescheduleUrl,
-            attribution: sanitizeAttribution(payload.attribution),
+            ...(attribution && { attribution }),
         })
         .select()
         .single()

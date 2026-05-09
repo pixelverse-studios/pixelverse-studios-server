@@ -34,6 +34,8 @@ export interface LeadSubmissionRecord {
 export const createLeadSubmission = async (
     payload: LeadSubmissionPayload
 ): Promise<LeadSubmissionRecord> => {
+    const attribution = sanitizeAttribution(payload.attribution)
+
     const { data, error } = await db
         .from(Tables.LEAD_SUBMISSIONS)
         .insert({
@@ -47,7 +49,7 @@ export const createLeadSubmission = async (
             interested_in: payload.interestedIn ?? null,
             brief_summary: payload.briefSummary || null,
             promo_code: payload.promoCode || null,
-            attribution: sanitizeAttribution(payload.attribution),
+            ...(attribution && { attribution }),
         })
         .select()
         .single()
