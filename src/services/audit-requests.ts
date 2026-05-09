@@ -39,18 +39,22 @@ const mapPayloadToRow = ({
     prospectId,
     promoCode,
     attribution,
-}: AuditRequestPayload) => ({
-    name,
-    email,
-    website_url: websiteUrl,
-    phone_number: phoneNumber ?? null,
-    specifics: specifics ?? null,
-    other_detail: otherDetail ?? null,
-    prospect_id: prospectId,
-    promo_code: promoCode ?? null,
-    attribution: sanitizeAttribution(attribution),
-    status: 'pending',
-})
+}: AuditRequestPayload) => {
+    const sanitizedAttribution = sanitizeAttribution(attribution)
+
+    return {
+        name,
+        email,
+        website_url: websiteUrl,
+        phone_number: phoneNumber ?? null,
+        specifics: specifics ?? null,
+        other_detail: otherDetail ?? null,
+        prospect_id: prospectId,
+        promo_code: promoCode ?? null,
+        ...(sanitizedAttribution && { attribution: sanitizedAttribution }),
+        status: 'pending',
+    }
+}
 
 
 export const createAuditRequest = async (

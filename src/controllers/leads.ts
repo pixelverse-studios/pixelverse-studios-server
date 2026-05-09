@@ -38,6 +38,7 @@ const leadsSchema = z.object({
         .max(32)
         .optional()
         .transform(v => (v && v.length > 0 ? v : undefined)),
+    attribution: z.unknown().optional(),
     honeypot: z.string().optional(),
 })
 
@@ -124,6 +125,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             improvements,
             briefSummary,
             promoCode,
+            attribution,
         } = parsed
 
         const prospectId = await upsertProspect(email, name, 'details_form')
@@ -139,6 +141,7 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             improvements,
             briefSummary,
             promoCode,
+            attribution,
         })
 
         sendLeadAlertToDiscord(parsed).catch((err) =>
