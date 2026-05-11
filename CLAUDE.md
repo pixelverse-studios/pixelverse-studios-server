@@ -1164,6 +1164,13 @@ if (existingLead) {
    - Check email delivery
    - Test error cases
 
+### Internal Prospect Attribution Reporting
+
+- Campaign attribution is internal-only and should not be added to public submission responses.
+- `GET /api/prospects/:id` returns full sanitized attribution JSON on nested `lead_submissions`, `audit_requests`, and `calendly_bookings` rows when present.
+- Reporting views `v_leads_detail`, `v_audits_detail`, and `v_calendly_detail` expose full attribution JSON for conversion-level analysis.
+- List/reporting view `v_prospects_all` intentionally exposes only lightweight latest-attribution scalar fields: source, medium, campaign, and conversion type.
+
 ### Example: Adding a New Resource
 
 ```typescript

@@ -69,6 +69,9 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
     - Lead submissions use the Resend API (`src/controllers/leads.ts`) to notify the ops team. Configure `RESEND_API_KEY`, `LEAD_NOTIFY_TO`, and optionally `LEAD_NOTIFY_FROM`.
 -   **Lead Intake Flow**
     - `/api/leads` intentionally bypasses shared services and calls Supabase REST + Resend directly from the controller for clarity. Keep that file in sync if you expand lead handling.
+-   **Prospect Attribution Reporting**
+    - Campaign attribution is internal-only. Inspect full sanitized JSON on nested conversion rows returned by `GET /api/prospects/:id` and in `v_leads_detail`, `v_audits_detail`, and `v_calendly_detail`.
+    - `v_prospects_all` exposes only lightweight latest-attribution scalar fields for list/reporting views: source, medium, campaign, and conversion type.
 -   **Legacy Nodemailer Utilities**
     -   Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
 
