@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod'
 import { handleGenericError } from '../utils/http'
 import { upsertProspect } from '../services/prospects'
 import calendlyBookingsService from '../services/calendly-bookings'
+import { sendSlackNotification } from '../lib/slack-notifier'
 
 // ─── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -66,16 +67,7 @@ const calendlyFetch = async <T>(path: string): Promise<T> => {
     return response.json() as Promise<T>
 }
 
-// ─── Discord notifications ────────────────────────────────────────────────────
-
-const DISCORD_USERNAME = 'PixelVerse Calendly Alerts'
-const DISCORD_COLOR = 0x3f00e9
-
-const resolveWebhookUrl = (): string => {
-    const url = process.env.LEAD_NOTIFY_DISCORD_WEBHOOK?.trim()
-    if (!url) throw new Error('LEAD_NOTIFY_DISCORD_WEBHOOK is not configured')
-    return url
-}
+// ─── Slack notifications ──────────────────────────────────────────────────────
 
 const formatEventTime = (isoString: string): string => {
     const date = new Date(isoString)
@@ -98,37 +90,18 @@ const sendBookingNotification = async (
     eventStartAt: string,
     cancelUrl: string | null
 ): Promise<void> => {
-    const webhookUrl = resolveWebhookUrl()
-    const description = [
-        '────────────────────────',
-        `👤 Name:      ${name}`,
-        `📧 Email:     ${email}`,
-        `🗓 Event:     ${eventTypeName}`,
-        `📆 Scheduled: ${formatEventTime(eventStartAt)}`,
-        `🔗 Cancel:    ${cancelUrl ?? 'N/A'}`,
-    ].join('\n')
-
-    const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            username: DISCORD_USERNAME,
-            content: '📅 Calendly Call Booked',
-            embeds: [
-                {
-                    description,
-                    color: DISCORD_COLOR,
-                    timestamp: new Date().toISOString(),
-                    footer: { text: 'Calendly booking notifications' },
-                },
-            ],
-        }),
+    await sendSlackNotification({
+        title: 'New Calendly Booking',
+        category: 'Calendar',
+        description: 'A prospective client booked a Calendly call.',
+        fields: [
+            { label: 'Name', value: name },
+            { label: 'Email', value: email },
+            { label: 'Event', value: eventTypeName },
+            { label: 'Scheduled', value: formatEventTime(eventStartAt) },
+            ...(cancelUrl ? [{ label: 'Cancel Link', value: cancelUrl }] : []),
+        ],
     })
-
-    if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Discord webhook failed (${response.status}): ${errorText}`)
-    }
 }
 
 // ─── Controller ───────────────────────────────────────────────────────────────
@@ -179,7 +152,7 @@ const handleWebhook = async (req: Request, res: Response): Promise<Response> => 
         })
 
         sendBookingNotification(name, email, eventTypeName, start_time, cancel_url).catch(
-            (err) => console.error('Discord notification failed (booking saved):', err)
+            (err) => console.error('Slack notification failed (booking saved):', err)
         )
 
         console.log('Calendly booking created', { email, event_uri })
