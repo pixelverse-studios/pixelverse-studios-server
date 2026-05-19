@@ -112,9 +112,12 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 
 ## Testing & Validation
 
--   No automated tests ship with this repo (`npm test` exits). Use Postman/Insomnia or curl to exercise routes and inspect Supabase tables for persistence.
--   When modifying email flows, run locally with test credentials and monitor console logs from nodemailer.
--   For new features, document manual test steps in PR descriptions until a testing strategy is added.
+-   Run `npm test` to execute the Vitest suite once. Tests live under `test/**/*.test.ts` and use `test/setup.ts` to reset external-service environment variables and block unmocked `fetch` calls by default.
+-   Run `npm run build` to verify the TypeScript compile.
+-   Pull requests targeting `main`, `dev/**`, or `dev-*` run the `API CI` GitHub Actions workflow. CI installs with `npm ci`, then runs `npm run build` and `npm test`.
+-   Slack/webhook tests must mock network calls and must not use real webhook URLs or secrets. Use test-only URLs such as `https://hooks.slack.test/...`.
+-   Supabase, Gmail, Resend, Calendly, and Slack integrations should be mocked in unit and controller tests unless a ticket explicitly scopes live-environment QA.
+-   For manual endpoint QA, use Postman/Insomnia or curl with test payloads and inspect Supabase only when the ticket explicitly requires persistence verification.
 
 ## Known Gaps / TODOs
 
@@ -135,6 +138,7 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 2. Touch Supabase via `src/services` or directly in the controller, handling `{ data, error }` results explicitly.
 3. Add/update email templates if user-facing communication changes.
 4. Document any new environment variables in this file and the deployment environment.
-5. Smoke-test using `npm run start` and manual API calls.
+5. Run `npm test` and `npm run build`; add or update focused tests for changed behavior.
+6. Smoke-test using `npm run start` and manual API calls when the change needs live route validation.
 
 Keep this document up to date whenever the API surface, environment requirements, or workflows change.
