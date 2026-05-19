@@ -52,7 +52,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/cms/:id` | DELETE | Delete CMS entry. | `controllers/cms.remove` |
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
-| `/api/audit-requests` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
+| `/api/audit` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
