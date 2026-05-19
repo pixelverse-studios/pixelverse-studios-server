@@ -5,7 +5,7 @@
 -   Pixelverse Studios Server is an Express + TypeScript API that proxies CRUD operations to Supabase tables and sends transactional email via Gmail OAuth.
 -   `src/server.ts` wires middleware and mounts routers for clients, newsletter, CMS, and contact-form submissions. Every route should call into a controller in `src/controllers`.
 -   Supabase access is centralized in `src/lib/db.ts`, which exposes a preconfigured client plus `Tables`/`COLUMNS` enums so table and column names stay consistent.
--   Email notifications are generated in `src/lib/mailer.ts` and `src/utils/mailer`, primarily for contact-form submissions.
+-   Email notifications are generated in `src/lib/mailer.ts` and `src/utils/mailer`, primarily for contact-form submissions. Ops alerts for lead intake, audit requests, and Calendly bookings are sent to Slack through `src/lib/slack-notifier.ts`.
 
 ## Local Development
 
@@ -37,7 +37,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 
 | Route | Method | Description | Controller |
 | --- | --- | --- | --- |
-| `/api/leads` | POST | Validate, persist, and email new lead submissions from the frontend honeypot form. | `controllers/leads.createLead` |
+| `/api/leads` | POST | Validate, persist, and notify ops about new lead submissions from the frontend honeypot form. | `controllers/leads.createLead` |
 | `/api/clients` | GET | List all clients. | `controllers/clients.getAll` |
 | `/api/clients/new` | POST | Create client (`client`, `client_slug`, `active`, `cms`). | `controllers/clients.add` |
 | `/api/clients/:id` | PATCH | Update `client` or `active`. | `controllers/clients.edit` |
@@ -52,7 +52,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/cms/:id` | DELETE | Delete CMS entry. | `controllers/cms.remove` |
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
-| `/api/audit-requests` | POST | Capture Free Website Audit submissions, persist to Supabase, and email ops. | `controllers/audit.createAuditRequest` |
+| `/api/audit` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
@@ -65,10 +65,13 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 -   **Email (Gmail OAuth2)**
     -   `sendContactSubmissionEmail` in `src/lib/mailer.ts` requests an access token from Google and dispatches HTML + plaintext using templates from `src/utils/mailer/emails.ts`.
     -   `process.env.NODE_ENVIRONMENT === 'development'` forces contact-form mail to `info@pixelversestudios.io`; adjust if changing environment semantics.
--   **Resend Notifications**
-    - Lead submissions use the Resend API (`src/controllers/leads.ts`) to notify the ops team. Configure `RESEND_API_KEY`, `LEAD_NOTIFY_TO`, and optionally `LEAD_NOTIFY_FROM`.
+-   **Slack Ops Notifications**
+    - Lead submissions, audit requests, and Calendly bookings send non-blocking ops alerts through `src/lib/slack-notifier.ts`. Configure `OPS_NOTIFY_SLACK_WEBHOOK` with the incoming webhook URL for the shared intake alerts channel.
+    - Slack alert content should stay customer-facing. Do not include internal ids, prospect ids, attribution JSON, or reporting metadata unless a ticket explicitly changes that requirement.
+-   **Resend Campaign Email**
+    - Email campaign sends use the Resend API through `src/lib/resend-mailer.ts`. Configure `RESEND_API_KEY` when using campaign email features.
 -   **Lead Intake Flow**
-    - `/api/leads` intentionally bypasses shared services and calls Supabase REST + Resend directly from the controller for clarity. Keep that file in sync if you expand lead handling.
+    - `/api/leads` persists prospect and lead submission data before dispatching a non-blocking Slack notification. Keep Slack notification content customer-facing unless internal attribution/reporting fields are intentionally added.
 -   **Prospect Attribution Reporting**
     - Campaign attribution is internal-only. Inspect full sanitized JSON on nested conversion rows returned by `GET /api/prospects/:id` and in `v_leads_detail`, `v_audits_detail`, and `v_calendly_detail`.
     - `v_prospects_all` exposes only lightweight latest-attribution scalar fields for list/reporting views: source, medium, campaign, and conversion type.
@@ -102,11 +105,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `TOKEN_SECRET` | Shared secret for JWT helpers in `src/utils/token.js` (legacy). |
 | `TOKEN_EXPIRE` | Lifetime for generated JWTs (legacy, defaults to `24hr`). |
 | `GOOGLE_OAUTH_ID`, `GOOGLE_OAUTH_SECRET`, `GOOGLE_REFRESH_TOKEN`, `EMAIL_USER` | Required only if using legacy CommonJS mailer utilities. |
-| `RESEND_API_KEY` | Resend API token for lead notifications. |
-| `LEAD_NOTIFY_TO` | Comma-separated recipient list for lead notifications (defaults to ops@pixelversestudios.io). |
-| `LEAD_NOTIFY_FROM` | Optional override for the Resend “from” address. |
-| `LEAD_NOTIFY_USE_RESEND` | Toggle Resend lead notifications (`false` to route alerts to Discord). |
-| `LEAD_NOTIFY_DISCORD_WEBHOOK` | Discord webhook endpoint used for lead and audit alerts when Resend is disabled. |
+| `RESEND_API_KEY` | Resend API token for email campaign sends. |
+| `OPS_NOTIFY_SLACK_WEBHOOK` | Slack incoming webhook URL for shared ops intake alerts covering leads, audit requests, and Calendly bookings. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
@@ -127,7 +127,7 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 
 -   Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
 -   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
--   Email notifications via Resend include the lead id and timestamp so operators can cross-reference inbox events with database records.
+-   Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
 
 ## When Adding Features
 

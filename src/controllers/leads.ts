@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod'
 import { handleGenericError } from '../utils/http'
 import { upsertProspect } from '../services/prospects'
 import leadSubmissionsService from '../services/lead-submissions'
+import { sendSlackNotification } from '../lib/slack-notifier'
 
 const leadsSchema = z.object({
     name: z.string().min(2).max(100),
@@ -42,66 +43,27 @@ const leadsSchema = z.object({
     honeypot: z.string().optional(),
 })
 
-const DISCORD_USERNAME = 'PixelVerse Lead Alerts'
-const DISCORD_TITLE = '📋 New Lead — Details Form'
-
-const resolveWebhookUrl = (): string => {
-    const webhookUrl = process.env.LEAD_NOTIFY_DISCORD_WEBHOOK?.trim()
-    if (!webhookUrl) throw new Error('LEAD_NOTIFY_DISCORD_WEBHOOK is not configured')
-    return webhookUrl
-}
-
-const buildDiscordDescription = (data: z.infer<typeof leadsSchema>): string => {
-    const lines = [
-        '──────────────────────────',
-        `👤 Name:      ${data.name}`,
-        `📧 Email:     ${data.email}`,
-        `🏢 Company:   ${data.companyName}`,
-        `📞 Phone:     ${data.phone || 'Not provided'}`,
-        `💰 Budget:    ${data.budget}`,
-        `⏱ Timeline:  ${data.timeline}`,
-        `🌐 Website:   ${data.currentWebsite || 'Not provided'}`,
-        `🎯 Services:  ${data.interestedIn?.join(', ') || 'Not specified'}`,
-        `🔧 Needs:     ${data.improvements.join(', ')}`,
-        `📝 Notes:     ${data.briefSummary || 'None'}`,
-    ]
-    if (data.promoCode) {
-        lines.push(`🎟 Promo:     ${data.promoCode}`)
-    }
-    return lines.join('\n')
-}
-
-const sendLeadAlertToDiscord = async (
+const sendLeadAlertToSlack = async (
     data: z.infer<typeof leadsSchema>
 ): Promise<void> => {
-    const webhookUrl = resolveWebhookUrl()
-    const description = buildDiscordDescription(data)
-
-    if (description.length > 4096) {
-        throw new Error('Discord payload exceeds maximum embed length')
-    }
-
-    const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            username: DISCORD_USERNAME,
-            content: DISCORD_TITLE,
-            embeds: [
-                {
-                    description,
-                    color: 0x3f00e9,
-                    timestamp: new Date().toISOString(),
-                    footer: { text: 'Lead intake notifications' },
-                },
-            ],
-        }),
+    await sendSlackNotification({
+        title: 'New Lead Submission',
+        category: 'Details Form',
+        description: 'A prospective client submitted the project details form.',
+        fields: [
+            { label: 'Name', value: data.name },
+            { label: 'Email', value: data.email },
+            { label: 'Company', value: data.companyName },
+            { label: 'Phone', value: data.phone },
+            { label: 'Budget', value: data.budget },
+            { label: 'Timeline', value: data.timeline },
+            { label: 'Website', value: data.currentWebsite },
+            { label: 'Services', value: data.interestedIn?.join(', ') },
+            { label: 'Needs', value: data.improvements.join(', ') },
+            { label: 'Notes', value: data.briefSummary || 'None' },
+            ...(data.promoCode ? [{ label: 'Promo', value: data.promoCode }] : []),
+        ],
     })
-
-    if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Discord webhook failed (${response.status}): ${errorText}`)
-    }
 }
 
 const createLead = async (req: Request, res: Response): Promise<Response> => {
@@ -144,8 +106,8 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
             attribution,
         })
 
-        sendLeadAlertToDiscord(parsed).catch((err) =>
-            console.error('Discord notification failed (lead saved):', err)
+        sendLeadAlertToSlack(parsed).catch((err) =>
+            console.error('Slack notification failed (lead saved):', err)
         )
 
         console.log('Lead submission created', { email })
