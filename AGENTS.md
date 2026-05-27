@@ -59,7 +59,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -107,6 +107,11 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `GOOGLE_OAUTH_ID`, `GOOGLE_OAUTH_SECRET`, `GOOGLE_REFRESH_TOKEN`, `EMAIL_USER` | Required only if using legacy CommonJS mailer utilities. |
 | `RESEND_API_KEY` | Resend API token for email campaign sends. |
 | `OPS_NOTIFY_SLACK_WEBHOOK` | Slack incoming webhook URL for shared ops intake alerts covering leads, audit requests, and Calendly bookings. |
+| `R2_ACCESS_KEY_ID` | Server-only Cloudflare R2 S3 access key for future media manager object operations. |
+| `R2_SECRET_ACCESS_KEY` | Server-only Cloudflare R2 S3 secret key for future media manager object operations. |
+| `R2_ACCOUNT_ID` | Cloudflare account id for future R2 S3-compatible API calls. |
+| `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
+| `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
