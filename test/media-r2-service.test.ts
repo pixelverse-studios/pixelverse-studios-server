@@ -95,7 +95,10 @@ describe('media R2 presigned upload service', () => {
         expect(mockState.getSignedUrl).toHaveBeenCalledWith(
             expect.anything(),
             expect.anything(),
-            { expiresIn: 900 }
+            {
+                expiresIn: 900,
+                signableHeaders: new Set(['content-type', 'content-length']),
+            }
         )
         expect(result).toEqual(
             expect.objectContaining({

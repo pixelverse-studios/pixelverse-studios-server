@@ -113,6 +113,7 @@ const createR2Client = (): S3Client => {
     return new S3Client({
         region: 'auto',
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        requestChecksumCalculation: 'WHEN_REQUIRED',
         credentials: {
             accessKeyId,
             secretAccessKey,
@@ -149,10 +150,12 @@ const createPresignedUpload = async ({
         Bucket: config.bucket,
         Key: key,
         ContentType: allowedContentType,
+        ContentLength: size,
     })
 
     const presignedUrl = await getSignedUrl(createR2Client(), command, {
         expiresIn,
+        signableHeaders: new Set(['content-type', 'content-length']),
     })
 
     return {
