@@ -57,6 +57,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
 | `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
 | `/api/media-admin/auth/logout` | POST | Revoke the current media admin session and clear the cookie. | `controllers/media-admin-auth.logout` |
+| `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
@@ -117,6 +118,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_ACCOUNT_ID` | Cloudflare account id for future R2 S3-compatible API calls. |
 | `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
+| `R2_PRESIGN_EXPIRES_SECONDS` | Optional R2 presigned upload expiry; defaults to 900 seconds. |
+| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
 | `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |

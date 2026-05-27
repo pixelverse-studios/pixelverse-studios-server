@@ -17,6 +17,13 @@ const externalServiceEnvKeys = [
     'MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES',
     'MEDIA_ADMIN_SESSION_TTL_HOURS',
     'MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS',
+    'R2_ACCESS_KEY_ID',
+    'R2_SECRET_ACCESS_KEY',
+    'R2_ACCOUNT_ID',
+    'R2_BUCKET_NAME',
+    'R2_PUBLIC_BASE_URL',
+    'R2_PRESIGN_EXPIRES_SECONDS',
+    'MEDIA_MAX_UPLOAD_BYTES',
 ]
 
 const buildTestEnv = (): NodeJS.ProcessEnv => {
