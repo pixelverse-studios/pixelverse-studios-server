@@ -18,6 +18,7 @@ import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
+import mediaAdminAuthRouter from './routes/media-admin-auth'
 
 import 'dotenv/config'
 
@@ -45,6 +46,7 @@ app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
 app.use(emailCampaignsRouter)
 app.use(seoRouter)
+app.use(mediaAdminAuthRouter)
 
 // Error handling middleware
 app.use(

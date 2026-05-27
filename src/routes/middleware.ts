@@ -1,6 +1,14 @@
 import crypto from 'crypto'
 import { Request, Response, NextFunction } from 'express'
 import { validationResult } from 'express-validator'
+import { parse } from 'cookie'
+
+import {
+    hashToken,
+    isApprovedAdminEmail,
+    MEDIA_ADMIN_SESSION_COOKIE,
+} from '../lib/media-admin-auth'
+import mediaAdminAuthService from '../services/media-admin-auth'
 
 export const validateRequest = (
     req: Request,
@@ -34,4 +42,51 @@ export const requireBlastSecret = (
         return
     }
     next()
+}
+
+export const requireMediaAdminSession = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const cookies = parse(req.headers.cookie || '')
+        const sessionToken = cookies[MEDIA_ADMIN_SESSION_COOKIE]
+
+        if (!sessionToken) {
+            res.status(401).json({ error: 'Authentication required' })
+            return
+        }
+
+        const session = await mediaAdminAuthService.findSessionByHash(
+            hashToken(sessionToken)
+        )
+
+        if (
+            !session ||
+            session.revoked_at ||
+            new Date(session.expires_at).getTime() <= Date.now()
+        ) {
+            res.status(401).json({ error: 'Session expired' })
+            return
+        }
+
+        if (!isApprovedAdminEmail(session.email)) {
+            res.status(403).json({ error: 'Unauthorized' })
+            return
+        }
+
+        await mediaAdminAuthService.touchSession(session.id)
+
+        req.mediaAdmin = {
+            email: session.email,
+            sessionId: session.id,
+            expiresAt: session.expires_at,
+        }
+        req.mediaAdminSessionToken = sessionToken
+
+        next()
+    } catch (err) {
+        next(err)
+    }
 }

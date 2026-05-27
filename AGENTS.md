@@ -53,13 +53,17 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
 | `/api/audit` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
+| `/api/media-admin/auth/magic-link` | POST | Request a media admin magic link for approved emails without revealing approval status. | `controllers/media-admin-auth.requestMagicLink` |
+| `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
+| `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
+| `/api/media-admin/auth/logout` | POST | Revoke the current media admin session and clear the cookie. | `controllers/media-admin-auth.logout` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -101,6 +105,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
 | `GMAIL_CLIENT_SECRET` | Google OAuth client secret. |
 | `GMAIL_REFRESH_TOKEN` | Refresh token for Gmail OAuth workflow. |
+| `GMAIL_APP_PASSWORD` | Gmail app password used by the current Nodemailer transporter. |
 | `NODE_ENVIRONMENT` | Controls dev-mode email fallback (set to `development` locally). |
 | `TOKEN_SECRET` | Shared secret for JWT helpers in `src/utils/token.js` (legacy). |
 | `TOKEN_EXPIRE` | Lifetime for generated JWTs (legacy, defaults to `24hr`). |
@@ -112,6 +117,10 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_ACCOUNT_ID` | Cloudflare account id for future R2 S3-compatible API calls. |
 | `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
+| `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
+| `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
+| `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
+| `MEDIA_ADMIN_SESSION_TTL_HOURS` | Optional media admin session duration; defaults to 12 hours. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
