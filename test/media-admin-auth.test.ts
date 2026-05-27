@@ -88,6 +88,7 @@ describe('media admin auth controller', () => {
         process.env.MEDIA_ADMIN_APP_BASE_URL = 'https://ifferspictures.com'
         process.env.MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES = '15'
         process.env.MEDIA_ADMIN_SESSION_TTL_HOURS = '12'
+        process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS = '0'
         vi.mocked(sendEmail).mockResolvedValue(undefined)
         vi.mocked(mediaAdminAuthService.createMagicLink).mockResolvedValue(
             validMagicLink
@@ -146,7 +147,7 @@ describe('media admin auth controller', () => {
         expect(res.status).toHaveBeenCalledWith(200)
     })
 
-    it('surfaces send failures without creating a session', async () => {
+    it('does not leak send failures through the magic-link response', async () => {
         vi.mocked(sendEmail).mockRejectedValue(new Error('send failed'))
         const res = createResponse()
 
@@ -155,8 +156,29 @@ describe('media admin auth controller', () => {
             res
         )
 
-        expect(res.status).toHaveBeenCalledWith(500)
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith({
+            message: 'If that email is approved, a sign-in link has been sent.',
+        })
         expect(mediaAdminAuthService.createSession).not.toHaveBeenCalled()
+    })
+
+    it('does not leak persistence failures through the magic-link response', async () => {
+        vi.mocked(mediaAdminAuthService.createMagicLink).mockRejectedValue(
+            new Error('database unavailable')
+        )
+        const res = createResponse()
+
+        await mediaAdminAuthController.requestMagicLink(
+            createRequest({ body: { email: 'jenn@example.com' } }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith({
+            message: 'If that email is approved, a sign-in link has been sent.',
+        })
+        expect(sendEmail).not.toHaveBeenCalled()
     })
 
     it('rejects invalid callback tokens', async () => {
@@ -235,6 +257,21 @@ describe('media admin auth controller', () => {
         expect(res.status).toHaveBeenCalledWith(200)
     })
 
+    it('sets a secure session cookie when NODE_ENVIRONMENT is production', async () => {
+        process.env.NODE_ENVIRONMENT = 'production'
+        vi.mocked(mediaAdminAuthService.findMagicLinkByHash).mockResolvedValue(
+            validMagicLink
+        )
+        const res = createResponse()
+
+        await mediaAdminAuthController.callback(
+            createRequest({ body: { token: validCallbackToken } }),
+            res
+        )
+
+        expect(res.setHeader.mock.calls[0][1]).toContain('Secure')
+    })
+
     it('rejects a callback token when the one-time claim loses a race', async () => {
         vi.mocked(mediaAdminAuthService.findMagicLinkByHash).mockResolvedValue(
             validMagicLink
@@ -269,6 +306,42 @@ describe('media admin auth controller', () => {
         expect(res.setHeader).toHaveBeenCalledWith(
             'Set-Cookie',
             expect.stringContaining(`${MEDIA_ADMIN_SESSION_COOKIE}=`)
+        )
+        expect(res.status).toHaveBeenCalledWith(200)
+    })
+
+    it('logs out by revoking a stale cookie even without request admin context', async () => {
+        const res = createResponse()
+
+        await mediaAdminAuthController.logout(
+            createRequest({
+                headers: {
+                    cookie: serialize(
+                        MEDIA_ADMIN_SESSION_COOKIE,
+                        validSessionToken
+                    ),
+                },
+            }),
+            res
+        )
+
+        expect(mediaAdminAuthService.revokeSession).toHaveBeenCalledWith(
+            hashToken(validSessionToken)
+        )
+        expect(res.setHeader.mock.calls[0][1]).toContain(
+            `${MEDIA_ADMIN_SESSION_COOKIE}=`
+        )
+        expect(res.status).toHaveBeenCalledWith(200)
+    })
+
+    it('clears the session cookie on logout even when no token is present', async () => {
+        const res = createResponse()
+
+        await mediaAdminAuthController.logout(createRequest({}), res)
+
+        expect(mediaAdminAuthService.revokeSession).not.toHaveBeenCalled()
+        expect(res.setHeader.mock.calls[0][1]).toContain(
+            `${MEDIA_ADMIN_SESSION_COOKIE}=`
         )
         expect(res.status).toHaveBeenCalledWith(200)
     })

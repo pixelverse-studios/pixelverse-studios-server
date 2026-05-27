@@ -7,6 +7,7 @@ export const MAGIC_LINK_TOKEN_BYTES = 32
 export const SESSION_TOKEN_BYTES = 32
 export const DEFAULT_MAGIC_LINK_TTL_MINUTES = 15
 export const DEFAULT_SESSION_TTL_HOURS = 12
+export const DEFAULT_REQUEST_MIN_RESPONSE_MS = 350
 
 export const normalizeAdminEmail = (email: string): string =>
     email.trim().toLowerCase()
@@ -33,6 +34,16 @@ export const magicLinkTtlMinutes = (): number =>
 export const sessionTtlHours = (): number =>
     Number(process.env.MEDIA_ADMIN_SESSION_TTL_HOURS) ||
     DEFAULT_SESSION_TTL_HOURS
+
+export const requestMinResponseMs = (): number =>
+    Number.isFinite(Number(process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS)) &&
+    Number(process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS) >= 0
+        ? Number(process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS)
+        : DEFAULT_REQUEST_MIN_RESPONSE_MS
+
+export const isProductionEnvironment = (): boolean =>
+    process.env.NODE_ENV === 'production' ||
+    process.env.NODE_ENVIRONMENT === 'production'
 
 export const expiresInMinutes = (minutes: number): Date =>
     new Date(Date.now() + minutes * 60 * 1000)

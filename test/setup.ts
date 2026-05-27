@@ -16,6 +16,7 @@ const externalServiceEnvKeys = [
     'MEDIA_ADMIN_APP_BASE_URL',
     'MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES',
     'MEDIA_ADMIN_SESSION_TTL_HOURS',
+    'MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS',
 ]
 
 const buildTestEnv = (): NodeJS.ProcessEnv => {

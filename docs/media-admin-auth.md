@@ -12,6 +12,7 @@ admin mutations with `requireMediaAdminSession`.
 | `MEDIA_ADMIN_APP_BASE_URL` | yes | Frontend base URL used in magic-link emails. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | no | Magic-link expiry window. Defaults to `15`. |
 | `MEDIA_ADMIN_SESSION_TTL_HOURS` | no | Session cookie lifetime. Defaults to `12`. |
+| `MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS` | no | Minimum magic-link request duration to reduce email approval probing. Defaults to `350`. |
 | `GMAIL_USER` | yes | Sender account for Nodemailer. |
 | `GMAIL_APP_PASSWORD` | yes | Gmail app password for Nodemailer. |
 
@@ -28,7 +29,8 @@ admin mutations with `requireMediaAdminSession`.
 ```
 
 Returns `200` for approved and unapproved emails so approval status is not
-leaked through the response.
+leaked through the response. Persistence or email-send failures are logged
+server-side and still return the same generic response.
 
 ```json
 {
@@ -69,7 +71,7 @@ Important failure states:
 | `401` | Invalid sign-in link. |
 | `403` | Email is no longer approved. |
 | `410` | Link expired or was already used. |
-| `500` | Email send or persistence failure. |
+| `500` | Unexpected callback/session persistence failure. |
 
 ### Current Session
 
@@ -89,8 +91,9 @@ expired and `403` when the session email is no longer approved.
 
 `POST /api/media-admin/auth/logout`
 
-Requires the session cookie. Revokes the stored session hash and clears the
-browser cookie.
+Revokes the stored session hash when a session cookie is present and always
+clears the browser cookie, including already-expired or already-revoked
+sessions.
 
 ```json
 {

@@ -29,7 +29,6 @@ router.get(
 
 router.post(
     `${BASE_ROUTE}/logout`,
-    requireMediaAdminSession,
     mediaAdminAuth.logout
 )
 

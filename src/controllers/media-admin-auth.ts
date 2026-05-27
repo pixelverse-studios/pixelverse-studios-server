@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { serialize } from 'cookie'
+import { parse, serialize } from 'cookie'
 import { z, ZodError } from 'zod'
 
 import authService from '../services/media-admin-auth'
@@ -9,11 +9,13 @@ import {
     expiresInMinutes,
     generateToken,
     hashToken,
+    isProductionEnvironment,
     isApprovedAdminEmail,
     MAGIC_LINK_TOKEN_BYTES,
     magicLinkTtlMinutes,
     MEDIA_ADMIN_SESSION_COOKIE,
     normalizeAdminEmail,
+    requestMinResponseMs,
     sendMediaAdminMagicLink,
     SESSION_TOKEN_BYTES,
     sessionTtlHours,
@@ -34,34 +36,56 @@ const genericResponse = {
 
 const cookieOptions = (maxAgeSeconds: number) => ({
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProductionEnvironment(),
     sameSite: 'lax' as const,
     path: '/',
     maxAge: maxAgeSeconds,
 })
 
+const waitForMinimumResponseTime = async (startedAt: number): Promise<void> => {
+    const remaining = requestMinResponseMs() - (Date.now() - startedAt)
+    if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining))
+    }
+}
+
+const createAndSendMagicLink = async (
+    email: string,
+    requestedIp?: string,
+    userAgent?: string
+): Promise<void> => {
+    const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
+    await authService.createMagicLink({
+        email,
+        tokenHash: hashToken(token),
+        expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
+        requestedIp,
+        userAgent,
+    })
+
+    await sendMediaAdminMagicLink(email, buildMagicLinkUrl(token))
+}
+
 const requestMagicLink = async (
     req: Request,
     res: Response
 ): Promise<Response> => {
+    const startedAt = Date.now()
     try {
         const parsed = requestMagicLinkSchema.parse(req.body)
         const email = normalizeAdminEmail(parsed.email)
 
-        if (!isApprovedAdminEmail(email)) {
-            return res.status(200).json(genericResponse)
+        if (isApprovedAdminEmail(email)) {
+            void createAndSendMagicLink(
+                email,
+                req.ip,
+                req.get('user-agent')
+            ).catch(err => {
+                console.error('Media admin magic-link request failed:', err)
+            })
         }
 
-        const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
-        await authService.createMagicLink({
-            email,
-            tokenHash: hashToken(token),
-            expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
-            requestedIp: req.ip,
-            userAgent: req.get('user-agent'),
-        })
-
-        await sendMediaAdminMagicLink(email, buildMagicLinkUrl(token))
+        await waitForMinimumResponseTime(startedAt)
 
         return res.status(200).json(genericResponse)
     } catch (err) {
@@ -71,7 +95,9 @@ const requestMagicLink = async (
                 details: err.flatten(),
             })
         }
-        return handleGenericError(err, res)
+        console.error('Media admin magic-link request failed:', err)
+        await waitForMinimumResponseTime(startedAt)
+        return res.status(200).json(genericResponse)
     }
 }
 
@@ -148,7 +174,10 @@ const getSession = async (req: Request, res: Response): Promise<Response> => {
 
 const logout = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const token = req.mediaAdminSessionToken
+        const cookies = parse(req.headers.cookie || '')
+        const token =
+            req.mediaAdminSessionToken || cookies[MEDIA_ADMIN_SESSION_COOKIE]
+
         if (token) {
             await authService.revokeSession(hashToken(token))
         }
