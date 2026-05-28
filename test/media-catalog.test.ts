@@ -84,6 +84,19 @@ const archivedItem = {
     archived_from_status: 'published',
 }
 
+const draftItem = {
+    ...publishedItem,
+    id: 3,
+    key: 'portrait/draft.jpg',
+    filename: 'draft.jpg',
+    src: 'https://pub.example.test/portrait/draft.jpg',
+    alt: '',
+    service: null,
+    sub_category: null,
+    aspect_ratio: null,
+    status: 'draft',
+}
+
 describe('media catalog service', () => {
     beforeEach(() => {
         mockState.from.mockReset()
@@ -288,6 +301,184 @@ describe('media catalog service', () => {
         ).rejects.toMatchObject({
             status: 409,
             code: 'media.published_location_locked',
+        })
+    })
+
+    it('rejects invalid service and sub-category pairings', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+        ]
+
+        await expect(
+            mediaCatalogService.createItem({
+                websiteSlug: 'iffers-pictures',
+                key: 'events/baby-shower/wrong.jpg',
+                service: 'Family',
+                subCategory: 'Baby Shower',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.invalid_sub_category',
+        })
+    })
+
+    it('blocks publishing when required public metadata is missing', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: draftItem, error: null },
+        ]
+
+        await expect(
+            mediaCatalogService.updateItem({
+                websiteSlug: 'iffers-pictures',
+                id: 3,
+                status: 'published',
+                service: 'Portrait',
+                subCategory: 'Portrait',
+                aspectRatio: 'portrait',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.missing_alt_text',
+        })
+    })
+
+    it('archives media and preserves archive metadata', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: publishedItem, error: null },
+            {
+                data: {
+                    ...publishedItem,
+                    status: 'archived',
+                    archived_at: '2026-05-28T01:00:00.000Z',
+                    archived_by: 'jenn@example.com',
+                    archived_from_status: 'published',
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 1,
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: 'archived',
+                archived_at: expect.any(String),
+                archived_by: 'jenn@example.com',
+                archived_from_status: 'published',
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                status: 'archived',
+                archivedBy: 'jenn@example.com',
+                archivedFromStatus: 'published',
+            })
+        )
+    })
+
+    it('restores archived media to its previous status and clears archive metadata', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: archivedItem, error: null },
+            {
+                data: {
+                    ...archivedItem,
+                    status: 'published',
+                    archived_at: null,
+                    archived_by: null,
+                    archived_from_status: null,
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 2,
+            status: 'draft',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: 'published',
+                archived_at: null,
+                archived_by: null,
+                archived_from_status: null,
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                status: 'published',
+                archivedAt: null,
+                archivedBy: null,
+                archivedFromStatus: null,
+            })
+        )
+    })
+
+    it('blocks metadata edits while media is archived', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: archivedItem, error: null },
+        ]
+
+        await expect(
+            mediaCatalogService.updateItem({
+                websiteSlug: 'iffers-pictures',
+                id: 2,
+                status: 'published',
+                alt: 'Updated alt text',
+            })
+        ).rejects.toMatchObject({
+            status: 409,
+            code: 'media.archived_locked',
         })
     })
 })

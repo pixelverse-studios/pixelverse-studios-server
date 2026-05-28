@@ -45,6 +45,9 @@ export const isMediaAspectRatio = (
     typeof value === 'string' &&
     MEDIA_ASPECT_RATIOS.includes(value as MediaAspectRatio)
 
+export const isMediaStatus = (value: unknown): value is MediaStatus =>
+    typeof value === 'string' && MEDIA_STATUSES.includes(value as MediaStatus)
+
 export const assertValidServiceSubCategory = ({
     service,
     subCategory,
@@ -94,6 +97,19 @@ export const assertValidAspectRatio = (
             'media.invalid_aspect_ratio',
             'Invalid media aspect ratio.',
             { field: 'aspectRatio', allowed: MEDIA_ASPECT_RATIOS }
+        )
+    }
+}
+
+export const assertValidStatus = (status?: string | null): void => {
+    if (!status) return
+
+    if (!isMediaStatus(status)) {
+        throw new MediaValidationError(
+            400,
+            'media.invalid_status',
+            'Invalid media status.',
+            { field: 'status', allowed: MEDIA_STATUSES }
         )
     }
 }

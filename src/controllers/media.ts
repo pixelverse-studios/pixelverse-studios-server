@@ -28,12 +28,14 @@ const createCatalogItemSchema = z.object({
     sortOrder: z.number().int().min(0).optional(),
 })
 
-const updateCatalogItemSchema = createCatalogItemSchema.partial().refine(
-    value => Object.keys(value).length > 0,
-    {
+const updateCatalogItemSchema = createCatalogItemSchema
+    .partial()
+    .extend({
+        status: z.string().trim().max(50).optional(),
+    })
+    .refine(value => Object.keys(value).length > 0, {
         message: 'At least one field is required.',
-    }
-)
+    })
 
 const sendMediaError = (
     res: Response,
@@ -235,6 +237,8 @@ const updateCatalogItem = async (
             subCategory: parsed.subCategory,
             aspectRatio: parsed.aspectRatio,
             sortOrder: parsed.sortOrder,
+            status: parsed.status,
+            actor: req.mediaAdmin?.email,
         })
 
         return res.status(200).json(item)

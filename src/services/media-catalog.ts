@@ -4,6 +4,7 @@ import {
     assertSafeMediaKey,
     assertValidAspectRatio,
     assertValidServiceSubCategory,
+    assertValidStatus,
     filenameFromKey,
     MEDIA_CATALOG_VERSION,
     MediaAspectRatio,
@@ -96,6 +97,8 @@ export interface UpdateMediaItemInput {
     subCategory?: string | null
     aspectRatio?: string | null
     sortOrder?: number
+    status?: string
+    actor?: string
 }
 
 const getWebsiteBySlug = async (
@@ -272,6 +275,54 @@ const throwDuplicateKeyError = (key: string): never => {
     )
 }
 
+const assertPublishReady = ({
+    alt,
+    service,
+    subCategory,
+    aspectRatio,
+}: {
+    alt?: string | null
+    service?: string | null
+    subCategory?: string | null
+    aspectRatio?: string | null
+}): void => {
+    if (!alt?.trim()) {
+        throw new MediaValidationError(
+            400,
+            'media.missing_alt_text',
+            'Alt text is required before publishing media.',
+            { field: 'alt' }
+        )
+    }
+
+    if (!service) {
+        throw new MediaValidationError(
+            400,
+            'media.missing_service',
+            'Service is required before publishing media.',
+            { field: 'service' }
+        )
+    }
+
+    if (!subCategory) {
+        throw new MediaValidationError(
+            400,
+            'media.missing_sub_category',
+            'Sub-category is required before publishing media.',
+            { field: 'subCategory' }
+        )
+    }
+
+    if (!aspectRatio) {
+        throw new MediaValidationError(
+            400,
+            'media.missing_aspect_ratio',
+            'Aspect ratio is required before publishing media.',
+            { field: 'aspectRatio' }
+        )
+    }
+}
+
 const buildValidatedDraftPayload = async ({
     website,
     config,
@@ -363,13 +414,49 @@ const updateItem = async (
     if (
         current.status === 'published' &&
         ((input.key !== undefined && input.key !== current.key) ||
-            (input.src !== undefined && input.src !== current.src))
+            (input.src !== undefined && input.src !== current.src) ||
+            (input.filename !== undefined && input.filename !== current.filename))
     ) {
         throw new MediaValidationError(
             409,
             'media.published_location_locked',
-            'Published media object locations cannot be changed by metadata patch.',
-            { fields: ['key', 'src'], status: current.status }
+            'Published media object locations and filenames cannot be changed by metadata patch.',
+            { fields: ['key', 'src', 'filename'], status: current.status }
+        )
+    }
+
+    assertValidStatus(input.status)
+
+    const requestedStatus = input.status as MediaStatus | undefined
+    const isArchivedRestore =
+        current.status === 'archived' &&
+        requestedStatus !== undefined &&
+        requestedStatus !== 'archived'
+    const includesMetadataEdit =
+        input.key !== undefined ||
+        input.filename !== undefined ||
+        input.src !== undefined ||
+        input.alt !== undefined ||
+        input.service !== undefined ||
+        input.subCategory !== undefined ||
+        input.aspectRatio !== undefined ||
+        input.sortOrder !== undefined
+
+    if (current.status === 'archived' && !isArchivedRestore) {
+        throw new MediaValidationError(
+            409,
+            'media.archived_locked',
+            'Archived media cannot be edited until restored.',
+            { status: current.status }
+        )
+    }
+
+    if (isArchivedRestore && includesMetadataEdit) {
+        throw new MediaValidationError(
+            409,
+            'media.archived_locked',
+            'Restore archived media before editing metadata.',
+            { status: current.status }
         )
     }
 
@@ -386,6 +473,10 @@ const updateItem = async (
         input.aspectRatio === undefined
             ? current.aspect_ratio
             : input.aspectRatio
+    const nextStatus =
+        isArchivedRestore && current.archived_from_status
+            ? current.archived_from_status
+            : ((input.status ?? current.status) as MediaStatus)
 
     assertSafeMediaKey(nextKey)
     assertSafeFilename(nextFilename)
@@ -416,6 +507,41 @@ const updateItem = async (
         sub_category: nextSubCategory || null,
         aspect_ratio: nextAspectRatio || null,
         sort_order: input.sortOrder ?? current.sort_order,
+    }
+
+    if (nextStatus === 'published') {
+        assertPublishReady({
+            alt: patch.alt as string | null,
+            service: patch.service as string | null,
+            subCategory: patch.sub_category as string | null,
+            aspectRatio: patch.aspect_ratio as string | null,
+        })
+    }
+
+    if (nextStatus === 'archived') {
+        if (current.status === 'archived') {
+            throw new MediaValidationError(
+                409,
+                'media.invalid_status_transition',
+                'Media is already archived.',
+                { from: current.status, to: nextStatus }
+            )
+        }
+
+        patch.status = 'archived'
+        patch.archived_at = new Date().toISOString()
+        patch.archived_by = input.actor || null
+        patch.archived_from_status = current.status
+    } else if (current.status === 'archived') {
+        patch.status = nextStatus
+        patch.archived_at = null
+        patch.archived_by = null
+        patch.archived_from_status = null
+    } else if (nextStatus !== current.status) {
+        patch.status = nextStatus
+        patch.archived_at = null
+        patch.archived_by = null
+        patch.archived_from_status = null
     }
 
     const { data, error } = await db
