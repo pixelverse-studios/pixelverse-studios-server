@@ -7,6 +7,33 @@ import { requireMediaAdminSession, validateRequest } from './middleware'
 const router: Router = Router()
 const BASE_ROUTE = '/api/media'
 
+router.get(
+    `${BASE_ROUTE}/:websiteSlug/catalog`,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.getPublicCatalog
+)
+
+router.get(
+    `${BASE_ROUTE}/:websiteSlug/admin/catalog`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.getAdminCatalog
+)
+
 router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/uploads/presign`,
     requireMediaAdminSession,
@@ -36,6 +63,102 @@ router.post(
     ],
     validateRequest,
     media.presignUpload
+)
+
+router.post(
+    `${BASE_ROUTE}/:websiteSlug/admin/items`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        body('key').isString().trim().notEmpty().withMessage('key is required'),
+        body('filename')
+            .optional()
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('filename must be a non-empty string'),
+        body('src')
+            .optional()
+            .isURL({ require_protocol: true })
+            .withMessage('src must be a valid URL'),
+        body('alt')
+            .optional()
+            .isString()
+            .withMessage('alt must be a string'),
+        body('service')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('service must be a string'),
+        body('subCategory')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('subCategory must be a string'),
+        body('aspectRatio')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('aspectRatio must be a string'),
+        body('sortOrder')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('sortOrder must be a non-negative integer'),
+    ],
+    validateRequest,
+    media.createCatalogItem
+)
+
+router.patch(
+    `${BASE_ROUTE}/:websiteSlug/admin/items/:id`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        param('id').isInt({ min: 1 }).withMessage('id must be a positive integer'),
+        body('key')
+            .optional()
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('key must be a non-empty string'),
+        body('filename')
+            .optional()
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('filename must be a non-empty string'),
+        body('src')
+            .optional()
+            .isURL({ require_protocol: true })
+            .withMessage('src must be a valid URL'),
+        body('alt')
+            .optional()
+            .isString()
+            .withMessage('alt must be a string'),
+        body('service')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('service must be a string'),
+        body('subCategory')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('subCategory must be a string'),
+        body('aspectRatio')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('aspectRatio must be a string'),
+        body('sortOrder')
+            .optional()
+            .isInt({ min: 0 })
+            .withMessage('sortOrder must be a non-negative integer'),
+    ],
+    validateRequest,
+    media.updateCatalogItem
 )
 
 export default router

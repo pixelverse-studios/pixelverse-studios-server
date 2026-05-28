@@ -15,6 +15,14 @@ vi.mock('../src/services/media-r2', () => ({
     },
 }))
 
+vi.mock('../src/services/media-catalog', () => ({
+    default: {
+        listCatalog: vi.fn(),
+        createItem: vi.fn(),
+        updateItem: vi.fn(),
+    },
+}))
+
 const createResponse = () => {
     const res = {
         status: vi.fn(),

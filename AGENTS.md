@@ -57,6 +57,10 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
 | `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
 | `/api/media-admin/auth/logout` | POST | Revoke the current media admin session and clear the cookie. | `controllers/media-admin-auth.logout` |
+| `/api/media/:websiteSlug/catalog` | GET | Fetch published media catalog items for a website. | `controllers/media.getPublicCatalog` |
+| `/api/media/:websiteSlug/admin/catalog` | GET | Fetch full media catalog for authenticated media admins. | `controllers/media.getAdminCatalog` |
+| `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
