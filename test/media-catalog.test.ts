@@ -359,6 +359,64 @@ describe('media catalog service', () => {
         })
     })
 
+    it('publishes a draft when required public metadata is present', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: draftItem, error: null },
+            {
+                data: {
+                    ...draftItem,
+                    alt: 'Jenn photographing a portrait session',
+                    service: 'Portrait',
+                    sub_category: 'Portrait',
+                    aspect_ratio: 'portrait',
+                    status: 'published',
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 3,
+            status: 'published',
+            alt: 'Jenn photographing a portrait session',
+            service: 'Portrait',
+            subCategory: 'Portrait',
+            aspectRatio: 'portrait',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                alt: 'Jenn photographing a portrait session',
+                service: 'Portrait',
+                sub_category: 'Portrait',
+                aspect_ratio: 'portrait',
+                status: 'published',
+                archived_at: null,
+                archived_by: null,
+                archived_from_status: null,
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                status: 'published',
+                alt: 'Jenn photographing a portrait session',
+                service: 'Portrait',
+                subCategory: 'Portrait',
+                aspectRatio: 'portrait',
+            })
+        )
+    })
+
     it('archives media and preserves archive metadata', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
