@@ -214,6 +214,19 @@ const scopedObjectKey = ({
     return `${keyPrefix}/${normalizedKey}`
 }
 
+const isKeyInConfiguredPrefix = ({
+    key,
+    config,
+}: {
+    key: string
+    config: ResolvedR2Config
+}): boolean => {
+    const keyPrefix = normalizePrefix(config.keyPrefix)
+    if (!keyPrefix) return true
+
+    return key === keyPrefix || key.startsWith(`${keyPrefix}/`)
+}
+
 const assertKeyInConfiguredPrefix = ({
     key,
     config,
@@ -224,7 +237,7 @@ const assertKeyInConfiguredPrefix = ({
     const keyPrefix = normalizePrefix(config.keyPrefix)
     if (!keyPrefix) return
 
-    if (key !== keyPrefix && !key.startsWith(`${keyPrefix}/`)) {
+    if (!isKeyInConfiguredPrefix({ key, config })) {
         throw new MediaValidationError(
             409,
             'media.key_prefix_mismatch',
@@ -446,9 +459,12 @@ const listObjects = async ({
     }
 
     const config = await resolveR2Config(website)
+    const keyPrefix = normalizePrefix(config.keyPrefix)
     const normalizedPrefix = prefix
         ? scopedObjectKey({ key: prefix, config })
-        : normalizePrefix(config.keyPrefix)
+        : keyPrefix
+          ? `${keyPrefix}/`
+          : ''
     const client = createR2Client()
     const { Contents, IsTruncated } = await client.send(
         new ListObjectsV2Command({
@@ -469,6 +485,12 @@ const listObjects = async ({
         prefix: normalizedPrefix,
         objects: (Contents || [])
             .filter(object => Boolean(object.Key))
+            .filter(object =>
+                isKeyInConfiguredPrefix({
+                    key: object.Key as string,
+                    config,
+                })
+            )
             .map(object => ({
                 key: object.Key as string,
                 public_url: joinPublicUrl(config.publicBaseUrl, object.Key as string),
@@ -648,18 +670,27 @@ const moveCatalogItemObject = async ({
         throw err
     }
 
-    await client.send(
-        new DeleteObjectCommand({
-            Bucket: config.bucket,
-            Key: item.key,
-        })
-    )
+    let sourceDeleted = true
+    try {
+        await client.send(
+            new DeleteObjectCommand({
+                Bucket: config.bucket,
+                Key: item.key,
+            })
+        )
+    } catch (err) {
+        sourceDeleted = false
+        console.error(
+            `Failed to delete source R2 object after catalog move: ${item.key}`,
+            err
+        )
+    }
 
     return {
         item: updatedItem,
         source_key: item.key,
         destination_key: scopedDestinationKey,
-        source_deleted: true,
+        source_deleted: sourceDeleted,
     }
 }
 

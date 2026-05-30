@@ -311,6 +311,43 @@ describe('media R2 object operations', () => {
         })
     })
 
+    it('does not return adjacent R2 prefixes when listing a configured namespace root', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: prefixedR2ConfigRecord, error: null },
+        ]
+        mockState.send.mockResolvedValueOnce({
+            Contents: [
+                {
+                    Key: 'clients/iffers-pictures/events/baby-shower/image.jpg',
+                    Size: 1234,
+                },
+                {
+                    Key: 'clients/iffers-pictures-old/events/private.jpg',
+                    Size: 9999,
+                },
+            ],
+        })
+
+        const result = await mediaR2Service.listObjects({
+            websiteSlug: 'iffers-pictures',
+        })
+
+        expect(mockState.commands[0]).toEqual({
+            name: 'ListObjectsV2Command',
+            input: {
+                Bucket: 'iffers-pictures',
+                Prefix: 'clients/iffers-pictures/',
+                MaxKeys: 1000,
+            },
+        })
+        expect(result.objects).toEqual([
+            expect.objectContaining({
+                key: 'clients/iffers-pictures/events/baby-shower/image.jpg',
+            }),
+        ])
+    })
+
     it('returns catalog destination collisions without overwriting objects', async () => {
         mockState.queryResults = [
             { data: websiteRecord, error: null },
@@ -505,5 +542,55 @@ describe('media R2 object operations', () => {
                 },
             },
         ])
+    })
+
+    it('returns a partial-success move result when source object deletion fails after catalog update', async () => {
+        const deleteError = new Error('delete failed')
+        const consoleErrorSpy = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined)
+
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+            { data: draftItem, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(notFoundError)
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(deleteError)
+        mockState.updateItem.mockResolvedValue({
+            id: 10,
+            key: 'events/baby-shower/delete-failed.jpg',
+            filename: 'delete-failed.jpg',
+            src: 'https://pub.example.test/events/baby-shower/delete-failed.jpg',
+            alt: 'Source image',
+            service: 'Events',
+            subCategory: 'Baby Shower',
+            aspectRatio: 'portrait',
+            status: 'draft',
+            sortOrder: 0,
+        })
+
+        try {
+            await expect(
+                mediaR2Service.moveCatalogItemObject({
+                    websiteSlug: 'iffers-pictures',
+                    id: 10,
+                    destinationKey: 'events/baby-shower/delete-failed.jpg',
+                })
+            ).resolves.toMatchObject({
+                destination_key: 'events/baby-shower/delete-failed.jpg',
+                source_deleted: false,
+            })
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                'Failed to delete source R2 object after catalog move: events/baby-shower/source.jpg',
+                deleteError
+            )
+        } finally {
+            consoleErrorSpy.mockRestore()
+        }
     })
 })
