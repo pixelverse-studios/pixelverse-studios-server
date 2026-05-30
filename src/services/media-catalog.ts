@@ -12,6 +12,7 @@ import {
     MediaStatus,
 } from '../lib/media-catalog'
 import { joinPublicUrl, MediaValidationError } from '../lib/media-r2'
+import mediaAuditService, { MediaAuditAction } from './media-audit'
 
 interface WebsiteRecord {
     id: string
@@ -84,6 +85,7 @@ export interface CreateMediaItemInput {
     subCategory?: string | null
     aspectRatio?: string | null
     sortOrder?: number
+    actor?: string
 }
 
 export interface UpdateMediaItemInput {
@@ -358,6 +360,84 @@ const buildValidatedDraftPayload = async ({
     }
 }
 
+const auditValuesForRecord = (
+    item: MediaCatalogRecord
+): Record<string, unknown> => ({
+    key: item.key,
+    filename: item.filename,
+    src: item.src,
+    alt: item.alt,
+    service: item.service,
+    subCategory: item.sub_category,
+    aspectRatio: item.aspect_ratio,
+    status: item.status,
+    sortOrder: item.sort_order,
+    archivedAt: item.archived_at,
+    archivedBy: item.archived_by,
+    archivedFromStatus: item.archived_from_status,
+})
+
+const changedValues = ({
+    oldValues,
+    newValues,
+}: {
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+}): {
+    oldChangedValues: Record<string, unknown>
+    newChangedValues: Record<string, unknown>
+} => {
+    const oldChangedValues: Record<string, unknown> = {}
+    const newChangedValues: Record<string, unknown> = {}
+
+    Object.entries(newValues).forEach(([key, value]) => {
+        if (oldValues[key] !== value) {
+            oldChangedValues[key] = oldValues[key]
+            newChangedValues[key] = value
+        }
+    })
+
+    return { oldChangedValues, newChangedValues }
+}
+
+const determineUpdateAuditAction = ({
+    current,
+    updated,
+}: {
+    current: MediaCatalogRecord
+    updated: MediaCatalogRecord
+}): MediaAuditAction => {
+    if (
+        current.key !== updated.key ||
+        current.filename !== updated.filename ||
+        current.src !== updated.src
+    ) {
+        return 'renamed_moved'
+    }
+
+    if (current.status === 'archived' && updated.status !== 'archived') {
+        return 'restored'
+    }
+
+    if (updated.status === 'archived' && current.status !== 'archived') {
+        return 'archived'
+    }
+
+    if (updated.status === 'published' && current.status !== 'published') {
+        return 'published'
+    }
+
+    if (current.sort_order !== updated.sort_order) {
+        return 'reorder_changed'
+    }
+
+    if (current.status === 'draft' && updated.status === 'draft') {
+        return 'draft_saved'
+    }
+
+    return 'metadata_edited'
+}
+
 const createItem = async (
     input: CreateMediaItemInput
 ): Promise<CatalogItemResponse> => {
@@ -375,7 +455,20 @@ const createItem = async (
         if (isUniqueViolation(error)) throwDuplicateKeyError(input.key)
         throw error
     }
-    return toCatalogItemResponse(data as MediaCatalogRecord, true)
+
+    const record = data as MediaCatalogRecord
+    await mediaAuditService.tryCreateLog({
+        websiteId: website.id,
+        clientId: website.client_id,
+        mediaId: record.id,
+        mediaKey: record.key,
+        action: 'upload_created',
+        actor: input.actor,
+        oldValues: null,
+        newValues: auditValuesForRecord(record),
+    })
+
+    return toCatalogItemResponse(record, true)
 }
 
 const getItemForWebsite = async ({
@@ -556,7 +649,27 @@ const updateItem = async (
         if (isUniqueViolation(error)) throwDuplicateKeyError(nextKey)
         throw error
     }
-    return toCatalogItemResponse(data as MediaCatalogRecord, true)
+
+    const updated = data as MediaCatalogRecord
+    const oldValues = auditValuesForRecord(current)
+    const newValues = auditValuesForRecord(updated)
+    const { oldChangedValues, newChangedValues } = changedValues({
+        oldValues,
+        newValues,
+    })
+
+    await mediaAuditService.tryCreateLog({
+        websiteId: website.id,
+        clientId: website.client_id,
+        mediaId: updated.id,
+        mediaKey: updated.key,
+        action: determineUpdateAuditAction({ current, updated }),
+        actor: input.actor,
+        oldValues: oldChangedValues,
+        newValues: newChangedValues,
+    })
+
+    return toCatalogItemResponse(updated, true)
 }
 
 export default {

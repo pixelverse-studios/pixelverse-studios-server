@@ -215,6 +215,7 @@ const moveCatalogItem = async (
             websiteSlug: req.params.websiteSlug,
             id: Number(req.params.id),
             destinationKey: parsed.destination_key,
+            actor: req.mediaAdmin?.email,
         })
 
         return res.status(200).json(result)
@@ -327,6 +328,7 @@ const createCatalogItem = async (
             subCategory: parsed.subCategory,
             aspectRatio: parsed.aspectRatio,
             sortOrder: parsed.sortOrder,
+            actor: req.mediaAdmin?.email,
         })
 
         return res.status(201).json(item)
