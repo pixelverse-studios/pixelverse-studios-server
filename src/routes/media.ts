@@ -152,6 +152,10 @@ router.patch(
             .optional({ nullable: true })
             .isString()
             .withMessage('aspectRatio must be a string'),
+        body('status')
+            .optional()
+            .isString()
+            .withMessage('status must be a string'),
         body('sortOrder')
             .optional()
             .isInt({ min: 0 })
