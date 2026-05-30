@@ -34,6 +34,43 @@ router.get(
     media.getAdminCatalog
 )
 
+router.get(
+    `${BASE_ROUTE}/:websiteSlug/admin/objects`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.listObjects
+)
+
+router.post(
+    `${BASE_ROUTE}/:websiteSlug/admin/objects/check-destination`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        body('destination_key')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('destination_key is required'),
+        body('exclude_media_id')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('exclude_media_id must be a positive integer'),
+    ],
+    validateRequest,
+    media.checkDestination
+)
+
 router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/uploads/presign`,
     requireMediaAdminSession,
@@ -108,6 +145,26 @@ router.post(
     ],
     validateRequest,
     media.createCatalogItem
+)
+
+router.post(
+    `${BASE_ROUTE}/:websiteSlug/admin/items/:id/move`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        param('id').isInt({ min: 1 }).withMessage('id must be a positive integer'),
+        body('destination_key')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('destination_key is required'),
+    ],
+    validateRequest,
+    media.moveCatalogItem
 )
 
 router.patch(

@@ -13,6 +13,15 @@ const presignUploadSchema = z.object({
     size: z.number().int().positive(),
 })
 
+const checkDestinationSchema = z.object({
+    destination_key: z.string().trim().min(1).max(1000),
+    exclude_media_id: z.number().int().positive().optional(),
+})
+
+const moveCatalogItemSchema = z.object({
+    destination_key: z.string().trim().min(1).max(1000),
+})
+
 const nullableCatalogString = z
     .union([z.string().trim().max(255), z.null()])
     .optional()
@@ -97,6 +106,145 @@ const presignUpload = async (
                 status === 404
                     ? 'media.website_not_found'
                     : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const listObjects = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const prefix =
+            typeof req.query.prefix === 'string' ? req.query.prefix : undefined
+        const result = await mediaR2Service.listObjects({
+            websiteSlug: req.params.websiteSlug,
+            prefix,
+        })
+
+        res.set('Cache-Control', 'no-store')
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404
+                    ? 'media.website_not_found'
+                    : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const checkDestination = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = checkDestinationSchema.parse(req.body)
+        const result = await mediaR2Service.checkDestination({
+            websiteSlug: req.params.websiteSlug,
+            destinationKey: parsed.destination_key,
+            excludeMediaId: parsed.exclude_media_id,
+        })
+
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid destination check payload.',
+                err.flatten()
+            )
+        }
+
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404
+                    ? 'media.website_not_found'
+                    : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const moveCatalogItem = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = moveCatalogItemSchema.parse(req.body)
+        const result = await mediaR2Service.moveCatalogItemObject({
+            websiteSlug: req.params.websiteSlug,
+            id: Number(req.params.id),
+            destinationKey: parsed.destination_key,
+        })
+
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid media move payload.',
+                err.flatten()
+            )
+        }
+
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404 ? 'media.not_found' : 'media.r2_not_configured'
 
             return sendMediaError(res, status, code, message)
         }
@@ -281,6 +429,9 @@ const updateCatalogItem = async (
 
 export default {
     presignUpload,
+    listObjects,
+    checkDestination,
+    moveCatalogItem,
     getPublicCatalog,
     getAdminCatalog,
     createCatalogItem,
