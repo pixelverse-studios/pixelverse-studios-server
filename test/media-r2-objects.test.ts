@@ -278,6 +278,7 @@ describe('media R2 object operations', () => {
                 Bucket: 'iffers-pictures',
                 Key: 'events/baby-shower/new-name.jpg',
                 CopySource: 'iffers-pictures/events/baby-shower/source.jpg',
+                IfNoneMatch: '*',
             },
         })
         expect(mockState.updateItem).toHaveBeenCalledWith({
@@ -325,5 +326,43 @@ describe('media R2 object operations', () => {
             code: 'media.published_location_locked',
         })
         expect(mockState.send).not.toHaveBeenCalled()
+    })
+
+    it('maps conditional copy failures to destination collisions without updating catalog or deleting source', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+            { data: draftItem, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(notFoundError)
+            .mockRejectedValueOnce(
+                Object.assign(new Error('precondition failed'), {
+                    name: 'PreconditionFailed',
+                    $metadata: { httpStatusCode: 412 },
+                })
+            )
+
+        await expect(
+            mediaR2Service.moveCatalogItemObject({
+                websiteSlug: 'iffers-pictures',
+                id: 10,
+                destinationKey: 'events/baby-shower/race.jpg',
+            })
+        ).rejects.toMatchObject({
+            status: 409,
+            code: 'media.destination_collision',
+            details: expect.objectContaining({
+                r2_exists: true,
+            }),
+        })
+        expect(mockState.updateItem).not.toHaveBeenCalled()
+        expect(
+            mockState.commands.some(
+                command => command.name === 'DeleteObjectCommand'
+            )
+        ).toBe(false)
     })
 })

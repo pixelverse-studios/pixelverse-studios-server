@@ -274,6 +274,41 @@ const objectExists = async ({
     }
 }
 
+const isConditionalWriteFailure = (err: unknown): boolean => {
+    const statusCode = (err as { $metadata?: { httpStatusCode?: number } })
+        ?.$metadata?.httpStatusCode
+    const name = (err as { name?: string })?.name
+
+    return (
+        statusCode === 409 ||
+        statusCode === 412 ||
+        name === 'ConditionalRequestConflict' ||
+        name === 'PreconditionFailed'
+    )
+}
+
+const throwDestinationCollision = ({
+    destinationKey,
+    catalogExists,
+    r2Exists,
+}: {
+    destinationKey: string
+    catalogExists: boolean
+    r2Exists: boolean
+}): never => {
+    throw new MediaValidationError(
+        409,
+        'media.destination_collision',
+        'An image already exists at that destination.',
+        {
+            field: 'destination_key',
+            key: destinationKey,
+            catalog_exists: catalogExists,
+            r2_exists: r2Exists,
+        }
+    )
+}
+
 const assertDestinationAvailable = async ({
     websiteId,
     client,
@@ -306,17 +341,11 @@ const assertDestinationAvailable = async ({
     }
 
     if (!result.available) {
-        throw new MediaValidationError(
-            409,
-            'media.destination_collision',
-            'An image already exists at that destination.',
-            {
-                field: 'destination_key',
-                key: destinationKey,
-                catalog_exists: catalogExists,
-                r2_exists: r2Exists,
-            }
-        )
+        throwDestinationCollision({
+            destinationKey,
+            catalogExists,
+            r2Exists,
+        })
     }
 
     return result
@@ -519,16 +548,28 @@ const moveCatalogItemObject = async ({
         excludeMediaId: id,
     })
 
-    await client.send(
-        new CopyObjectCommand({
-            Bucket: config.bucket,
-            Key: destinationKey,
-            CopySource: `${config.bucket}/${encodeURIComponent(item.key).replace(
-                /%2F/g,
-                '/'
-            )}`,
-        })
-    )
+    try {
+        await client.send(
+            new CopyObjectCommand({
+                Bucket: config.bucket,
+                Key: destinationKey,
+                CopySource: `${config.bucket}/${encodeURIComponent(
+                    item.key
+                ).replace(/%2F/g, '/')}`,
+                IfNoneMatch: '*',
+            })
+        )
+    } catch (err) {
+        if (isConditionalWriteFailure(err)) {
+            throwDestinationCollision({
+                destinationKey,
+                catalogExists: false,
+                r2Exists: true,
+            })
+        }
+
+        throw err
+    }
 
     const updatedItem = await mediaCatalogService.updateItem({
         websiteSlug,
