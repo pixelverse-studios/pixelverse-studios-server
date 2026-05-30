@@ -498,18 +498,27 @@ describe('media catalog service', () => {
                 action: 'published',
                 actor: null,
                 old_values: expect.objectContaining({
+                    status: 'draft',
+                }),
+                new_values: expect.objectContaining({
+                    status: 'published',
+                }),
+            })
+        )
+        expect(mockState.builders[5].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'metadata_edited',
+                old_values: expect.objectContaining({
                     alt: '',
                     service: null,
                     subCategory: null,
                     aspectRatio: null,
-                    status: 'draft',
                 }),
                 new_values: expect.objectContaining({
                     alt: 'Jenn photographing a portrait session',
                     service: 'Portrait',
                     subCategory: 'Portrait',
                     aspectRatio: 'portrait',
-                    status: 'published',
                 }),
             })
         )
@@ -737,6 +746,8 @@ describe('media catalog service', () => {
                     status: 'draft',
                 })
             )
+            await Promise.resolve()
+            await Promise.resolve()
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 'Failed to write media audit log for upload_created: portrait/audit-failure.jpg',
                 auditError

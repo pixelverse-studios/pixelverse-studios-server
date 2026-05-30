@@ -400,42 +400,160 @@ const changedValues = ({
     return { oldChangedValues, newChangedValues }
 }
 
-const determineUpdateAuditAction = ({
+const changedValuesForFields = ({
+    oldValues,
+    newValues,
+    fields,
+}: {
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+    fields: string[]
+}): {
+    oldChangedValues: Record<string, unknown>
+    newChangedValues: Record<string, unknown>
+} => {
+    const oldChangedValues: Record<string, unknown> = {}
+    const newChangedValues: Record<string, unknown> = {}
+
+    fields.forEach(field => {
+        if (oldValues[field] !== newValues[field]) {
+            oldChangedValues[field] = oldValues[field]
+            newChangedValues[field] = newValues[field]
+        }
+    })
+
+    return { oldChangedValues, newChangedValues }
+}
+
+const hasChangedValues = (values: Record<string, unknown>): boolean =>
+    Object.keys(values).length > 0
+
+const buildAuditChange = ({
+    action,
+    oldValues,
+    newValues,
+    fields,
+}: {
+    action: MediaAuditAction
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+    fields: string[]
+}): {
+    action: MediaAuditAction
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+} | null => {
+    const { oldChangedValues, newChangedValues } = changedValuesForFields({
+        oldValues,
+        newValues,
+        fields,
+    })
+
+    if (!hasChangedValues(newChangedValues)) return null
+
+    return {
+        action,
+        oldValues: oldChangedValues,
+        newValues: newChangedValues,
+    }
+}
+
+const determineUpdateAuditChanges = ({
     current,
     updated,
+    oldValues,
+    newValues,
 }: {
     current: MediaCatalogRecord
     updated: MediaCatalogRecord
-}): MediaAuditAction => {
-    if (
-        current.key !== updated.key ||
-        current.filename !== updated.filename ||
-        current.src !== updated.src
-    ) {
-        return 'renamed_moved'
-    }
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+}): Array<{
+    action: MediaAuditAction
+    oldValues: Record<string, unknown>
+    newValues: Record<string, unknown>
+}> => {
+    const changes: Array<{
+        action: MediaAuditAction
+        oldValues: Record<string, unknown>
+        newValues: Record<string, unknown>
+    }> = []
+
+    const locationChange = buildAuditChange({
+        action: 'renamed_moved',
+        oldValues,
+        newValues,
+        fields: ['key', 'filename', 'src'],
+    })
+    if (locationChange) changes.push(locationChange)
 
     if (current.status === 'archived' && updated.status !== 'archived') {
-        return 'restored'
+        const restoreChange = buildAuditChange({
+            action: 'restored',
+            oldValues,
+            newValues,
+            fields: ['status', 'archivedAt', 'archivedBy', 'archivedFromStatus'],
+        })
+        if (restoreChange) changes.push(restoreChange)
     }
 
     if (updated.status === 'archived' && current.status !== 'archived') {
-        return 'archived'
+        const archiveChange = buildAuditChange({
+            action: 'archived',
+            oldValues,
+            newValues,
+            fields: ['status', 'archivedAt', 'archivedBy', 'archivedFromStatus'],
+        })
+        if (archiveChange) changes.push(archiveChange)
     }
 
     if (updated.status === 'published' && current.status !== 'published') {
-        return 'published'
+        const publishChange = buildAuditChange({
+            action: 'published',
+            oldValues,
+            newValues,
+            fields: ['status'],
+        })
+        if (publishChange) changes.push(publishChange)
     }
 
-    if (current.sort_order !== updated.sort_order) {
-        return 'reorder_changed'
-    }
+    const metadataChange = buildAuditChange({
+        action: 'metadata_edited',
+        oldValues,
+        newValues,
+        fields: ['alt', 'service', 'subCategory', 'aspectRatio'],
+    })
+    if (metadataChange) changes.push(metadataChange)
+
+    const reorderChange = buildAuditChange({
+        action: 'reorder_changed',
+        oldValues,
+        newValues,
+        fields: ['sortOrder'],
+    })
+    if (reorderChange) changes.push(reorderChange)
 
     if (current.status === 'draft' && updated.status === 'draft') {
-        return 'draft_saved'
+        const { oldChangedValues, newChangedValues } = changedValues({
+            oldValues,
+            newValues,
+        })
+        if (hasChangedValues(newChangedValues)) {
+            changes.push({
+                action: 'draft_saved',
+                oldValues: oldChangedValues,
+                newValues: newChangedValues,
+            })
+        }
     }
 
-    return 'metadata_edited'
+    return changes
+}
+
+const queueAuditLog = (
+    input: Parameters<typeof mediaAuditService.tryCreateLog>[0]
+): void => {
+    void mediaAuditService.tryCreateLog(input)
 }
 
 const createItem = async (
@@ -457,7 +575,7 @@ const createItem = async (
     }
 
     const record = data as MediaCatalogRecord
-    await mediaAuditService.tryCreateLog({
+    queueAuditLog({
         websiteId: website.id,
         clientId: website.client_id,
         mediaId: record.id,
@@ -653,20 +771,22 @@ const updateItem = async (
     const updated = data as MediaCatalogRecord
     const oldValues = auditValuesForRecord(current)
     const newValues = auditValuesForRecord(updated)
-    const { oldChangedValues, newChangedValues } = changedValues({
+    determineUpdateAuditChanges({
+        current,
+        updated,
         oldValues,
         newValues,
-    })
-
-    await mediaAuditService.tryCreateLog({
-        websiteId: website.id,
-        clientId: website.client_id,
-        mediaId: updated.id,
-        mediaKey: updated.key,
-        action: determineUpdateAuditAction({ current, updated }),
-        actor: input.actor,
-        oldValues: oldChangedValues,
-        newValues: newChangedValues,
+    }).forEach(change => {
+        queueAuditLog({
+            websiteId: website.id,
+            clientId: website.client_id,
+            mediaId: updated.id,
+            mediaKey: updated.key,
+            action: change.action,
+            actor: input.actor,
+            oldValues: change.oldValues,
+            newValues: change.newValues,
+        })
     })
 
     return toCatalogItemResponse(updated, true)
