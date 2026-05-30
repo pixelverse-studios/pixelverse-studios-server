@@ -102,7 +102,7 @@ export const assertValidAspectRatio = (
 }
 
 export const assertValidStatus = (status?: string | null): void => {
-    if (!status) return
+    if (status === undefined || status === null) return
 
     if (!isMediaStatus(status)) {
         throw new MediaValidationError(

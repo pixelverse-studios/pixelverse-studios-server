@@ -417,6 +417,33 @@ describe('media catalog service', () => {
         )
     })
 
+    it('rejects blank status values before transition handling', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: draftItem, error: null },
+        ]
+
+        await expect(
+            mediaCatalogService.updateItem({
+                websiteSlug: 'iffers-pictures',
+                id: 3,
+                status: '',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.invalid_status',
+        })
+        expect(mockState.builders).toHaveLength(3)
+    })
+
     it('archives media and preserves archive metadata', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
