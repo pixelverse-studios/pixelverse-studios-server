@@ -14,6 +14,7 @@ vi.mock('../src/lib/db', () => ({
         WEBSITES: 'websites',
         MEDIA_R2_CONFIGS: 'media_r2_configs',
         MEDIA_CATALOG_ITEMS: 'media_catalog_items',
+        MEDIA_AUDIT_LOGS: 'media_audit_logs',
     },
     COLUMNS: {
         WEBSITE_SLUG: 'website_slug',
@@ -228,6 +229,7 @@ describe('media catalog service', () => {
         const item = await mediaCatalogService.createItem({
             websiteSlug: 'iffers-pictures',
             key: 'portrait/new-image.jpg',
+            actor: 'jenn@example.com',
         })
 
         expect(mockState.builders[3].insert).toHaveBeenCalledWith({
@@ -248,6 +250,22 @@ describe('media catalog service', () => {
                 key: 'portrait/new-image.jpg',
                 status: 'draft',
                 createdAt: '2026-05-27T12:00:00.000Z',
+            })
+        )
+        expect(mockState.from).toHaveBeenLastCalledWith('media_audit_logs')
+        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                website_id: 'website-1',
+                client_id: 'client-1',
+                media_id: 1,
+                media_key: 'portrait/new-image.jpg',
+                action: 'upload_created',
+                actor: 'jenn@example.com',
+                old_values: null,
+                new_values: expect.objectContaining({
+                    key: 'portrait/new-image.jpg',
+                    status: 'draft',
+                }),
             })
         )
     })
@@ -302,6 +320,61 @@ describe('media catalog service', () => {
             status: 409,
             code: 'media.published_location_locked',
         })
+    })
+
+    it('writes a renamed/moved audit entry for draft key changes', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: draftItem, error: null },
+            { data: null, error: null },
+            {
+                data: {
+                    ...draftItem,
+                    key: 'portrait/moved-draft.jpg',
+                    filename: 'moved-draft.jpg',
+                    src: 'https://pub.example.test/portrait/moved-draft.jpg',
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 3,
+            key: 'portrait/moved-draft.jpg',
+            actor: 'jenn@example.com',
+        })
+
+        expect(item).toEqual(
+            expect.objectContaining({
+                key: 'portrait/moved-draft.jpg',
+                filename: 'moved-draft.jpg',
+            })
+        )
+        expect(mockState.builders[5].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'renamed_moved',
+                actor: 'jenn@example.com',
+                old_values: expect.objectContaining({
+                    key: 'portrait/draft.jpg',
+                    filename: 'draft.jpg',
+                    src: 'https://pub.example.test/portrait/draft.jpg',
+                }),
+                new_values: expect.objectContaining({
+                    key: 'portrait/moved-draft.jpg',
+                    filename: 'moved-draft.jpg',
+                    src: 'https://pub.example.test/portrait/moved-draft.jpg',
+                }),
+            })
+        )
     })
 
     it('rejects invalid service and sub-category pairings', async () => {
@@ -415,6 +488,40 @@ describe('media catalog service', () => {
                 aspectRatio: 'portrait',
             })
         )
+        expect(mockState.from).toHaveBeenLastCalledWith('media_audit_logs')
+        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                website_id: 'website-1',
+                client_id: 'client-1',
+                media_id: 3,
+                media_key: 'portrait/draft.jpg',
+                action: 'published',
+                actor: null,
+                old_values: expect.objectContaining({
+                    status: 'draft',
+                }),
+                new_values: expect.objectContaining({
+                    status: 'published',
+                }),
+            })
+        )
+        expect(mockState.builders[5].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'metadata_edited',
+                old_values: expect.objectContaining({
+                    alt: '',
+                    service: null,
+                    subCategory: null,
+                    aspectRatio: null,
+                }),
+                new_values: expect.objectContaining({
+                    alt: 'Jenn photographing a portrait session',
+                    service: 'Portrait',
+                    subCategory: 'Portrait',
+                    aspectRatio: 'portrait',
+                }),
+            })
+        )
     })
 
     it('rejects blank status values before transition handling', async () => {
@@ -490,6 +597,23 @@ describe('media catalog service', () => {
                 archivedFromStatus: 'published',
             })
         )
+        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'archived',
+                actor: 'jenn@example.com',
+                old_values: expect.objectContaining({
+                    status: 'published',
+                    archivedAt: null,
+                    archivedBy: null,
+                    archivedFromStatus: null,
+                }),
+                new_values: expect.objectContaining({
+                    status: 'archived',
+                    archivedBy: 'jenn@example.com',
+                    archivedFromStatus: 'published',
+                }),
+            })
+        )
     })
 
     it('restores archived media to its previous status and clears archive metadata', async () => {
@@ -538,6 +662,21 @@ describe('media catalog service', () => {
                 archivedFromStatus: null,
             })
         )
+        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'restored',
+                old_values: expect.objectContaining({
+                    status: 'archived',
+                    archivedBy: 'admin@example.test',
+                    archivedFromStatus: 'published',
+                }),
+                new_values: expect.objectContaining({
+                    status: 'published',
+                    archivedBy: null,
+                    archivedFromStatus: null,
+                }),
+            })
+        )
     })
 
     it('blocks metadata edits while media is archived', async () => {
@@ -565,5 +704,56 @@ describe('media catalog service', () => {
             status: 409,
             code: 'media.archived_locked',
         })
+    })
+
+    it('logs audit failures without blocking successful catalog mutations', async () => {
+        const auditError = new Error('audit unavailable')
+        const consoleErrorSpy = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined)
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: null, error: null },
+            {
+                data: {
+                    ...draftItem,
+                    key: 'portrait/audit-failure.jpg',
+                    filename: 'audit-failure.jpg',
+                    src: 'https://pub.example.test/portrait/audit-failure.jpg',
+                },
+                error: null,
+            },
+            { data: null, error: auditError },
+        ]
+
+        try {
+            await expect(
+                mediaCatalogService.createItem({
+                    websiteSlug: 'iffers-pictures',
+                    key: 'portrait/audit-failure.jpg',
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    key: 'portrait/audit-failure.jpg',
+                    status: 'draft',
+                })
+            )
+            await Promise.resolve()
+            await Promise.resolve()
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                'Failed to write media audit log for upload_created: portrait/audit-failure.jpg',
+                auditError
+            )
+        } finally {
+            consoleErrorSpy.mockRestore()
+        }
     })
 })

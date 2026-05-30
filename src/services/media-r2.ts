@@ -77,6 +77,7 @@ export interface MoveCatalogItemInput {
     websiteSlug: string
     id: number
     destinationKey: string
+    actor?: string
 }
 
 export interface MoveCatalogItemResult {
@@ -543,6 +544,7 @@ const moveCatalogItemObject = async ({
     websiteSlug,
     id,
     destinationKey,
+    actor,
 }: MoveCatalogItemInput): Promise<MoveCatalogItemResult> => {
     const website = await getWebsiteBySlug(websiteSlug)
     if (!website) {
@@ -651,6 +653,7 @@ const moveCatalogItemObject = async ({
             key: scopedDestinationKey,
             filename: filenameFromKey(scopedDestinationKey),
             src: joinPublicUrl(config.publicBaseUrl, scopedDestinationKey),
+            actor,
         })
     } catch (err) {
         try {

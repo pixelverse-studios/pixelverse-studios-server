@@ -156,6 +156,7 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 -   Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
 -   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
 -   Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
+-   Media catalog mutations attempt non-blocking inserts into `media_audit_logs` through `src/services/media-audit.ts`. Audit write failures are logged to STDERR and do not roll back the already-completed media mutation.
 
 ## When Adding Features
 
