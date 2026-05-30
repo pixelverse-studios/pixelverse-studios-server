@@ -196,6 +196,44 @@ const normalizePrefix = (prefix?: string): string => {
     return normalized
 }
 
+const scopedObjectKey = ({
+    key,
+    config,
+}: {
+    key: string
+    config: ResolvedR2Config
+}): string => {
+    const normalizedKey = normalizePrefix(key)
+    const keyPrefix = normalizePrefix(config.keyPrefix)
+
+    if (!keyPrefix) return normalizedKey
+    if (normalizedKey === keyPrefix || normalizedKey.startsWith(`${keyPrefix}/`)) {
+        return normalizedKey
+    }
+
+    return `${keyPrefix}/${normalizedKey}`
+}
+
+const assertKeyInConfiguredPrefix = ({
+    key,
+    config,
+}: {
+    key: string
+    config: ResolvedR2Config
+}): void => {
+    const keyPrefix = normalizePrefix(config.keyPrefix)
+    if (!keyPrefix) return
+
+    if (key !== keyPrefix && !key.startsWith(`${keyPrefix}/`)) {
+        throw new MediaValidationError(
+            409,
+            'media.key_prefix_mismatch',
+            'Media object key is outside the configured R2 prefix.',
+            { field: 'key', key, key_prefix: keyPrefix }
+        )
+    }
+}
+
 const assertDestinationKey = (key: string): void => {
     assertSafeMediaKey(key)
     assertSafeFilename(filenameFromKey(key))
@@ -408,7 +446,9 @@ const listObjects = async ({
     }
 
     const config = await resolveR2Config(website)
-    const normalizedPrefix = normalizePrefix(prefix)
+    const normalizedPrefix = prefix
+        ? scopedObjectKey({ key: prefix, config })
+        : normalizePrefix(config.keyPrefix)
     const client = createR2Client()
     const { Contents, IsTruncated } = await client.send(
         new ListObjectsV2Command({
@@ -451,22 +491,26 @@ const checkDestination = async ({
         throw err
     }
 
-    assertDestinationKey(destinationKey)
     const config = await resolveR2Config(website)
+    const scopedDestinationKey = scopedObjectKey({
+        key: destinationKey,
+        config,
+    })
+    assertDestinationKey(scopedDestinationKey)
     const client = createR2Client()
     const catalogExists = await catalogKeyExists({
         websiteId: website.id,
-        key: destinationKey,
+        key: scopedDestinationKey,
         excludeMediaId,
     })
     const r2Exists = await objectExists({
         client,
         bucket: config.bucket,
-        key: destinationKey,
+        key: scopedDestinationKey,
     })
 
     return {
-        destination_key: destinationKey,
+        destination_key: scopedDestinationKey,
         catalog_exists: catalogExists,
         r2_exists: r2Exists,
         available: !catalogExists && !r2Exists,
@@ -485,8 +529,12 @@ const moveCatalogItemObject = async ({
         throw err
     }
 
-    assertDestinationKey(destinationKey)
     const config = await resolveR2Config(website)
+    const scopedDestinationKey = scopedObjectKey({
+        key: destinationKey,
+        config,
+    })
+    assertDestinationKey(scopedDestinationKey)
     const item = await getCatalogItem({ websiteId: website.id, id })
 
     if (!item) {
@@ -515,12 +563,14 @@ const moveCatalogItemObject = async ({
         )
     }
 
-    if (item.key === destinationKey) {
+    assertKeyInConfiguredPrefix({ key: item.key, config })
+
+    if (item.key === scopedDestinationKey) {
         throw new MediaValidationError(
             400,
             'media.invalid_destination',
             'Destination key must be different from the current key.',
-            { field: 'destination_key', key: destinationKey }
+            { field: 'destination_key', key: scopedDestinationKey }
         )
     }
 
@@ -544,7 +594,7 @@ const moveCatalogItemObject = async ({
         websiteId: website.id,
         client,
         config,
-        destinationKey,
+        destinationKey: scopedDestinationKey,
         excludeMediaId: id,
     })
 
@@ -552,7 +602,7 @@ const moveCatalogItemObject = async ({
         await client.send(
             new CopyObjectCommand({
                 Bucket: config.bucket,
-                Key: destinationKey,
+                Key: scopedDestinationKey,
                 CopySource: `${config.bucket}/${encodeURIComponent(
                     item.key
                 ).replace(/%2F/g, '/')}`,
@@ -562,7 +612,7 @@ const moveCatalogItemObject = async ({
     } catch (err) {
         if (isConditionalWriteFailure(err)) {
             throwDestinationCollision({
-                destinationKey,
+                destinationKey: scopedDestinationKey,
                 catalogExists: false,
                 r2Exists: true,
             })
@@ -571,13 +621,32 @@ const moveCatalogItemObject = async ({
         throw err
     }
 
-    const updatedItem = await mediaCatalogService.updateItem({
-        websiteSlug,
-        id,
-        key: destinationKey,
-        filename: filenameFromKey(destinationKey),
-        src: joinPublicUrl(config.publicBaseUrl, destinationKey),
-    })
+    let updatedItem: CatalogItemResponse
+    try {
+        updatedItem = await mediaCatalogService.updateItem({
+            websiteSlug,
+            id,
+            key: scopedDestinationKey,
+            filename: filenameFromKey(scopedDestinationKey),
+            src: joinPublicUrl(config.publicBaseUrl, scopedDestinationKey),
+        })
+    } catch (err) {
+        try {
+            await client.send(
+                new DeleteObjectCommand({
+                    Bucket: config.bucket,
+                    Key: scopedDestinationKey,
+                })
+            )
+        } catch (cleanupErr) {
+            console.error(
+                `Failed to clean up copied R2 object after catalog update failure: ${scopedDestinationKey}`,
+                cleanupErr
+            )
+        }
+
+        throw err
+    }
 
     await client.send(
         new DeleteObjectCommand({
@@ -589,7 +658,7 @@ const moveCatalogItemObject = async ({
     return {
         item: updatedItem,
         source_key: item.key,
-        destination_key: destinationKey,
+        destination_key: scopedDestinationKey,
         source_deleted: true,
     }
 }

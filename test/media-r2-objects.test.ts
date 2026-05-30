@@ -94,6 +94,11 @@ const r2ConfigRecord = {
     key_prefix: '',
 }
 
+const prefixedR2ConfigRecord = {
+    ...r2ConfigRecord,
+    key_prefix: 'clients/iffers-pictures',
+}
+
 const draftItem = {
     id: 10,
     website_id: 'website-1',
@@ -112,6 +117,12 @@ const draftItem = {
     archived_at: null,
     archived_by: null,
     archived_from_status: null,
+}
+
+const prefixedDraftItem = {
+    ...draftItem,
+    key: 'clients/iffers-pictures/events/baby-shower/source.jpg',
+    src: 'https://pub.example.test/clients/iffers-pictures/events/baby-shower/source.jpg',
 }
 
 const notFoundError = Object.assign(new Error('not found'), {
@@ -204,6 +215,99 @@ describe('media R2 object operations', () => {
             catalog_exists: false,
             r2_exists: false,
             available: true,
+        })
+    })
+
+    it('scopes list, destination checks, and moves to configured key prefixes', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: prefixedR2ConfigRecord, error: null },
+        ]
+        mockState.send.mockResolvedValueOnce({
+            Contents: [
+                {
+                    Key: 'clients/iffers-pictures/events/baby-shower/image.jpg',
+                    Size: 1234,
+                    LastModified: new Date('2026-05-27T12:00:00.000Z'),
+                    ETag: '"abc123"',
+                },
+            ],
+        })
+
+        await expect(
+            mediaR2Service.listObjects({
+                websiteSlug: 'iffers-pictures',
+                prefix: 'events/baby-shower',
+            })
+        ).resolves.toMatchObject({
+            prefix: 'clients/iffers-pictures/events/baby-shower',
+        })
+        expect(mockState.commands[0]).toEqual({
+            name: 'ListObjectsV2Command',
+            input: {
+                Bucket: 'iffers-pictures',
+                Prefix: 'clients/iffers-pictures/events/baby-shower',
+                MaxKeys: 1000,
+            },
+        })
+
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: prefixedR2ConfigRecord, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send.mockRejectedValueOnce(notFoundError)
+
+        await expect(
+            mediaR2Service.checkDestination({
+                websiteSlug: 'iffers-pictures',
+                destinationKey: 'events/baby-shower/new.jpg',
+            })
+        ).resolves.toMatchObject({
+            destination_key: 'clients/iffers-pictures/events/baby-shower/new.jpg',
+            available: true,
+        })
+
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: prefixedR2ConfigRecord, error: null },
+            { data: prefixedDraftItem, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(notFoundError)
+            .mockResolvedValueOnce({})
+            .mockResolvedValueOnce({})
+        mockState.updateItem.mockResolvedValue({
+            id: 10,
+            key: 'clients/iffers-pictures/events/baby-shower/new-name.jpg',
+            filename: 'new-name.jpg',
+            src: 'https://pub.example.test/clients/iffers-pictures/events/baby-shower/new-name.jpg',
+            alt: 'Source image',
+            service: 'Events',
+            subCategory: 'Baby Shower',
+            aspectRatio: 'portrait',
+            status: 'draft',
+            sortOrder: 0,
+        })
+
+        await expect(
+            mediaR2Service.moveCatalogItemObject({
+                websiteSlug: 'iffers-pictures',
+                id: 10,
+                destinationKey: 'events/baby-shower/new-name.jpg',
+            })
+        ).resolves.toMatchObject({
+            destination_key:
+                'clients/iffers-pictures/events/baby-shower/new-name.jpg',
+        })
+        expect(mockState.updateItem).toHaveBeenLastCalledWith({
+            websiteSlug: 'iffers-pictures',
+            id: 10,
+            key: 'clients/iffers-pictures/events/baby-shower/new-name.jpg',
+            filename: 'new-name.jpg',
+            src: 'https://pub.example.test/clients/iffers-pictures/events/baby-shower/new-name.jpg',
         })
     })
 
@@ -364,5 +468,42 @@ describe('media R2 object operations', () => {
                 command => command.name === 'DeleteObjectCommand'
             )
         ).toBe(false)
+    })
+
+    it('cleans up the copied destination object when catalog update fails', async () => {
+        const updateError = new Error('catalog update failed')
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+            { data: draftItem, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(notFoundError)
+            .mockResolvedValueOnce({})
+            .mockResolvedValueOnce({})
+        mockState.updateItem.mockRejectedValue(updateError)
+
+        await expect(
+            mediaR2Service.moveCatalogItemObject({
+                websiteSlug: 'iffers-pictures',
+                id: 10,
+                destinationKey: 'events/baby-shower/rollback.jpg',
+            })
+        ).rejects.toBe(updateError)
+
+        const deleteCommands = mockState.commands.filter(
+            command => command.name === 'DeleteObjectCommand'
+        )
+        expect(deleteCommands).toEqual([
+            {
+                name: 'DeleteObjectCommand',
+                input: {
+                    Bucket: 'iffers-pictures',
+                    Key: 'events/baby-shower/rollback.jpg',
+                },
+            },
+        ])
     })
 })
