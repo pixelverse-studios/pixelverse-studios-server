@@ -59,7 +59,10 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media-admin/auth/logout` | POST | Revoke the current media admin session and clear the cookie. | `controllers/media-admin-auth.logout` |
 | `/api/media/:websiteSlug/catalog` | GET | Fetch published media catalog items for a website. | `controllers/media.getPublicCatalog` |
 | `/api/media/:websiteSlug/admin/catalog` | GET | Fetch full media catalog for authenticated media admins. | `controllers/media.getAdminCatalog` |
+| `/api/media/:websiteSlug/admin/objects` | GET | List Cloudflare R2 objects by optional prefix for authenticated media admins. | `controllers/media.listObjects` |
+| `/api/media/:websiteSlug/admin/objects/check-destination` | POST | Check catalog and R2 destination collisions before moving media. | `controllers/media.checkDestination` |
 | `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 
