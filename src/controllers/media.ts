@@ -3,6 +3,7 @@ import { z, ZodError } from 'zod'
 
 import mediaCatalogService from '../services/media-catalog'
 import mediaR2Service from '../services/media-r2'
+import mediaRevalidationService from '../services/media-revalidation'
 import { MediaValidationError } from '../lib/media-r2'
 import { handleGenericError } from '../utils/http'
 
@@ -20,6 +21,23 @@ const checkDestinationSchema = z.object({
 
 const moveCatalogItemSchema = z.object({
     destination_key: z.string().trim().min(1).max(1000),
+})
+
+const revalidateCatalogSchema = z.object({
+    reason: z
+        .enum([
+            'manual',
+            'published',
+            'archived',
+            'restored',
+            'metadata_edited',
+            'reorder_changed',
+            'renamed_moved',
+        ])
+        .optional()
+        .default('manual'),
+    media_id: z.number().int().positive().optional(),
+    media_key: z.string().trim().min(1).max(1000).optional(),
 })
 
 const nullableCatalogString = z
@@ -264,7 +282,7 @@ const getPublicCatalog = async (
             includeAdminFields: false,
         })
 
-        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+        res.set('Cache-Control', mediaRevalidationService.publicCatalogCacheControl())
         return res.status(200).json(catalog)
     } catch (err) {
         if (typeof (err as { status?: unknown })?.status === 'number') {
@@ -277,6 +295,47 @@ const getPublicCatalog = async (
                     : 'media.r2_not_configured'
 
             return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const revalidateCatalog = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = revalidateCatalogSchema.parse(req.body || {})
+        const result = await mediaRevalidationService.triggerMediaRevalidation({
+            websiteSlug: req.params.websiteSlug,
+            reason: parsed.reason,
+            mediaId: parsed.media_id,
+            mediaKey: parsed.media_key,
+            actor: req.mediaAdmin?.email,
+        })
+
+        res.set('Cache-Control', 'no-store')
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid media revalidation payload.',
+                err.flatten()
+            )
+        }
+
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
         }
 
         return handleGenericError(err, res)
@@ -436,6 +495,7 @@ export default {
     moveCatalogItem,
     getPublicCatalog,
     getAdminCatalog,
+    revalidateCatalog,
     createCatalogItem,
     updateCatalogItem,
 }

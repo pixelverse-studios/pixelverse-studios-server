@@ -60,6 +60,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/catalog` | GET | Fetch published media catalog items for a website. | `controllers/media.getPublicCatalog` |
 | `/api/media/:websiteSlug/admin/catalog` | GET | Fetch full media catalog for authenticated media admins. | `controllers/media.getAdminCatalog` |
 | `/api/media/:websiteSlug/admin/objects` | GET | List Cloudflare R2 objects by optional prefix for authenticated media admins. | `controllers/media.listObjects` |
+| `/api/media/:websiteSlug/admin/revalidate` | POST | Trigger the configured frontend cache revalidation webhook for public media pages. | `controllers/media.revalidateCatalog` |
 | `/api/media/:websiteSlug/admin/objects/check-destination` | POST | Check catalog and R2 destination collisions before moving media. | `controllers/media.checkDestination` |
 | `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
@@ -132,6 +133,11 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
 | `MEDIA_ADMIN_SESSION_TTL_HOURS` | Optional media admin session duration; defaults to 12 hours. |
 | `MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS` | Optional minimum response time for media admin magic-link requests; defaults to 350ms to reduce email approval probing. |
+| `MEDIA_REVALIDATION_WEBHOOK_URL` | Optional frontend webhook URL called after public media catalog changes or manual admin revalidation. |
+| `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent to the frontend revalidation webhook. |
+| `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional revalidation webhook timeout; defaults to 5000ms. |
+| `MEDIA_PUBLIC_CATALOG_MAX_AGE_SECONDS` | Optional public catalog `Cache-Control` max-age; defaults to 60 seconds. |
+| `MEDIA_PUBLIC_CATALOG_STALE_WHILE_REVALIDATE_SECONDS` | Optional public catalog stale-while-revalidate window; defaults to 300 seconds. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
@@ -157,6 +163,7 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 -   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
 -   Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
 -   Media catalog mutations attempt non-blocking inserts into `media_audit_logs` through `src/services/media-audit.ts`. Audit write failures are logged to STDERR and do not roll back the already-completed media mutation.
+-   Public media catalog mutations trigger a non-blocking frontend revalidation webhook through `src/services/media-revalidation.ts` when `MEDIA_REVALIDATION_WEBHOOK_URL` is configured. Webhook failures are logged to STDERR and do not roll back the already-completed media mutation.
 
 ## When Adding Features
 

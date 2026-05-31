@@ -524,6 +524,65 @@ describe('media catalog service', () => {
         )
     })
 
+    it('triggers public cache revalidation after publishing media', async () => {
+        process.env.MEDIA_REVALIDATION_WEBHOOK_URL =
+            'https://revalidate.example.test/api/revalidate'
+        vi.mocked(fetch).mockResolvedValue(new Response('ok', { status: 200 }))
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: draftItem, error: null },
+            {
+                data: {
+                    ...draftItem,
+                    alt: 'Jenn photographing a portrait session',
+                    service: 'Portrait',
+                    sub_category: 'Portrait',
+                    aspect_ratio: 'portrait',
+                    status: 'published',
+                },
+                error: null,
+            },
+        ]
+
+        await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 3,
+            status: 'published',
+            alt: 'Jenn photographing a portrait session',
+            service: 'Portrait',
+            subCategory: 'Portrait',
+            aspectRatio: 'portrait',
+            actor: 'jenn@example.com',
+        })
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(fetch).toHaveBeenCalledWith(
+            'https://revalidate.example.test/api/revalidate',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('"reason":"published"'),
+            })
+        )
+        const [, init] = vi.mocked(fetch).mock.calls[0]
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual(
+            expect.objectContaining({
+                website_slug: 'iffers-pictures',
+                media_id: 3,
+                media_key: 'portrait/draft.jpg',
+                actor: 'jenn@example.com',
+            })
+        )
+    })
+
     it('rejects blank status values before transition handling', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
@@ -675,6 +734,54 @@ describe('media catalog service', () => {
                     archivedBy: null,
                     archivedFromStatus: null,
                 }),
+            })
+        )
+    })
+
+    it('triggers restored revalidation when archived media returns to published', async () => {
+        process.env.MEDIA_REVALIDATION_WEBHOOK_URL =
+            'https://revalidate.example.test/api/revalidate'
+        vi.mocked(fetch).mockResolvedValue(new Response('ok', { status: 200 }))
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: archivedItem, error: null },
+            {
+                data: {
+                    ...archivedItem,
+                    status: 'published',
+                    archived_at: null,
+                    archived_by: null,
+                    archived_from_status: null,
+                },
+                error: null,
+            },
+        ]
+
+        await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 2,
+            status: 'draft',
+            actor: 'jenn@example.com',
+        })
+        await Promise.resolve()
+        await Promise.resolve()
+
+        const [, init] = vi.mocked(fetch).mock.calls[0]
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual(
+            expect.objectContaining({
+                website_slug: 'iffers-pictures',
+                reason: 'restored',
+                media_id: 2,
+                media_key: 'events/baby-shower/archived.jpg',
+                actor: 'jenn@example.com',
             })
         )
     })
