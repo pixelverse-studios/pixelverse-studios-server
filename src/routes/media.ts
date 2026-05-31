@@ -49,6 +49,42 @@ router.get(
 )
 
 router.post(
+    `${BASE_ROUTE}/:websiteSlug/admin/revalidate`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        body('reason')
+            .optional()
+            .isIn([
+                'manual',
+                'published',
+                'archived',
+                'restored',
+                'metadata_edited',
+                'reorder_changed',
+                'renamed_moved',
+            ])
+            .withMessage('reason must be a valid media revalidation reason'),
+        body('media_id')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('media_id must be a positive integer'),
+        body('media_key')
+            .optional()
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('media_key must be a non-empty string'),
+    ],
+    validateRequest,
+    media.revalidateCatalog
+)
+
+router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/objects/check-destination`,
     requireMediaAdminSession,
     [

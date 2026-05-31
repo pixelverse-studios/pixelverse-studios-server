@@ -13,6 +13,10 @@ import {
 } from '../lib/media-catalog'
 import { joinPublicUrl, MediaValidationError } from '../lib/media-r2'
 import mediaAuditService, { MediaAuditAction } from './media-audit'
+import {
+    MediaRevalidationReason,
+    tryTriggerMediaRevalidation,
+} from './media-revalidation'
 
 interface WebsiteRecord {
     id: string
@@ -550,6 +554,33 @@ const determineUpdateAuditChanges = ({
     return changes
 }
 
+const shouldRevalidatePublicCatalog = ({
+    current,
+    updated,
+}: {
+    current: MediaCatalogRecord
+    updated: MediaCatalogRecord
+}): boolean => current.status === 'published' || updated.status === 'published'
+
+const revalidationReasonForChanges = (
+    changes: Array<{ action: MediaAuditAction }>
+): MediaRevalidationReason | null => {
+    const publicReasonPriority: MediaRevalidationReason[] = [
+        'restored',
+        'published',
+        'archived',
+        'renamed_moved',
+        'metadata_edited',
+        'reorder_changed',
+    ]
+
+    return (
+        publicReasonPriority.find(reason =>
+            changes.some(change => change.action === reason)
+        ) || null
+    )
+}
+
 const queueAuditLog = (
     input: Parameters<typeof mediaAuditService.tryCreateLog>[0]
 ): void => {
@@ -771,12 +802,14 @@ const updateItem = async (
     const updated = data as MediaCatalogRecord
     const oldValues = auditValuesForRecord(current)
     const newValues = auditValuesForRecord(updated)
-    determineUpdateAuditChanges({
+    const auditChanges = determineUpdateAuditChanges({
         current,
         updated,
         oldValues,
         newValues,
-    }).forEach(change => {
+    })
+
+    auditChanges.forEach(change => {
         queueAuditLog({
             websiteId: website.id,
             clientId: website.client_id,
@@ -788,6 +821,20 @@ const updateItem = async (
             newValues: change.newValues,
         })
     })
+
+    const revalidationReason = revalidationReasonForChanges(auditChanges)
+    if (
+        revalidationReason &&
+        shouldRevalidatePublicCatalog({ current, updated })
+    ) {
+        tryTriggerMediaRevalidation({
+            websiteSlug: input.websiteSlug,
+            reason: revalidationReason,
+            mediaId: updated.id,
+            mediaKey: updated.key,
+            actor: input.actor,
+        })
+    }
 
     return toCatalogItemResponse(updated, true)
 }
