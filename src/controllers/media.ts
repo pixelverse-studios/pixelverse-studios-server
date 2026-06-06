@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { z, ZodError } from 'zod'
 
 import mediaCatalogService from '../services/media-catalog'
+import mediaPlacementsService from '../services/media-placements'
 import mediaR2Service from '../services/media-r2'
 import mediaRevalidationService from '../services/media-revalidation'
 import { MediaValidationError } from '../lib/media-r2'
@@ -63,6 +64,10 @@ const updateCatalogItemSchema = createCatalogItemSchema
     .refine(value => Object.keys(value).length > 0, {
         message: 'At least one field is required.',
     })
+
+const assignPlacementSchema = z.object({
+    media_id: z.number().int().positive(),
+})
 
 const sendMediaError = (
     res: Response,
@@ -301,6 +306,34 @@ const getPublicCatalog = async (
     }
 }
 
+const getPublicPlacements = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const placements = await mediaPlacementsService.listPublicPlacements({
+            websiteSlug: req.params.websiteSlug,
+        })
+
+        res.set('Cache-Control', mediaRevalidationService.publicCatalogCacheControl())
+        return res.status(200).json(placements)
+    } catch (err) {
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404
+                    ? 'media.website_not_found'
+                    : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
 const revalidateCatalog = async (
     req: Request,
     res: Response
@@ -355,6 +388,123 @@ const getAdminCatalog = async (
         res.set('Cache-Control', 'no-store')
         return res.status(200).json(catalog)
     } catch (err) {
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404
+                    ? 'media.website_not_found'
+                    : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const getAdminPlacements = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const placements = await mediaPlacementsService.listAdminPlacements({
+            websiteSlug: req.params.websiteSlug,
+        })
+
+        res.set('Cache-Control', 'no-store')
+        return res.status(200).json(placements)
+    } catch (err) {
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404
+                    ? 'media.website_not_found'
+                    : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const assignPlacement = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = assignPlacementSchema.parse(req.body)
+        const placement = await mediaPlacementsService.assignPlacement({
+            websiteSlug: req.params.websiteSlug,
+            slotKey: req.params.slotKey,
+            mediaId: parsed.media_id,
+            actor: req.mediaAdmin?.email,
+        })
+
+        res.set('Cache-Control', 'no-store')
+        return res.status(200).json(placement)
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid media placement payload.',
+                err.flatten()
+            )
+        }
+
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
+        if (typeof (err as { status?: unknown })?.status === 'number') {
+            const status = (err as { status: number }).status
+            const message =
+                err instanceof Error ? err.message : 'Media request failed'
+            const code =
+                status === 404 ? 'media.not_found' : 'media.r2_not_configured'
+
+            return sendMediaError(res, status, code, message)
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
+const clearPlacement = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const result = await mediaPlacementsService.clearPlacement({
+            websiteSlug: req.params.websiteSlug,
+            slotKey: req.params.slotKey,
+        })
+
+        res.set('Cache-Control', 'no-store')
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
         if (typeof (err as { status?: unknown })?.status === 'number') {
             const status = (err as { status: number }).status
             const message =
@@ -494,8 +644,12 @@ export default {
     checkDestination,
     moveCatalogItem,
     getPublicCatalog,
+    getPublicPlacements,
     getAdminCatalog,
+    getAdminPlacements,
     revalidateCatalog,
     createCatalogItem,
     updateCatalogItem,
+    assignPlacement,
+    clearPlacement,
 }
