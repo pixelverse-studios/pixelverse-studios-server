@@ -23,6 +23,15 @@ vi.mock('../src/services/media-catalog', () => ({
     },
 }))
 
+vi.mock('../src/services/media-placements', () => ({
+    default: {
+        listPublicPlacements: vi.fn(),
+        listAdminPlacements: vi.fn(),
+        assignPlacement: vi.fn(),
+        clearPlacement: vi.fn(),
+    },
+}))
+
 const createResponse = () => {
     const res = {
         status: vi.fn(),
