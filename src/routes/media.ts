@@ -21,6 +21,19 @@ router.get(
 )
 
 router.get(
+    `${BASE_ROUTE}/:websiteSlug/placements`,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.getPublicPlacements
+)
+
+router.get(
     `${BASE_ROUTE}/:websiteSlug/admin/catalog`,
     requireMediaAdminSession,
     [
@@ -32,6 +45,61 @@ router.get(
     ],
     validateRequest,
     media.getAdminCatalog
+)
+
+router.get(
+    `${BASE_ROUTE}/:websiteSlug/admin/placements`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.getAdminPlacements
+)
+
+router.put(
+    `${BASE_ROUTE}/:websiteSlug/admin/placements/:slotKey`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        param('slotKey')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('slotKey is required'),
+        body('media_id')
+            .isInt({ min: 1 })
+            .withMessage('media_id must be a positive integer'),
+    ],
+    validateRequest,
+    media.assignPlacement
+)
+
+router.delete(
+    `${BASE_ROUTE}/:websiteSlug/admin/placements/:slotKey`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        param('slotKey')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('slotKey is required'),
+    ],
+    validateRequest,
+    media.clearPlacement
 )
 
 router.get(

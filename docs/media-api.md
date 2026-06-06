@@ -103,6 +103,9 @@ Common codes:
 | `media.destination_collision` | Catalog or R2 already has the destination key. |
 | `media.published_location_locked` | Published object location cannot be changed by generic patch/move. |
 | `media.archived_locked` | Archived item must be restored before metadata/object edits. |
+| `media.invalid_placement_slot` | Placement slot key is not allowed for the website. |
+| `media.unpublished_assignment_forbidden` | Draft media cannot be assigned to a placement. |
+| `media.archived_assignment_forbidden` | Archived media cannot be assigned to a placement. |
 | `media.r2_not_configured` | R2 bucket/base URL or credentials are missing. |
 | `media.website_not_found` | Website slug was not found. |
 | `media.not_found` | Media item was not found for the website. |
@@ -135,6 +138,42 @@ const res = await fetch(`${apiBase}/api/media/iffers-pictures/catalog`, {
 const catalog = await res.json();
 ```
 
+## Public Placements
+
+`GET /api/media/:websiteSlug/placements`
+
+Returns explicit frontend placement assignments whose assigned media item is
+`published`. Draft and archived media are excluded from the public response.
+
+Response headers match the public catalog:
+
+`Cache-Control: public, max-age=60, stale-while-revalidate=300`
+
+Response:
+
+```json
+{
+  "version": 1,
+  "publicBaseUrl": "https://media.ifferspictures.com",
+  "placements": [
+    {
+      "slotKey": "home.hero",
+      "media": {
+        "id": 123,
+        "key": "events/baby-shower/baby-shower-01.jpg",
+        "filename": "baby-shower-01.jpg",
+        "src": "https://media.ifferspictures.com/events/baby-shower/baby-shower-01.jpg",
+        "alt": "Mother-to-be opening gifts at baby shower",
+        "service": "Events",
+        "subCategory": "Baby Shower",
+        "aspectRatio": "portrait",
+        "status": "published"
+      }
+    }
+  ]
+}
+```
+
 ## Admin Auth
 
 Auth details live in `docs/media-admin-auth.md`. The frontend flow is:
@@ -159,6 +198,75 @@ await fetch(`${apiBase}/api/media/iffers-pictures/admin/catalog`, {
 Returns draft, published, and archived items with admin metadata. Protected.
 
 Response headers include `Cache-Control: no-store`.
+
+## Admin Placements
+
+`GET /api/media/:websiteSlug/admin/placements`
+
+Protected. Returns every allowed placement slot for the website, with current
+assignment state when a slot has an assigned media item.
+
+Response headers include `Cache-Control: no-store`.
+
+```json
+{
+  "version": 1,
+  "publicBaseUrl": "https://media.ifferspictures.com",
+  "slots": [
+    {
+      "slotKey": "home.hero",
+      "pageLabel": "Home",
+      "sectionLabel": "Hero",
+      "description": "Primary homepage hero image.",
+      "expectedAspectRatios": ["landscape", "portrait"],
+      "affectedPaths": ["/"],
+      "assignment": {
+        "id": 10,
+        "updatedBy": "jenn@example.com",
+        "createdAt": "2026-06-06T12:00:00.000Z",
+        "updatedAt": "2026-06-06T12:30:00.000Z",
+        "media": {
+          "id": 123,
+          "key": "events/baby-shower/baby-shower-01.jpg",
+          "filename": "baby-shower-01.jpg",
+          "src": "https://media.ifferspictures.com/events/baby-shower/baby-shower-01.jpg",
+          "alt": "Mother-to-be opening gifts at baby shower",
+          "service": "Events",
+          "subCategory": "Baby Shower",
+          "aspectRatio": "portrait",
+          "status": "published"
+        }
+      }
+    }
+  ]
+}
+```
+
+`PUT /api/media/:websiteSlug/admin/placements/:slotKey`
+
+Protected. Assigns or replaces the media item for a placement slot. Only
+published media can be assigned. Draft and archived media are rejected.
+
+Request:
+
+```json
+{
+  "media_id": 123
+}
+```
+
+`DELETE /api/media/:websiteSlug/admin/placements/:slotKey`
+
+Protected. Clears a placement assignment by deleting the assignment row.
+
+Response:
+
+```json
+{
+  "cleared": true,
+  "slotKey": "home.hero"
+}
+```
 
 ## Presigned Upload
 
