@@ -668,3 +668,28 @@ Restore media:
 1. PATCH any non-archived status, usually `status: "draft"`.
 2. Server restores to `archivedFromStatus` when present.
 3. Send a second PATCH for metadata edits if needed.
+
+## Existing Portfolio Backfill
+
+Existing R2 images must also exist in `media_catalog_items` before the media
+manager can display them. The one-time Iffer's Pictures import reads the
+frontend `PORTFOLIO_ITEMS` source data so each existing image keeps its current
+alt text, service, sub-category, aspect ratio, and ordering.
+
+Dry run:
+
+```bash
+npm run backfill:iffers-media
+```
+
+Apply:
+
+```bash
+npm run backfill:iffers-media -- --apply
+```
+
+Override defaults when needed:
+
+```bash
+npm run backfill:iffers-media -- --source /path/to/portfolioData.ts --public-base-url https://pub.example.r2.dev --bucket iffers-pictures --apply
+```

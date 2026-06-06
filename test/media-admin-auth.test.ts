@@ -147,7 +147,7 @@ describe('media admin auth controller', () => {
         expect(res.status).toHaveBeenCalledWith(200)
     })
 
-    it('does not leak send failures through the magic-link response', async () => {
+    it('returns an error when an approved admin magic-link email fails', async () => {
         vi.mocked(sendEmail).mockRejectedValue(new Error('send failed'))
         const res = createResponse()
 
@@ -156,14 +156,14 @@ describe('media admin auth controller', () => {
             res
         )
 
-        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.status).toHaveBeenCalledWith(500)
         expect(res.json).toHaveBeenCalledWith({
-            message: 'If that email is approved, a sign-in link has been sent.',
+            error: 'send failed',
         })
         expect(mediaAdminAuthService.createSession).not.toHaveBeenCalled()
     })
 
-    it('does not leak persistence failures through the magic-link response', async () => {
+    it('returns an error when approved admin magic-link persistence fails', async () => {
         vi.mocked(mediaAdminAuthService.createMagicLink).mockRejectedValue(
             new Error('database unavailable')
         )
@@ -174,9 +174,9 @@ describe('media admin auth controller', () => {
             res
         )
 
-        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.status).toHaveBeenCalledWith(500)
         expect(res.json).toHaveBeenCalledWith({
-            message: 'If that email is approved, a sign-in link has been sent.',
+            error: 'database unavailable',
         })
         expect(sendEmail).not.toHaveBeenCalled()
     })

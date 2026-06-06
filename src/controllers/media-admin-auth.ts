@@ -76,13 +76,11 @@ const requestMagicLink = async (
         const email = normalizeAdminEmail(parsed.email)
 
         if (isApprovedAdminEmail(email)) {
-            void createAndSendMagicLink(
+            await createAndSendMagicLink(
                 email,
                 req.ip,
                 req.get('user-agent')
-            ).catch(err => {
-                console.error('Media admin magic-link request failed:', err)
-            })
+            )
         }
 
         await waitForMinimumResponseTime(startedAt)
@@ -97,7 +95,7 @@ const requestMagicLink = async (
         }
         console.error('Media admin magic-link request failed:', err)
         await waitForMinimumResponseTime(startedAt)
-        return res.status(200).json(genericResponse)
+        return handleGenericError(err, res)
     }
 }
 

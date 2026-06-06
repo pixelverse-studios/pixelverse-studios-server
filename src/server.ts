@@ -1,3 +1,5 @@
+import 'dotenv/config'
+
 import express, { Application } from 'express'
 import bodyParser from 'body-parser'
 import cors from 'cors'
@@ -20,8 +22,6 @@ import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
-
-import 'dotenv/config'
 
 // Supabase URL and Key from environment variables
 const app: Application = express()

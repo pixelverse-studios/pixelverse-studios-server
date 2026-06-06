@@ -29,8 +29,9 @@ admin mutations with `requireMediaAdminSession`.
 ```
 
 Returns `200` for approved and unapproved emails so approval status is not
-leaked through the response. Persistence or email-send failures are logged
-server-side and still return the same generic response.
+leaked through the normal response. For approved emails, persistence or
+email-send failures return `500` so the client can surface a real delivery
+problem instead of reporting a successful request.
 
 ```json
 {
