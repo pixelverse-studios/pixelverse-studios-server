@@ -76,6 +76,37 @@ describe('media revalidation service', () => {
         )
     })
 
+    it('posts placement revalidation payloads with targeted affected paths', async () => {
+        process.env.MEDIA_REVALIDATION_WEBHOOK_URL = webhookUrl
+        mockWebhookResponse(new Response('ok', { status: 202 }))
+
+        const result = await mediaRevalidationService.triggerMediaRevalidation({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_replaced',
+            mediaId: 123,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            affectedPaths: ['/services/events'],
+        })
+
+        const [, init] = vi.mocked(fetch).mock.calls[0]
+        const body = JSON.parse(String((init as RequestInit).body))
+
+        expect(body).toEqual(
+            expect.objectContaining({
+                website_slug: 'iffers-pictures',
+                reason: 'placement_replaced',
+                media_id: 123,
+                media_key: 'events/baby-shower/baby.jpg',
+                affected_paths: ['/services/events'],
+            })
+        )
+        expect(result).toEqual(
+            expect.objectContaining({
+                affected_paths: ['/services/events'],
+            })
+        )
+    })
+
     it('throws a media error when the webhook responds with a failure', async () => {
         process.env.MEDIA_REVALIDATION_WEBHOOK_URL = webhookUrl
         mockWebhookResponse(new Response('invalid token', { status: 401 }))

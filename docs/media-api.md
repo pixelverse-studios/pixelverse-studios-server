@@ -246,6 +246,8 @@ Response headers include `Cache-Control: no-store`.
 
 Protected. Assigns or replaces the media item for a placement slot. Only
 published media can be assigned. Draft and archived media are rejected.
+Successful assignment or replacement writes a non-blocking audit log and
+triggers targeted frontend revalidation for the slot's `affectedPaths`.
 
 Request:
 
@@ -258,6 +260,8 @@ Request:
 `DELETE /api/media/:websiteSlug/admin/placements/:slotKey`
 
 Protected. Clears a placement assignment by deleting the assignment row.
+Successful clears write a non-blocking audit log with the old placement state
+and trigger targeted frontend revalidation for the slot's `affectedPaths`.
 
 Response:
 
@@ -505,6 +509,9 @@ Request:
 - `metadata_edited`
 - `reorder_changed`
 - `renamed_moved`
+- `placement_assigned`
+- `placement_replaced`
+- `placement_cleared`
 
 Response when `MEDIA_REVALIDATION_WEBHOOK_URL` is configured:
 
@@ -566,8 +573,21 @@ public output:
 - editing published alt text, category, or aspect ratio
 - changing published sort order
 
+Automatic non-blocking revalidation also runs after placement mutations. Catalog
+mutations use the full media-heavy path list. Placement mutations use the
+targeted `affectedPaths` from the backend slot registry, for example
+`home.* -> ["/"]`, `about.hero -> ["/about"]`, and
+`services.events.hero -> ["/services/events"]`.
+
 Webhook failures during automatic revalidation are logged and do not roll back
-the completed catalog mutation.
+the completed catalog or placement mutation.
+
+Placement assignment, replacement, and clearing also write non-blocking
+`media_audit_logs` rows with actions `placement_assigned`,
+`placement_replaced`, and `placement_cleared`. The audit payload stores previous
+and new placement state in `old_values` and `new_values`, including `slotKey`,
+`mediaId`, `mediaKey`, `src`, filename, metadata, and actor context where
+available.
 
 ## Frontend Revalidation Webhook
 

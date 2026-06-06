@@ -8,6 +8,7 @@ import {
     validateUploadInput,
 } from '../src/lib/media-r2'
 import mediaR2Service from '../src/services/media-r2'
+import mediaRevalidationService from '../src/services/media-revalidation'
 
 vi.mock('../src/services/media-r2', () => ({
     default: {
@@ -32,14 +33,24 @@ vi.mock('../src/services/media-placements', () => ({
     },
 }))
 
+vi.mock('../src/services/media-revalidation', () => ({
+    default: {
+        publicCatalogCacheControl: vi.fn(),
+        triggerMediaRevalidation: vi.fn(),
+    },
+}))
+
 const createResponse = () => {
     const res = {
+        set: vi.fn(),
         status: vi.fn(),
         json: vi.fn(),
     }
+    res.set.mockReturnValue(res)
     res.status.mockReturnValue(res)
     res.json.mockReturnValue(res)
     return res as unknown as Response & {
+        set: ReturnType<typeof vi.fn>
         status: ReturnType<typeof vi.fn>
         json: ReturnType<typeof vi.fn>
     }
@@ -120,6 +131,8 @@ describe('media R2 key and upload validation helpers', () => {
 
 describe('media presigned upload controller', () => {
     beforeEach(() => {
+        vi.mocked(mediaR2Service.createPresignedUpload).mockReset()
+        vi.mocked(mediaRevalidationService.triggerMediaRevalidation).mockReset()
         vi.mocked(mediaR2Service.createPresignedUpload).mockResolvedValue({
             presigned_url: 'https://signed.example.test/upload',
             public_url:
@@ -183,5 +196,45 @@ describe('media presigned upload controller', () => {
                 }),
             })
         )
+    })
+})
+
+describe('media revalidation controller', () => {
+    beforeEach(() => {
+        vi.mocked(mediaRevalidationService.triggerMediaRevalidation).mockReset()
+        vi.mocked(mediaRevalidationService.triggerMediaRevalidation).mockResolvedValue({
+            configured: true,
+            triggered: true,
+            skipped: false,
+            reason: 'placement_replaced',
+            website_slug: 'iffers-pictures',
+            affected_paths: ['/'],
+            triggered_at: '2026-06-06T12:00:00.000Z',
+            status: 202,
+        })
+    })
+
+    it('accepts placement-specific manual revalidation reasons', async () => {
+        const res = createResponse()
+
+        await mediaController.revalidateCatalog(
+            createRequest({
+                body: {
+                    reason: 'placement_replaced',
+                    media_id: 123,
+                    media_key: 'events/baby-shower/baby.jpg',
+                },
+            }),
+            res
+        )
+
+        expect(mediaRevalidationService.triggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_replaced',
+            mediaId: 123,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            actor: undefined,
+        })
+        expect(res.status).toHaveBeenCalledWith(200)
     })
 })

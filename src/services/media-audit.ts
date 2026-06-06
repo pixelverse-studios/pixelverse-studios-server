@@ -9,6 +9,9 @@ export type MediaAuditAction =
     | 'renamed_moved'
     | 'metadata_edited'
     | 'reorder_changed'
+    | 'placement_assigned'
+    | 'placement_replaced'
+    | 'placement_cleared'
 
 export interface MediaAuditLogInput {
     websiteId: string

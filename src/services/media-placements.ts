@@ -10,6 +10,8 @@ import type {
     MediaCatalogRecord,
 } from './media-catalog'
 import { MediaValidationError } from '../lib/media-r2'
+import mediaAuditService from './media-audit'
+import { tryTriggerMediaRevalidation } from './media-revalidation'
 
 interface WebsiteRecord {
     id: string
@@ -37,6 +39,11 @@ interface MediaPlacementRecord {
     created_at: string
     updated_at: string
 }
+
+type PlacementAuditAction =
+    | 'placement_assigned'
+    | 'placement_replaced'
+    | 'placement_cleared'
 
 export interface PlacementMediaResponse
     extends Omit<CatalogItemResponse, 'sortOrder'> {}
@@ -84,6 +91,7 @@ export interface AssignPlacementInput {
 export interface ClearPlacementInput {
     websiteSlug: string
     slotKey: string
+    actor?: string
 }
 
 const getWebsiteBySlug = async (
@@ -238,6 +246,75 @@ const mediaById = (
     items: MediaCatalogRecord[]
 ): Map<number, MediaCatalogRecord> =>
     new Map(items.map(item => [item.id, item]))
+
+const auditValuesForPlacement = ({
+    slotKey,
+    placement,
+    media,
+}: {
+    slotKey: string
+    placement?: MediaPlacementRecord | null
+    media?: MediaCatalogRecord | null
+}): Record<string, unknown> => ({
+    slotKey,
+    placementId: placement?.id ?? null,
+    mediaId: media?.id ?? placement?.media_id ?? null,
+    mediaKey: media?.key ?? null,
+    src: media?.src ?? null,
+    filename: media?.filename ?? null,
+    alt: media?.alt ?? null,
+    service: media?.service ?? null,
+    subCategory: media?.sub_category ?? null,
+    aspectRatio: media?.aspect_ratio ?? null,
+    status: media?.status ?? null,
+    updatedBy: placement?.updated_by ?? null,
+})
+
+const queueAuditLog = (
+    input: Parameters<typeof mediaAuditService.tryCreateLog>[0]
+): void => {
+    void mediaAuditService.tryCreateLog(input)
+}
+
+const queuePlacementAuditAndRevalidation = ({
+    websiteSlug,
+    website,
+    slot,
+    action,
+    actor,
+    oldValues,
+    newValues,
+    media,
+}: {
+    websiteSlug: string
+    website: WebsiteRecord
+    slot: MediaPlacementSlot
+    action: PlacementAuditAction
+    actor?: string
+    oldValues: Record<string, unknown> | null
+    newValues: Record<string, unknown> | null
+    media?: MediaCatalogRecord | null
+}): void => {
+    queueAuditLog({
+        websiteId: website.id,
+        clientId: website.client_id,
+        mediaId: media?.id ?? null,
+        mediaKey: media?.key ?? null,
+        action,
+        actor,
+        oldValues,
+        newValues,
+    })
+
+    tryTriggerMediaRevalidation({
+        websiteSlug,
+        reason: action,
+        mediaId: media?.id,
+        mediaKey: media?.key,
+        actor,
+        affectedPaths: slot.affectedPaths,
+    })
+}
 
 const assignmentForSlot = ({
     slot,
@@ -422,6 +499,13 @@ const assignPlacement = async (
         websiteId: website.id,
         slotKey: input.slotKey,
     })
+    const previousMedia =
+        current && current.media_id !== media?.id
+            ? await getMediaForWebsite({
+                  websiteId: website.id,
+                  mediaId: current.media_id,
+              })
+            : null
     const placement = await upsertPlacement({
         website,
         slotKey: input.slotKey,
@@ -429,6 +513,34 @@ const assignPlacement = async (
         actor: input.actor,
         current,
     })
+    const placementAction: PlacementAuditAction | null = !current
+        ? 'placement_assigned'
+        : current.media_id !== input.mediaId
+          ? 'placement_replaced'
+          : null
+
+    if (placementAction) {
+        queuePlacementAuditAndRevalidation({
+            websiteSlug: input.websiteSlug,
+            website,
+            slot,
+            action: placementAction,
+            actor: input.actor,
+            oldValues: current
+                ? auditValuesForPlacement({
+                      slotKey: input.slotKey,
+                      placement: current,
+                      media: previousMedia,
+                  })
+                : null,
+            newValues: auditValuesForPlacement({
+                slotKey: input.slotKey,
+                placement,
+                media,
+            }),
+            media,
+        })
+    }
 
     return assignmentForSlot({
         slot,
@@ -440,7 +552,7 @@ const assignPlacement = async (
 const clearPlacement = async (
     input: ClearPlacementInput
 ): Promise<{ cleared: boolean; slotKey: string }> => {
-    assertValidMediaPlacementSlot({
+    const slot = assertValidMediaPlacementSlot({
         websiteSlug: input.websiteSlug,
         slotKey: input.slotKey,
     })
@@ -454,12 +566,32 @@ const clearPlacement = async (
         return { cleared: false, slotKey: input.slotKey }
     }
 
+    const previousMedia = await getMediaForWebsite({
+        websiteId: website.id,
+        mediaId: current.media_id,
+    })
+
     const { error } = await db
         .from(Tables.MEDIA_PLACEMENTS)
         .delete()
         .eq('id', current.id)
 
     if (error) throw error
+    queuePlacementAuditAndRevalidation({
+        websiteSlug: input.websiteSlug,
+        website,
+        slot,
+        action: 'placement_cleared',
+        actor: input.actor,
+        oldValues: auditValuesForPlacement({
+            slotKey: input.slotKey,
+            placement: current,
+            media: previousMedia,
+        }),
+        newValues: null,
+        media: previousMedia,
+    })
+
     return { cleared: true, slotKey: input.slotKey }
 }
 
