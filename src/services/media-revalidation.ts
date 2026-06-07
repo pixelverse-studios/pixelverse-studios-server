@@ -21,6 +21,9 @@ export type MediaRevalidationReason =
     | 'metadata_edited'
     | 'reorder_changed'
     | 'renamed_moved'
+    | 'placement_assigned'
+    | 'placement_replaced'
+    | 'placement_cleared'
 
 export interface TriggerMediaRevalidationInput {
     websiteSlug: string
@@ -28,6 +31,7 @@ export interface TriggerMediaRevalidationInput {
     mediaId?: number
     mediaKey?: string
     actor?: string
+    affectedPaths?: readonly string[]
 }
 
 export interface MediaRevalidationResult {
@@ -89,15 +93,22 @@ export const buildMediaRevalidationPayload = ({
     mediaId,
     mediaKey,
     actor,
-}: TriggerMediaRevalidationInput): Record<string, unknown> => ({
-    website_slug: websiteSlug,
-    reason,
-    affected_paths: [...MEDIA_REVALIDATION_PATHS],
-    ...(mediaId !== undefined && { media_id: mediaId }),
-    ...(mediaKey && { media_key: mediaKey }),
-    ...(actor && { actor }),
-    triggered_at: new Date().toISOString(),
-})
+    affectedPaths,
+}: TriggerMediaRevalidationInput): Record<string, unknown> => {
+    const paths = affectedPaths?.length
+        ? [...affectedPaths]
+        : [...MEDIA_REVALIDATION_PATHS]
+
+    return {
+        website_slug: websiteSlug,
+        reason,
+        affected_paths: paths,
+        ...(mediaId !== undefined && { media_id: mediaId }),
+        ...(mediaKey && { media_key: mediaKey }),
+        ...(actor && { actor }),
+        triggered_at: new Date().toISOString(),
+    }
+}
 
 export const triggerMediaRevalidation = async (
     input: TriggerMediaRevalidationInput
@@ -113,7 +124,7 @@ export const triggerMediaRevalidation = async (
             skipped: true,
             reason: input.reason,
             website_slug: input.websiteSlug,
-            affected_paths: [...MEDIA_REVALIDATION_PATHS],
+            affected_paths: payload.affected_paths as string[],
             triggered_at: triggeredAt,
         }
     }
@@ -152,7 +163,7 @@ export const triggerMediaRevalidation = async (
             skipped: false,
             reason: input.reason,
             website_slug: input.websiteSlug,
-            affected_paths: [...MEDIA_REVALIDATION_PATHS],
+            affected_paths: payload.affected_paths as string[],
             triggered_at: triggeredAt,
             status: response.status,
         }

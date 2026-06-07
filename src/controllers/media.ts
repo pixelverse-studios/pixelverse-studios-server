@@ -34,6 +34,9 @@ const revalidateCatalogSchema = z.object({
             'metadata_edited',
             'reorder_changed',
             'renamed_moved',
+            'placement_assigned',
+            'placement_replaced',
+            'placement_cleared',
         ])
         .optional()
         .default('manual'),
@@ -490,6 +493,7 @@ const clearPlacement = async (
         const result = await mediaPlacementsService.clearPlacement({
             websiteSlug: req.params.websiteSlug,
             slotKey: req.params.slotKey,
+            actor: req.mediaAdmin?.email,
         })
 
         res.set('Cache-Control', 'no-store')

@@ -21,7 +21,19 @@ vi.mock('../src/lib/db', () => ({
     },
 }))
 
+vi.mock('../src/services/media-audit', () => ({
+    default: {
+        tryCreateLog: vi.fn(),
+    },
+}))
+
+vi.mock('../src/services/media-revalidation', () => ({
+    tryTriggerMediaRevalidation: vi.fn(),
+}))
+
 import mediaPlacementsService from '../src/services/media-placements'
+import mediaAuditService from '../src/services/media-audit'
+import { tryTriggerMediaRevalidation } from '../src/services/media-revalidation'
 
 const makeQueryBuilder = (result: { data: unknown; error: unknown }) => {
     const builder = {
@@ -130,6 +142,8 @@ describe('media placements service', () => {
         })
         process.env.R2_BUCKET_NAME = 'iffers-pictures'
         process.env.R2_PUBLIC_BASE_URL = 'https://env-pub.example.test'
+        vi.mocked(mediaAuditService.tryCreateLog).mockReset()
+        vi.mocked(tryTriggerMediaRevalidation).mockReset()
     })
 
     it('returns public placements backed only by published media', async () => {
@@ -230,14 +244,96 @@ describe('media placements service', () => {
             updated_by: 'jenn@example.com',
         })
         expect(result.assignment?.media.id).toBe(1)
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith({
+            websiteId: 'website-1',
+            clientId: 'client-1',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            action: 'placement_assigned',
+            actor: 'jenn@example.com',
+            oldValues: null,
+            newValues: expect.objectContaining({
+                slotKey: 'home.hero',
+                placementId: 10,
+                mediaId: 1,
+                mediaKey: 'events/baby-shower/baby.jpg',
+            }),
+        })
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_assigned',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            actor: 'jenn@example.com',
+            affectedPaths: ['/'],
+        })
     })
 
     it('replaces an existing placement row', async () => {
+        const replacementMedia = {
+            ...publishedMedia,
+            id: 4,
+            key: 'events/replacement.jpg',
+            filename: 'replacement.jpg',
+            src: 'https://media.ifferspictures.com/events/replacement.jpg',
+        }
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: replacementMedia, error: null },
+            { data: placement, error: null },
+            { data: publishedMedia, error: null },
+            { data: { ...placement, media_id: 4 }, error: null },
+        ]
+
+        await mediaPlacementsService.assignPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.hero',
+            mediaId: 4,
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[4].update).toHaveBeenCalledWith({
+            website_id: 'website-1',
+            client_id: 'client-1',
+            slot_key: 'home.hero',
+            media_id: 4,
+            updated_by: 'jenn@example.com',
+        })
+        expect(mockState.builders[4].eq).toHaveBeenCalledWith('id', 10)
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith({
+            websiteId: 'website-1',
+            clientId: 'client-1',
+            mediaId: 4,
+            mediaKey: 'events/replacement.jpg',
+            action: 'placement_replaced',
+            actor: 'jenn@example.com',
+            oldValues: expect.objectContaining({
+                slotKey: 'home.hero',
+                mediaId: 1,
+                mediaKey: 'events/baby-shower/baby.jpg',
+            }),
+            newValues: expect.objectContaining({
+                slotKey: 'home.hero',
+                mediaId: 4,
+                mediaKey: 'events/replacement.jpg',
+            }),
+        })
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_replaced',
+            mediaId: 4,
+            mediaKey: 'events/replacement.jpg',
+            actor: 'jenn@example.com',
+            affectedPaths: ['/'],
+        })
+    })
+
+    it('does not audit or revalidate when assigning the same media id again', async () => {
         mockState.queryResults = [
             { data: website, error: null },
             { data: publishedMedia, error: null },
             { data: placement, error: null },
-            { data: { ...placement, media_id: 1 }, error: null },
+            { data: placement, error: null },
         ]
 
         await mediaPlacementsService.assignPlacement({
@@ -247,14 +343,8 @@ describe('media placements service', () => {
             actor: 'jenn@example.com',
         })
 
-        expect(mockState.builders[3].update).toHaveBeenCalledWith({
-            website_id: 'website-1',
-            client_id: 'client-1',
-            slot_key: 'home.hero',
-            media_id: 1,
-            updated_by: 'jenn@example.com',
-        })
-        expect(mockState.builders[3].eq).toHaveBeenCalledWith('id', 10)
+        expect(mediaAuditService.tryCreateLog).not.toHaveBeenCalled()
+        expect(tryTriggerMediaRevalidation).not.toHaveBeenCalled()
     })
 
     it('rejects unknown placement slots before querying Supabase', async () => {
@@ -331,6 +421,7 @@ describe('media placements service', () => {
         mockState.queryResults = [
             { data: website, error: null },
             { data: placement, error: null },
+            { data: publishedMedia, error: null },
             { data: null, error: null },
         ]
 
@@ -340,7 +431,29 @@ describe('media placements service', () => {
         })
 
         expect(result).toEqual({ cleared: true, slotKey: 'home.hero' })
-        expect(mockState.builders[2].delete).toHaveBeenCalled()
-        expect(mockState.builders[2].eq).toHaveBeenCalledWith('id', 10)
+        expect(mockState.builders[3].delete).toHaveBeenCalled()
+        expect(mockState.builders[3].eq).toHaveBeenCalledWith('id', 10)
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith({
+            websiteId: 'website-1',
+            clientId: 'client-1',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            action: 'placement_cleared',
+            actor: undefined,
+            oldValues: expect.objectContaining({
+                slotKey: 'home.hero',
+                mediaId: 1,
+                mediaKey: 'events/baby-shower/baby.jpg',
+            }),
+            newValues: null,
+        })
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_cleared',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            actor: undefined,
+            affectedPaths: ['/'],
+        })
     })
 })
