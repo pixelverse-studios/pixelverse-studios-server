@@ -135,6 +135,9 @@ router.post(
                 'metadata_edited',
                 'reorder_changed',
                 'renamed_moved',
+                'placement_assigned',
+                'placement_replaced',
+                'placement_cleared',
             ])
             .withMessage('reason must be a valid media revalidation reason'),
         body('media_id')

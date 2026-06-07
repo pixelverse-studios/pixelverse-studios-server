@@ -189,6 +189,37 @@ describe('media placements service', () => {
         expect(mockState.builders[3].in).toHaveBeenCalledWith('id', [1, 2, 3])
     })
 
+    it('allows one published media item to back multiple public placement slots', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: r2Config, error: null },
+            {
+                data: [
+                    placement,
+                    { ...placement, id: 11, slot_key: 'about.hero', media_id: 1 },
+                ],
+                error: null,
+            },
+            { data: [publishedMedia], error: null },
+        ]
+
+        const result = await mediaPlacementsService.listPublicPlacements({
+            websiteSlug: 'iffers-pictures',
+        })
+
+        expect(result.placements).toEqual([
+            expect.objectContaining({
+                slotKey: 'home.hero',
+                media: expect.objectContaining({ id: 1 }),
+            }),
+            expect.objectContaining({
+                slotKey: 'about.hero',
+                media: expect.objectContaining({ id: 1 }),
+            }),
+        ])
+        expect(mockState.builders[3].in).toHaveBeenCalledWith('id', [1, 1])
+    })
+
     it('returns all admin slots with current assignment metadata', async () => {
         mockState.queryResults = [
             { data: website, error: null },
@@ -417,6 +448,48 @@ describe('media placements service', () => {
         expect(mockState.builders[1].eq).toHaveBeenCalledWith('id', 999)
     })
 
+    it('rejects missing media assignment without audit or revalidation side effects', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: null, error: null },
+        ]
+
+        await expect(
+            mediaPlacementsService.assignPlacement({
+                websiteSlug: 'iffers-pictures',
+                slotKey: 'home.hero',
+                mediaId: 404,
+            })
+        ).rejects.toMatchObject({
+            status: 404,
+        })
+        expect(mediaAuditService.tryCreateLog).not.toHaveBeenCalled()
+        expect(tryTriggerMediaRevalidation).not.toHaveBeenCalled()
+    })
+
+    it('targets placement revalidation paths from the assigned slot metadata', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: publishedMedia, error: null },
+            { data: null, error: null },
+            { data: { ...placement, slot_key: 'about.hero' }, error: null },
+        ]
+
+        await mediaPlacementsService.assignPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'about.hero',
+            mediaId: 1,
+            actor: 'jenn@example.com',
+        })
+
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith(
+            expect.objectContaining({
+                reason: 'placement_assigned',
+                affectedPaths: ['/about'],
+            })
+        )
+    })
+
     it('clears an existing placement by deleting the row', async () => {
         mockState.queryResults = [
             { data: website, error: null },
@@ -455,5 +528,21 @@ describe('media placements service', () => {
             actor: undefined,
             affectedPaths: ['/'],
         })
+    })
+
+    it('does not audit or revalidate when clearing an empty placement slot', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaPlacementsService.clearPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.hero',
+        })
+
+        expect(result).toEqual({ cleared: false, slotKey: 'home.hero' })
+        expect(mediaAuditService.tryCreateLog).not.toHaveBeenCalled()
+        expect(tryTriggerMediaRevalidation).not.toHaveBeenCalled()
     })
 })
