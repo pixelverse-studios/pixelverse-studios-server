@@ -53,13 +53,26 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
 | `/api/audit` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
+| `/api/media-admin/auth/magic-link` | POST | Request a media admin magic link for approved emails without revealing approval status. | `controllers/media-admin-auth.requestMagicLink` |
+| `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
+| `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
+| `/api/media-admin/auth/logout` | POST | Revoke the current media admin session and clear the cookie. | `controllers/media-admin-auth.logout` |
+| `/api/media/:websiteSlug/catalog` | GET | Fetch published media catalog items for a website. | `controllers/media.getPublicCatalog` |
+| `/api/media/:websiteSlug/admin/catalog` | GET | Fetch full media catalog for authenticated media admins. | `controllers/media.getAdminCatalog` |
+| `/api/media/:websiteSlug/admin/objects` | GET | List Cloudflare R2 objects by optional prefix for authenticated media admins. | `controllers/media.listObjects` |
+| `/api/media/:websiteSlug/admin/revalidate` | POST | Trigger the configured frontend cache revalidation webhook for public media pages. | `controllers/media.revalidateCatalog` |
+| `/api/media/:websiteSlug/admin/objects/check-destination` | POST | Check catalog and R2 destination collisions before moving media. | `controllers/media.checkDestination` |
+| `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
+| `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -101,12 +114,30 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
 | `GMAIL_CLIENT_SECRET` | Google OAuth client secret. |
 | `GMAIL_REFRESH_TOKEN` | Refresh token for Gmail OAuth workflow. |
+| `GMAIL_APP_PASSWORD` | Gmail app password used by the current Nodemailer transporter. |
 | `NODE_ENVIRONMENT` | Controls dev-mode email fallback (set to `development` locally). |
 | `TOKEN_SECRET` | Shared secret for JWT helpers in `src/utils/token.js` (legacy). |
 | `TOKEN_EXPIRE` | Lifetime for generated JWTs (legacy, defaults to `24hr`). |
 | `GOOGLE_OAUTH_ID`, `GOOGLE_OAUTH_SECRET`, `GOOGLE_REFRESH_TOKEN`, `EMAIL_USER` | Required only if using legacy CommonJS mailer utilities. |
 | `RESEND_API_KEY` | Resend API token for email campaign sends. |
 | `OPS_NOTIFY_SLACK_WEBHOOK` | Slack incoming webhook URL for shared ops intake alerts covering leads, audit requests, and Calendly bookings. |
+| `R2_ACCESS_KEY_ID` | Server-only Cloudflare R2 S3 access key for future media manager object operations. |
+| `R2_SECRET_ACCESS_KEY` | Server-only Cloudflare R2 S3 secret key for future media manager object operations. |
+| `R2_ACCOUNT_ID` | Cloudflare account id for future R2 S3-compatible API calls. |
+| `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
+| `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
+| `R2_PRESIGN_EXPIRES_SECONDS` | Optional R2 presigned upload expiry; defaults to 900 seconds. |
+| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
+| `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
+| `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
+| `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
+| `MEDIA_ADMIN_SESSION_TTL_HOURS` | Optional media admin session duration; defaults to 12 hours. |
+| `MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS` | Optional minimum response time for media admin magic-link requests; defaults to 350ms to reduce email approval probing. |
+| `MEDIA_REVALIDATION_WEBHOOK_URL` | Optional frontend webhook URL called after public media catalog changes or manual admin revalidation. |
+| `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent to the frontend revalidation webhook. |
+| `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional revalidation webhook timeout; defaults to 5000ms. |
+| `MEDIA_PUBLIC_CATALOG_MAX_AGE_SECONDS` | Optional public catalog `Cache-Control` max-age; defaults to 60 seconds. |
+| `MEDIA_PUBLIC_CATALOG_STALE_WHILE_REVALIDATE_SECONDS` | Optional public catalog stale-while-revalidate window; defaults to 300 seconds. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
@@ -131,6 +162,8 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 -   Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
 -   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
 -   Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
+-   Media catalog mutations attempt non-blocking inserts into `media_audit_logs` through `src/services/media-audit.ts`. Audit write failures are logged to STDERR and do not roll back the already-completed media mutation.
+-   Public media catalog mutations trigger a non-blocking frontend revalidation webhook through `src/services/media-revalidation.ts` when `MEDIA_REVALIDATION_WEBHOOK_URL` is configured. Webhook failures are logged to STDERR and do not roll back the already-completed media mutation.
 
 ## When Adding Features
 

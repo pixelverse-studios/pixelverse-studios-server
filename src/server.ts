@@ -1,3 +1,5 @@
+import 'dotenv/config'
+
 import express, { Application } from 'express'
 import bodyParser from 'body-parser'
 import cors from 'cors'
@@ -18,8 +20,8 @@ import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
-
-import 'dotenv/config'
+import mediaAdminAuthRouter from './routes/media-admin-auth'
+import mediaRouter from './routes/media'
 
 // Supabase URL and Key from environment variables
 const app: Application = express()
@@ -45,6 +47,8 @@ app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
 app.use(emailCampaignsRouter)
 app.use(seoRouter)
+app.use(mediaAdminAuthRouter)
+app.use(mediaRouter)
 
 // Error handling middleware
 app.use(
