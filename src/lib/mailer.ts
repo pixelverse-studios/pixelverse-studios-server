@@ -6,16 +6,35 @@ import {
     generateContactFormSubmissionEmail
 } from '../utils/mailer/emails'
 
-const GMAIL_USER = process.env.GMAIL_USER!
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!
+interface GmailSmtpCredentials {
+    user: string
+    pass: string
+}
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-    },
-})
+const getGmailSmtpCredentials = (): GmailSmtpCredentials => {
+    const user = process.env.GMAIL_USER?.trim()
+    const pass = process.env.GMAIL_APP_PASSWORD?.trim()
+
+    if (!user || !pass) {
+        throw new Error(
+            'Gmail SMTP credentials are not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD.'
+        )
+    }
+
+    return { user, pass }
+}
+
+const createGmailTransporter = () => {
+    const credentials = getGmailSmtpCredentials()
+
+    return {
+        credentials,
+        transporter: nodemailer.createTransport({
+            service: 'gmail',
+            auth: credentials,
+        }),
+    }
+}
 
 interface ContactSubmissionEmailParams {
     to: string | string[]
@@ -106,10 +125,11 @@ const sendMail = async ({
     meta
 }: SendMailOptions): Promise<void> => {
     try {
+        const { credentials, transporter } = createGmailTransporter()
         const text = convert(html)
 
         const mailOptions = {
-            from: GMAIL_USER,
+            from: credentials.user,
             to: formatRecipients(to),
             subject,
             text,
@@ -261,10 +281,11 @@ export async function sendEmail({
     cc
 }: SendEmailParams): Promise<void> {
     try {
+        const { credentials, transporter } = createGmailTransporter()
         const plainText = text || convert(html)
 
         const mailOptions = {
-            from: GMAIL_USER,
+            from: credentials.user,
             to: formatRecipients(to),
             subject,
             text: plainText,

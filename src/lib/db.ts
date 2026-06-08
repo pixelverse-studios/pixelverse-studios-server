@@ -31,6 +31,12 @@ export const Tables = {
     SEO_AUDITS: 'seo_audits',
     SEO_KEYWORDS: 'seo_keywords',
     SEO_COMPETITORS: 'seo_competitors',
+    MEDIA_R2_CONFIGS: 'media_r2_configs',
+    MEDIA_CATALOG_ITEMS: 'media_catalog_items',
+    MEDIA_PLACEMENTS: 'media_placements',
+    MEDIA_AUDIT_LOGS: 'media_audit_logs',
+    MEDIA_ADMIN_MAGIC_LINKS: 'media_admin_magic_links',
+    MEDIA_ADMIN_SESSIONS: 'media_admin_sessions',
 }
 
 // Valid project status values for websites and apps
