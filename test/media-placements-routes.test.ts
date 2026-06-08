@@ -6,6 +6,7 @@ import {
     requireMediaAdminSession,
     validateRequest,
 } from '../src/routes/middleware'
+import mediaCatalogService from '../src/services/media-catalog'
 import mediaPlacementsService from '../src/services/media-placements'
 import mediaRevalidationService from '../src/services/media-revalidation'
 import { MediaValidationError } from '../src/lib/media-r2'
@@ -31,6 +32,7 @@ vi.mock('../src/services/media-catalog', () => ({
         listCatalog: vi.fn(),
         createItem: vi.fn(),
         updateItem: vi.fn(),
+        batchUpdateItems: vi.fn(),
     },
 }))
 
@@ -75,6 +77,17 @@ const routeHandlers = ({
 
     return layer.route.stack.map(item => item.handle)
 }
+
+const routeIndex = ({
+    path,
+    method,
+}: {
+    path: string
+    method: string
+}): number =>
+    (mediaRouter as unknown as { stack: RouteLayer[] }).stack.findIndex(
+        item => item.route?.path === path && item.route.methods[method]
+    )
 
 const createResponse = () => {
     const headers: Record<string, string> = {}
@@ -148,6 +161,7 @@ const runHandlers = async (
 
 describe('media placement route coverage', () => {
     beforeEach(() => {
+        vi.mocked(mediaCatalogService.batchUpdateItems).mockReset()
         vi.mocked(mediaPlacementsService.listPublicPlacements).mockReset()
         vi.mocked(mediaPlacementsService.assignPlacement).mockReset()
         vi.mocked(mediaRevalidationService.publicCatalogCacheControl).mockReset()
@@ -176,6 +190,103 @@ describe('media placement route coverage', () => {
                 path: '/api/media/:websiteSlug/admin/placements/:slotKey',
             })[0]
         ).toBe(requireMediaAdminSession)
+    })
+
+    it('registers protected batch media item route before item id patch route', () => {
+        expect(
+            routeHandlers({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/batch',
+            })[0]
+        ).toBe(requireMediaAdminSession)
+        expect(
+            routeIndex({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/batch',
+            })
+        ).toBeLessThan(
+            routeIndex({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/:id',
+            })
+        )
+    })
+
+    it('passes authenticated admin actor context to batch media archive controller', async () => {
+        vi.mocked(mediaCatalogService.batchUpdateItems).mockResolvedValue({
+            items: [
+                {
+                    id: 1,
+                    ok: true,
+                    item: {
+                        id: 1,
+                        key: 'events/baby-shower/baby.jpg',
+                        filename: 'baby.jpg',
+                        src: 'https://media.ifferspictures.com/events/baby-shower/baby.jpg',
+                        alt: 'Baby shower detail',
+                        service: 'Events',
+                        subCategory: 'Baby Shower',
+                        aspectRatio: 'portrait',
+                        status: 'archived',
+                        sortOrder: 0,
+                    },
+                },
+            ],
+            summary: {
+                requested: 1,
+                succeeded: 1,
+                failed: 0,
+            },
+        })
+        const req = createRequest({
+            body: {
+                ids: [1],
+                status: 'archived',
+            },
+        })
+        req.mediaAdmin = {
+            email: 'jenn@example.com',
+            sessionId: 'session-1',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+        }
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/batch',
+        })
+
+        await runHandlers(handlers.slice(1), req, res)
+
+        expect(res.statusCode).toBe(200)
+        expect(mediaCatalogService.batchUpdateItems).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            ids: [1],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+    })
+
+    it('rejects invalid batch media archive payloads before controller execution', async () => {
+        const req = createRequest({
+            body: {
+                ids: [],
+                status: 'archived',
+            },
+        })
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/batch',
+        })
+        const validatorsThroughValidateRequest = handlers.slice(
+            1,
+            handlers.indexOf(validateRequest) + 1
+        )
+
+        await runHandlers(validatorsThroughValidateRequest, req, res)
+
+        expect(res.statusCode).toBe(400)
+        expect(mediaCatalogService.batchUpdateItems).not.toHaveBeenCalled()
     })
 
     it('applies public catalog cache headers to public placements controller output', async () => {

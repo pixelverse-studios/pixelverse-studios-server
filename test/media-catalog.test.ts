@@ -675,6 +675,121 @@ describe('media catalog service', () => {
         )
     })
 
+    it('batch archives media with partial failures and one revalidation', async () => {
+        process.env.MEDIA_REVALIDATION_WEBHOOK_URL =
+            'https://revalidate.example.test/api/revalidate'
+        vi.mocked(fetch).mockResolvedValue(new Response('ok', { status: 200 }))
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: publishedItem, error: null },
+            {
+                data: {
+                    ...publishedItem,
+                    status: 'archived',
+                    archived_at: '2026-05-28T01:00:00.000Z',
+                    archived_by: 'jenn@example.com',
+                    archived_from_status: 'published',
+                },
+                error: null,
+            },
+            { data: null, error: null },
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: archivedItem, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1, 2],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(result.summary).toEqual({
+            requested: 2,
+            succeeded: 1,
+            failed: 1,
+        })
+        expect(result.items[0]).toEqual(
+            expect.objectContaining({
+                id: 1,
+                ok: true,
+                item: expect.objectContaining({
+                    status: 'archived',
+                    archivedBy: 'jenn@example.com',
+                    archivedFromStatus: 'published',
+                }),
+            })
+        )
+        expect(result.items[1]).toEqual(
+            expect.objectContaining({
+                id: 2,
+                ok: false,
+                error: expect.objectContaining({
+                    status: 409,
+                    code: 'media.archived_locked',
+                }),
+            })
+        )
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: 'archived',
+                archived_by: 'jenn@example.com',
+                archived_from_status: 'published',
+            })
+        )
+        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'archived',
+                actor: 'jenn@example.com',
+                media_id: 1,
+            })
+        )
+        expect(fetch).toHaveBeenCalledTimes(1)
+        const [, init] = vi.mocked(fetch).mock.calls[0]
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual(
+            expect.objectContaining({
+                website_slug: 'iffers-pictures',
+                reason: 'archived',
+                actor: 'jenn@example.com',
+            })
+        )
+        expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty(
+            'media_id'
+        )
+    })
+
+    it('rethrows unexpected shared failures during batch archive', async () => {
+        const dbError = new Error('database unavailable')
+        mockState.queryResults = [{ data: null, error: dbError }]
+
+        await expect(
+            mediaCatalogService.batchUpdateItems({
+                websiteSlug: 'iffers-pictures',
+                ids: [1],
+                status: 'archived',
+                actor: 'jenn@example.com',
+            })
+        ).rejects.toBe(dbError)
+    })
+
     it('restores archived media to its previous status and clears archive metadata', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },

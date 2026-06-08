@@ -107,6 +107,36 @@ export interface UpdateMediaItemInput {
     actor?: string
 }
 
+export interface BatchUpdateMediaItemsInput {
+    websiteSlug: string
+    ids: number[]
+    status: string
+    actor?: string
+}
+
+interface BatchMediaItemError {
+    code: string
+    message: string
+    status: number
+    details?: Record<string, unknown>
+}
+
+export interface BatchMediaItemResult {
+    id: number
+    ok: boolean
+    item?: CatalogItemResponse
+    error?: BatchMediaItemError
+}
+
+export interface BatchUpdateMediaItemsResponse {
+    items: BatchMediaItemResult[]
+    summary: {
+        requested: number
+        succeeded: number
+        failed: number
+    }
+}
+
 const getWebsiteBySlug = async (
     websiteSlug: string
 ): Promise<WebsiteRecord | null> => {
@@ -638,9 +668,16 @@ const getItemForWebsite = async ({
     return data as MediaCatalogRecord | null
 }
 
-const updateItem = async (
-    input: UpdateMediaItemInput
-): Promise<CatalogItemResponse> => {
+interface UpdateMediaItemResult {
+    item: CatalogItemResponse
+    revalidationReason: MediaRevalidationReason | null
+}
+
+const updateItemWithResult = async (
+    input: UpdateMediaItemInput,
+    options: { triggerRevalidation?: boolean } = {}
+): Promise<UpdateMediaItemResult> => {
+    const shouldTriggerRevalidation = options.triggerRevalidation ?? true
     const website = await getWebsiteOrThrow(input.websiteSlug)
     const config = await resolveR2Config(website)
     const current = await getItemForWebsite({ websiteId: website.id, id: input.id })
@@ -825,7 +862,8 @@ const updateItem = async (
     const revalidationReason = revalidationReasonForChanges(auditChanges)
     if (
         revalidationReason &&
-        shouldRevalidatePublicCatalog({ current, updated })
+        shouldRevalidatePublicCatalog({ current, updated }) &&
+        shouldTriggerRevalidation
     ) {
         tryTriggerMediaRevalidation({
             websiteSlug: input.websiteSlug,
@@ -836,11 +874,127 @@ const updateItem = async (
         })
     }
 
-    return toCatalogItemResponse(updated, true)
+    return {
+        item: toCatalogItemResponse(updated, true),
+        revalidationReason:
+            revalidationReason &&
+            shouldRevalidatePublicCatalog({ current, updated })
+                ? revalidationReason
+                : null,
+    }
+}
+
+const updateItem = async (
+    input: UpdateMediaItemInput
+): Promise<CatalogItemResponse> => {
+    const result = await updateItemWithResult(input)
+    return result.item
+}
+
+const batchErrorFor = (err: unknown): BatchMediaItemError => {
+    if (err instanceof MediaValidationError) {
+        return {
+            status: err.status,
+            code: err.code,
+            message: err.message,
+            ...(err.details && { details: err.details }),
+        }
+    }
+
+    if (typeof (err as { status?: unknown })?.status === 'number') {
+        const status = (err as { status: number }).status
+        return {
+            status,
+            code: status === 404 ? 'media.not_found' : 'media.update_failed',
+            message: err instanceof Error ? err.message : 'Media update failed',
+        }
+    }
+
+    return {
+        status: 500,
+        code: 'media.update_failed',
+        message: err instanceof Error ? err.message : 'Media update failed',
+    }
+}
+
+const isExpectedBatchItemError = (err: unknown): boolean =>
+    err instanceof MediaValidationError ||
+    typeof (err as { status?: unknown })?.status === 'number'
+
+const batchRevalidationReason = (
+    reasons: MediaRevalidationReason[]
+): MediaRevalidationReason | null => {
+    const publicReasonPriority: MediaRevalidationReason[] = [
+        'restored',
+        'published',
+        'archived',
+        'renamed_moved',
+        'metadata_edited',
+        'reorder_changed',
+    ]
+
+    return (
+        publicReasonPriority.find(reason => reasons.includes(reason)) || null
+    )
+}
+
+const batchUpdateItems = async (
+    input: BatchUpdateMediaItemsInput
+): Promise<BatchUpdateMediaItemsResponse> => {
+    const items: BatchMediaItemResult[] = []
+    const revalidationReasons: MediaRevalidationReason[] = []
+
+    for (const id of input.ids) {
+        try {
+            const result = await updateItemWithResult(
+                {
+                    websiteSlug: input.websiteSlug,
+                    id,
+                    status: input.status,
+                    actor: input.actor,
+                },
+                { triggerRevalidation: false }
+            )
+
+            items.push({ id, ok: true, item: result.item })
+            if (result.revalidationReason) {
+                revalidationReasons.push(result.revalidationReason)
+            }
+        } catch (err) {
+            if (!isExpectedBatchItemError(err)) throw err
+
+            items.push({
+                id,
+                ok: false,
+                error: batchErrorFor(err),
+            })
+        }
+    }
+
+    const revalidationReason = batchRevalidationReason(revalidationReasons)
+    if (revalidationReason) {
+        tryTriggerMediaRevalidation({
+            websiteSlug: input.websiteSlug,
+            reason: revalidationReason,
+            actor: input.actor,
+        })
+    }
+
+    const succeeded = items.filter(item => item.ok).length
+
+    return {
+        items,
+        summary: {
+            requested: input.ids.length,
+            succeeded,
+            failed: input.ids.length - succeeded,
+        },
+    }
 }
 
 export default {
     listCatalog,
     createItem,
     updateItem,
+    batchUpdateItems,
 }
