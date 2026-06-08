@@ -254,6 +254,29 @@ router.post(
     media.createCatalogItem
 )
 
+router.patch(
+    `${BASE_ROUTE}/:websiteSlug/admin/items/batch`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        body('ids')
+            .isArray({ min: 1, max: 50 })
+            .withMessage('ids must be a non-empty array of up to 50 items'),
+        body('ids.*')
+            .isInt({ min: 1 })
+            .withMessage('ids must contain positive integers'),
+        body('status')
+            .isIn(['archived', 'published', 'draft'])
+            .withMessage('status must be archived, published, or draft'),
+    ],
+    validateRequest,
+    media.batchUpdateCatalogItems
+)
+
 router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/items/:id/move`,
     requireMediaAdminSession,

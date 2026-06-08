@@ -68,6 +68,16 @@ const updateCatalogItemSchema = createCatalogItemSchema
         message: 'At least one field is required.',
     })
 
+const batchUpdateCatalogItemsSchema = z
+    .object({
+        ids: z.array(z.number().int().positive()).min(1).max(50),
+        status: z.enum(['archived', 'published', 'draft']),
+    })
+    .refine(value => new Set(value.ids).size === value.ids.length, {
+        message: 'ids must not contain duplicates.',
+        path: ['ids'],
+    })
+
 const assignPlacementSchema = z.object({
     media_id: z.number().int().positive(),
 })
@@ -642,6 +652,45 @@ const updateCatalogItem = async (
     }
 }
 
+const batchUpdateCatalogItems = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = batchUpdateCatalogItemsSchema.parse(req.body)
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: req.params.websiteSlug,
+            ids: parsed.ids,
+            status: parsed.status,
+            actor: req.mediaAdmin?.email,
+        })
+
+        return res.status(200).json(result)
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid media catalog batch payload.',
+                err.flatten()
+            )
+        }
+
+        if (err instanceof MediaValidationError) {
+            return sendMediaError(
+                res,
+                err.status,
+                err.code,
+                err.message,
+                err.details
+            )
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     presignUpload,
     listObjects,
@@ -654,6 +703,7 @@ export default {
     revalidateCatalog,
     createCatalogItem,
     updateCatalogItem,
+    batchUpdateCatalogItems,
     assignPlacement,
     clearPlacement,
 }
