@@ -107,6 +107,8 @@ const draftItem = {
     filename: 'source.jpg',
     src: 'https://pub.example.test/events/baby-shower/source.jpg',
     alt: 'Source image',
+    library: 'portfolio',
+    site_category: null,
     service: 'Events',
     sub_category: 'Baby Shower',
     aspect_ratio: 'portrait',
@@ -215,6 +217,34 @@ describe('media R2 object operations', () => {
             catalog_exists: false,
             r2_exists: false,
             available: true,
+        })
+    })
+
+    it('checks site image destination paths across catalog and R2', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send.mockRejectedValueOnce(notFoundError)
+
+        await expect(
+            mediaR2Service.checkDestination({
+                websiteSlug: 'iffers-pictures',
+                destinationKey: 'site/about/jenn-portrait.jpg',
+            })
+        ).resolves.toEqual({
+            destination_key: 'site/about/jenn-portrait.jpg',
+            catalog_exists: false,
+            r2_exists: false,
+            available: true,
+        })
+        expect(mockState.commands[0]).toEqual({
+            name: 'HeadObjectCommand',
+            input: {
+                Bucket: 'iffers-pictures',
+                Key: 'site/about/jenn-portrait.jpg',
+            },
         })
     })
 

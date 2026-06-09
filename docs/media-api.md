@@ -26,6 +26,8 @@ Catalog responses use the frontend-compatible media catalog shape:
       "filename": "baby-shower-15.jpg",
       "src": "https://pub.example.r2.dev/events/baby-shower/baby-shower-15.jpg",
       "alt": "Mother-to-be opening gifts at baby shower",
+      "library": "portfolio",
+      "siteCategory": null,
       "service": "Events",
       "subCategory": "Baby Shower",
       "aspectRatio": "portrait",
@@ -53,6 +55,8 @@ Allowed values:
 | Field | Values |
 | --- | --- |
 | `status` | `draft`, `published`, `archived` |
+| `library` | `portfolio`, `site` |
+| `siteCategory` | `Home`, `About`, `Brand`, `Misc` |
 | `aspectRatio` | `portrait`, `landscape`, `square`, `video` |
 | `service` | `Events`, `Family`, `Maternity`, `Couples`, `Portrait` |
 
@@ -93,11 +97,14 @@ Common codes:
 | `media.file_too_large` | Upload exceeds `MEDIA_MAX_UPLOAD_BYTES`. |
 | `media.invalid_service` | Service is not one of the allowed values. |
 | `media.invalid_sub_category` | Sub-category is missing/invalid for the service. |
+| `media.invalid_library` | Library is not `portfolio` or `site`. |
+| `media.invalid_site_category` | Site category is not one of the allowed values. |
 | `media.invalid_aspect_ratio` | Aspect ratio is not allowed. |
 | `media.invalid_status` | Status is not `draft`, `published`, or `archived`. |
 | `media.missing_alt_text` | Publish attempted without alt text. |
 | `media.missing_service` | Publish attempted without service. |
 | `media.missing_sub_category` | Publish attempted without sub-category. |
+| `media.missing_site_category` | Publish attempted on site media without site category. |
 | `media.missing_aspect_ratio` | Publish attempted without aspect ratio. |
 | `media.duplicate_key` | Catalog already has an item with the key. |
 | `media.destination_collision` | Catalog or R2 already has the destination key. |
@@ -115,8 +122,8 @@ Common codes:
 
 `GET /api/media/:websiteSlug/catalog`
 
-Returns published items only. Draft and archived items are excluded.
-Admin-only timestamps/archive metadata are excluded.
+Returns published portfolio items only. Draft, archived, and `library: "site"`
+items are excluded. Admin-only timestamps/archive metadata are excluded.
 
 Default response header:
 
@@ -164,6 +171,8 @@ Response:
         "filename": "baby-shower-01.jpg",
         "src": "https://media.ifferspictures.com/events/baby-shower/baby-shower-01.jpg",
         "alt": "Mother-to-be opening gifts at baby shower",
+        "library": "portfolio",
+        "siteCategory": null,
         "service": "Events",
         "subCategory": "Baby Shower",
         "aspectRatio": "portrait",
@@ -196,6 +205,7 @@ await fetch(`${apiBase}/api/media/iffers-pictures/admin/catalog`, {
 `GET /api/media/:websiteSlug/admin/catalog`
 
 Returns draft, published, and archived items with admin metadata. Protected.
+This endpoint includes both `portfolio` and `site` library items.
 
 Response headers include `Cache-Control: no-store`.
 
@@ -231,6 +241,8 @@ Response headers include `Cache-Control: no-store`.
           "filename": "baby-shower-01.jpg",
           "src": "https://media.ifferspictures.com/events/baby-shower/baby-shower-01.jpg",
           "alt": "Mother-to-be opening gifts at baby shower",
+          "library": "portfolio",
+          "siteCategory": null,
           "service": "Events",
           "subCategory": "Baby Shower",
           "aspectRatio": "portrait",
@@ -324,6 +336,8 @@ Request:
   "filename": "baby-shower-15.jpg",
   "src": "https://pub.example.r2.dev/events/baby-shower/1712345678-baby-shower-15.jpg",
   "alt": "",
+  "library": "portfolio",
+  "siteCategory": null,
   "service": null,
   "subCategory": null,
   "aspectRatio": null,
@@ -332,7 +346,23 @@ Request:
 ```
 
 Only `key` is required. The server derives `filename` from `key`, `src` from the
-configured public base URL, and stores `status: "draft"` when omitted.
+configured public base URL, stores `status: "draft"` when omitted, and defaults
+missing `library` to `"portfolio"`.
+
+Site image draft example:
+
+```json
+{
+  "key": "site/about/jenn-portrait.jpg",
+  "library": "site",
+  "siteCategory": "About",
+  "alt": "",
+  "aspectRatio": null
+}
+```
+
+Site images use the same bucket and public base URL. Recommended folders are
+`site/home/`, `site/about/`, `site/brand/`, and `site/misc/`.
 
 ## Update Metadata, Publish, Archive, Restore, Reorder
 
@@ -343,6 +373,8 @@ Protected. Accepts any subset of:
 ```json
 {
   "alt": "Mother-to-be opening gifts at baby shower",
+  "library": "portfolio",
+  "siteCategory": null,
   "service": "Events",
   "subCategory": "Baby Shower",
   "aspectRatio": "portrait",
@@ -351,12 +383,19 @@ Protected. Accepts any subset of:
 }
 ```
 
-Publish requirements:
+Portfolio publish requirements:
 
 - `alt` must be non-empty.
 - `service` is required.
 - `subCategory` is required and must match `service`.
 - `aspectRatio` is required.
+
+Site publish requirements:
+
+- `alt` must be non-empty.
+- `siteCategory` is required.
+- `aspectRatio` is required.
+- `service` and `subCategory` are not required and are stored as `null`.
 
 Archive:
 
@@ -464,6 +503,8 @@ Response:
     "filename": "new-name.jpg",
     "src": "https://pub.example.r2.dev/events/baby-shower/new-name.jpg",
     "alt": "",
+    "library": "portfolio",
+    "siteCategory": null,
     "service": null,
     "subCategory": null,
     "aspectRatio": null,
