@@ -141,6 +141,19 @@ const archivedMedia = {
     archived_from_status: 'published',
 }
 
+const newPlacementSlots = [
+    { slotKey: 'about.beyond_camera', affectedPaths: ['/about'] },
+    { slotKey: 'services.card.events', affectedPaths: ['/services'] },
+    { slotKey: 'services.card.family', affectedPaths: ['/services'] },
+    { slotKey: 'services.card.maternity', affectedPaths: ['/services'] },
+    {
+        slotKey: 'services.card.couples-engagement',
+        affectedPaths: ['/services'],
+    },
+    { slotKey: 'services.card.portrait', affectedPaths: ['/services'] },
+    { slotKey: 'services.card.custom_request', affectedPaths: ['/services'] },
+]
+
 describe('media placements service', () => {
     beforeEach(() => {
         mockState.from.mockReset()
@@ -238,6 +251,42 @@ describe('media placements service', () => {
         ])
     })
 
+    it('returns assignments for new about and services card placement slots', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: r2Config, error: null },
+            {
+                data: newPlacementSlots.map((slot, index) => ({
+                    ...placement,
+                    id: 20 + index,
+                    slot_key: slot.slotKey,
+                    media_id: 1,
+                })),
+                error: null,
+            },
+            { data: [publishedMedia], error: null },
+        ]
+
+        const result = await mediaPlacementsService.listPublicPlacements({
+            websiteSlug: 'iffers-pictures',
+        })
+
+        expect(result.placements.map(item => item.slotKey)).toEqual(
+            newPlacementSlots.map(slot => slot.slotKey)
+        )
+        expect(result.placements).toEqual(
+            newPlacementSlots.map(slot =>
+                expect.objectContaining({
+                    slotKey: slot.slotKey,
+                    media: expect.objectContaining({
+                        id: 1,
+                        status: 'published',
+                    }),
+                })
+            )
+        )
+    })
+
     it('allows one published media item to back multiple public placement slots', async () => {
         mockState.queryResults = [
             { data: website, error: null },
@@ -281,7 +330,7 @@ describe('media placements service', () => {
             websiteSlug: 'iffers-pictures',
         })
 
-        expect(result.slots).toHaveLength(16)
+        expect(result.slots).toHaveLength(23)
         expect(result.slots[0]).toEqual(
             expect.objectContaining({
                 slotKey: 'home.hero',
@@ -298,6 +347,28 @@ describe('media placements service', () => {
         )
         expect(result.slots.find(slot => slot.slotKey === 'faq.hero')).toEqual(
             expect.objectContaining({ assignment: null })
+        )
+        expect(
+            result.slots.find(slot => slot.slotKey === 'about.beyond_camera')
+        ).toEqual(
+            expect.objectContaining({
+                pageLabel: 'About',
+                sectionLabel: 'Beyond the Camera',
+                affectedPaths: ['/about'],
+                assignment: null,
+            })
+        )
+        expect(
+            result.slots.find(
+                slot => slot.slotKey === 'services.card.couples-engagement'
+            )
+        ).toEqual(
+            expect.objectContaining({
+                pageLabel: 'Services',
+                sectionLabel: 'Couples & Engagement Card',
+                affectedPaths: ['/services'],
+                assignment: null,
+            })
         )
     })
 
@@ -388,6 +459,47 @@ describe('media placements service', () => {
             })
         )
     })
+
+    it.each(newPlacementSlots)(
+        'assigns a published media item to $slotKey',
+        async ({ slotKey, affectedPaths }) => {
+            mockState.queryResults = [
+                { data: website, error: null },
+                { data: publishedMedia, error: null },
+                { data: null, error: null },
+                { data: { ...placement, slot_key: slotKey }, error: null },
+            ]
+
+            const result = await mediaPlacementsService.assignPlacement({
+                websiteSlug: 'iffers-pictures',
+                slotKey,
+                mediaId: 1,
+                actor: 'jenn@example.com',
+            })
+
+            expect(mockState.builders[3].insert).toHaveBeenCalledWith({
+                website_id: 'website-1',
+                client_id: 'client-1',
+                slot_key: slotKey,
+                media_id: 1,
+                updated_by: 'jenn@example.com',
+            })
+            expect(result).toEqual(
+                expect.objectContaining({
+                    slotKey,
+                    assignment: expect.objectContaining({
+                        media: expect.objectContaining({ id: 1 }),
+                    }),
+                })
+            )
+            expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    reason: 'placement_assigned',
+                    affectedPaths,
+                })
+            )
+        }
+    )
 
     it('replaces an existing placement row', async () => {
         const replacementMedia = {
@@ -618,6 +730,33 @@ describe('media placements service', () => {
             affectedPaths: ['/'],
         })
     })
+
+    it.each(newPlacementSlots)(
+        'clears $slotKey placement assignments',
+        async ({ slotKey, affectedPaths }) => {
+            mockState.queryResults = [
+                { data: website, error: null },
+                { data: { ...placement, slot_key: slotKey }, error: null },
+                { data: publishedMedia, error: null },
+                { data: null, error: null },
+            ]
+
+            const result = await mediaPlacementsService.clearPlacement({
+                websiteSlug: 'iffers-pictures',
+                slotKey,
+            })
+
+            expect(result).toEqual({ cleared: true, slotKey })
+            expect(mockState.builders[3].delete).toHaveBeenCalled()
+            expect(mockState.builders[3].eq).toHaveBeenCalledWith('id', 10)
+            expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    reason: 'placement_cleared',
+                    affectedPaths,
+                })
+            )
+        }
+    )
 
     it('does not audit or revalidate when clearing an empty placement slot', async () => {
         mockState.queryResults = [

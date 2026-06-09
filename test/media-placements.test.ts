@@ -27,7 +27,14 @@ describe('media placement slot registry', () => {
             'home.meet_jenn',
             'home.quote_image',
             'about.hero',
+            'about.beyond_camera',
             'services.hero',
+            'services.card.events',
+            'services.card.family',
+            'services.card.maternity',
+            'services.card.couples-engagement',
+            'services.card.portrait',
+            'services.card.custom_request',
             'services.events.hero',
             'services.family.hero',
             'services.maternity.hero',
@@ -56,6 +63,38 @@ describe('media placement slot registry', () => {
         )
     })
 
+    it('returns metadata for new about and services card slots', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'about.beyond_camera',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'about.beyond_camera',
+                pageLabel: 'About',
+                sectionLabel: 'Beyond the Camera',
+                expectedAspectRatios: ['landscape', 'portrait'],
+                affectedPaths: ['/about'],
+            })
+        )
+
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'services.card.couples-engagement',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'services.card.couples-engagement',
+                pageLabel: 'Services',
+                sectionLabel: 'Couples & Engagement Card',
+                expectedAspectRatios: ['landscape'],
+                affectedPaths: ['/services'],
+            })
+        )
+    })
+
     it('validates known slots for the configured website', () => {
         expect(
             isValidMediaPlacementSlot({
@@ -65,7 +104,7 @@ describe('media placement slot registry', () => {
         ).toBe(true)
         expect(
             getMediaPlacementSlotsForWebsite(IFFERS_PICTURES_WEBSITE_SLUG)
-        ).toHaveLength(16)
+        ).toHaveLength(23)
     })
 
     it('rejects unknown placement slots with a structured media error', () => {
