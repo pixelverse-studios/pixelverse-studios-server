@@ -233,6 +233,14 @@ router.post(
             .optional()
             .isString()
             .withMessage('alt must be a string'),
+        body('library')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('library must be a string'),
+        body('siteCategory')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('siteCategory must be a string'),
         body('service')
             .optional({ nullable: true })
             .isString()
@@ -327,6 +335,14 @@ router.patch(
             .optional()
             .isString()
             .withMessage('alt must be a string'),
+        body('library')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('library must be a string'),
+        body('siteCategory')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('siteCategory must be a string'),
         body('service')
             .optional({ nullable: true })
             .isString()

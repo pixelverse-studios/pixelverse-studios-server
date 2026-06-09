@@ -2,13 +2,17 @@ import { COLUMNS, db, Tables } from '../lib/db'
 import {
     assertSafeFilename,
     assertSafeMediaKey,
+    assertValidLibrary,
     assertValidAspectRatio,
     assertValidServiceSubCategory,
+    assertValidSiteCategory,
     assertValidStatus,
     filenameFromKey,
     MEDIA_CATALOG_VERSION,
     MediaAspectRatio,
+    MediaLibrary,
     MediaService,
+    MediaSiteCategory,
     MediaStatus,
 } from '../lib/media-catalog'
 import { joinPublicUrl, MediaValidationError } from '../lib/media-r2'
@@ -42,6 +46,8 @@ export interface MediaCatalogRecord {
     filename: string
     src: string
     alt: string
+    library: MediaLibrary
+    site_category: MediaSiteCategory | null
     service: MediaService | null
     sub_category: string | null
     aspect_ratio: MediaAspectRatio | null
@@ -64,6 +70,8 @@ export interface CatalogItemResponse {
     filename: string
     src: string
     alt: string
+    library: MediaLibrary
+    siteCategory: MediaSiteCategory | null
     service: MediaService | null
     subCategory: string | null
     aspectRatio: MediaAspectRatio | null
@@ -89,6 +97,8 @@ export interface CreateMediaItemInput {
     filename?: string
     src?: string
     alt?: string
+    library?: string | null
+    siteCategory?: string | null
     service?: string | null
     subCategory?: string | null
     aspectRatio?: string | null
@@ -103,6 +113,8 @@ export interface UpdateMediaItemInput {
     filename?: string
     src?: string
     alt?: string
+    library?: string | null
+    siteCategory?: string | null
     service?: string | null
     subCategory?: string | null
     aspectRatio?: string | null
@@ -216,6 +228,8 @@ const toCatalogItemResponse = (
     filename: item.filename,
     src: item.src,
     alt: item.alt,
+    library: item.library || 'portfolio',
+    siteCategory: item.site_category || null,
     service: item.service,
     subCategory: item.sub_category,
     aspectRatio: item.aspect_ratio,
@@ -265,6 +279,7 @@ const listCatalog = async ({
 
     if (!includeAdminFields) {
         query.eq('status', 'published')
+        query.eq('library', 'portfolio')
     }
 
     const { data, error } = await query
@@ -317,11 +332,15 @@ const throwDuplicateKeyError = (key: string): never => {
 
 const assertPublishReady = ({
     alt,
+    library,
+    siteCategory,
     service,
     subCategory,
     aspectRatio,
 }: {
     alt?: string | null
+    library: MediaLibrary
+    siteCategory?: string | null
     service?: string | null
     subCategory?: string | null
     aspectRatio?: string | null
@@ -335,7 +354,16 @@ const assertPublishReady = ({
         )
     }
 
-    if (!service) {
+    if (library === 'site' && !siteCategory) {
+        throw new MediaValidationError(
+            400,
+            'media.missing_site_category',
+            'Site category is required before publishing site media.',
+            { field: 'siteCategory' }
+        )
+    }
+
+    if (library === 'portfolio' && !service) {
         throw new MediaValidationError(
             400,
             'media.missing_service',
@@ -344,7 +372,7 @@ const assertPublishReady = ({
         )
     }
 
-    if (!subCategory) {
+    if (library === 'portfolio' && !subCategory) {
         throw new MediaValidationError(
             400,
             'media.missing_sub_category',
@@ -373,12 +401,19 @@ const buildValidatedDraftPayload = async ({
     input: CreateMediaItemInput
 }): Promise<Record<string, unknown>> => {
     assertSafeMediaKey(input.key)
+    assertValidLibrary(input.library)
 
     const filename = input.filename || filenameFromKey(input.key)
+    const library = (input.library || 'portfolio') as MediaLibrary
+    const service = library === 'site' ? null : input.service
+    const subCategory = library === 'site' ? null : input.subCategory
+    const siteCategory = library === 'site' ? input.siteCategory : null
+
     assertSafeFilename(filename)
+    assertValidSiteCategory(siteCategory)
     assertValidServiceSubCategory({
-        service: input.service,
-        subCategory: input.subCategory,
+        service,
+        subCategory,
     })
     assertValidAspectRatio(input.aspectRatio)
     await assertNoDuplicateKey({ websiteId: website.id, key: input.key })
@@ -390,8 +425,10 @@ const buildValidatedDraftPayload = async ({
         filename,
         src: input.src || joinPublicUrl(config.publicBaseUrl, input.key),
         alt: input.alt || '',
-        service: input.service || null,
-        sub_category: input.subCategory || null,
+        library,
+        site_category: siteCategory || null,
+        service: service || null,
+        sub_category: subCategory || null,
         aspect_ratio: input.aspectRatio || null,
         status: 'draft',
         sort_order: input.sortOrder ?? 0,
@@ -405,6 +442,8 @@ const auditValuesForRecord = (
     filename: item.filename,
     src: item.src,
     alt: item.alt,
+    library: item.library || 'portfolio',
+    siteCategory: item.site_category,
     service: item.service,
     subCategory: item.sub_category,
     aspectRatio: item.aspect_ratio,
@@ -559,7 +598,14 @@ const determineUpdateAuditChanges = ({
         action: 'metadata_edited',
         oldValues,
         newValues,
-        fields: ['alt', 'service', 'subCategory', 'aspectRatio'],
+        fields: [
+            'alt',
+            'library',
+            'siteCategory',
+            'service',
+            'subCategory',
+            'aspectRatio',
+        ],
     })
     if (metadataChange) changes.push(metadataChange)
 
@@ -726,6 +772,7 @@ const updateItemWithResult = async (
     }
 
     assertValidStatus(input.status)
+    assertValidLibrary(input.library)
 
     const requestedStatus = input.status as MediaStatus | undefined
     const isArchivedRestore =
@@ -737,6 +784,8 @@ const updateItemWithResult = async (
         input.filename !== undefined ||
         input.src !== undefined ||
         input.alt !== undefined ||
+        input.library !== undefined ||
+        input.siteCategory !== undefined ||
         input.service !== undefined ||
         input.subCategory !== undefined ||
         input.aspectRatio !== undefined ||
@@ -763,12 +812,21 @@ const updateItemWithResult = async (
     const nextKey = input.key ?? current.key
     const nextFilename =
         input.filename ?? (input.key ? filenameFromKey(input.key) : current.filename)
-    const nextService =
+    const nextLibrary = (input.library === undefined || input.library === null
+        ? current.library || 'portfolio'
+        : input.library) as MediaLibrary
+    const rawNextService =
         input.service === undefined ? current.service : input.service
-    const nextSubCategory =
-        input.subCategory === undefined
-            ? current.sub_category
-            : input.subCategory
+    const rawNextSubCategory =
+        input.subCategory === undefined ? current.sub_category : input.subCategory
+    const rawNextSiteCategory =
+        input.siteCategory === undefined
+            ? current.site_category
+            : input.siteCategory
+    const nextService = nextLibrary === 'site' ? null : rawNextService
+    const nextSubCategory = nextLibrary === 'site' ? null : rawNextSubCategory
+    const nextSiteCategory =
+        nextLibrary === 'site' ? rawNextSiteCategory : null
     const nextAspectRatio =
         input.aspectRatio === undefined
             ? current.aspect_ratio
@@ -780,6 +838,7 @@ const updateItemWithResult = async (
 
     assertSafeMediaKey(nextKey)
     assertSafeFilename(nextFilename)
+    assertValidSiteCategory(nextSiteCategory)
     assertValidServiceSubCategory({
         service: nextService,
         subCategory: nextSubCategory,
@@ -803,6 +862,8 @@ const updateItemWithResult = async (
                 ? joinPublicUrl(config.publicBaseUrl, nextKey)
                 : current.src),
         alt: input.alt ?? current.alt,
+        library: nextLibrary,
+        site_category: nextSiteCategory || null,
         service: nextService || null,
         sub_category: nextSubCategory || null,
         aspect_ratio: nextAspectRatio || null,
@@ -812,6 +873,8 @@ const updateItemWithResult = async (
     if (nextStatus === 'published') {
         assertPublishReady({
             alt: patch.alt as string | null,
+            library: nextLibrary,
+            siteCategory: patch.site_category as string | null,
             service: patch.service as string | null,
             subCategory: patch.sub_category as string | null,
             aspectRatio: patch.aspect_ratio as string | null,

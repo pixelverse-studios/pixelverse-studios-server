@@ -63,6 +63,8 @@ const publishedItem = {
     filename: 'baby.jpg',
     src: 'https://pub.example.test/events/baby-shower/baby.jpg',
     alt: 'Mother-to-be opening gifts',
+    library: 'portfolio',
+    site_category: null,
     service: 'Events',
     sub_category: 'Baby Shower',
     aspect_ratio: 'portrait',
@@ -73,6 +75,32 @@ const publishedItem = {
     archived_at: null,
     archived_by: null,
     archived_from_status: null,
+}
+
+const publishedSiteItem = {
+    ...publishedItem,
+    id: 4,
+    key: 'site/about/jenn-portrait.jpg',
+    filename: 'jenn-portrait.jpg',
+    src: 'https://pub.example.test/site/about/jenn-portrait.jpg',
+    alt: 'Jenn standing near a portrait backdrop',
+    library: 'site',
+    site_category: 'About',
+    service: null,
+    sub_category: null,
+    aspect_ratio: 'portrait',
+}
+
+const draftSiteItem = {
+    ...publishedSiteItem,
+    id: 5,
+    key: 'site/home/brand-image.jpg',
+    filename: 'brand-image.jpg',
+    src: 'https://pub.example.test/site/home/brand-image.jpg',
+    alt: '',
+    site_category: 'Home',
+    aspect_ratio: null,
+    status: 'draft',
 }
 
 const archivedItem = {
@@ -149,6 +177,8 @@ describe('media catalog service', () => {
                     filename: 'baby.jpg',
                     src: 'https://pub.example.test/events/baby-shower/baby.jpg',
                     alt: 'Mother-to-be opening gifts',
+                    library: 'portfolio',
+                    siteCategory: null,
                     service: 'Events',
                     subCategory: 'Baby Shower',
                     aspectRatio: 'portrait',
@@ -161,7 +191,43 @@ describe('media catalog service', () => {
             'status',
             'published'
         )
+        expect(mockState.builders[2].eq).toHaveBeenCalledWith(
+            'library',
+            'portfolio'
+        )
         expect(catalog.items[0]).not.toHaveProperty('archivedAt')
+    })
+
+    it('excludes site images from the public portfolio catalog by default', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: [publishedItem], error: null },
+        ]
+
+        const catalog = await mediaCatalogService.listCatalog({
+            websiteSlug: 'iffers-pictures',
+            includeAdminFields: false,
+        })
+
+        expect(catalog.items).toEqual([
+            expect.objectContaining({
+                id: 1,
+                library: 'portfolio',
+                siteCategory: null,
+            }),
+        ])
+        expect(mockState.builders[2].eq).toHaveBeenCalledWith(
+            'library',
+            'portfolio'
+        )
     })
 
     it('returns all catalog items with archive metadata for the admin catalog', async () => {
@@ -175,7 +241,10 @@ describe('media catalog service', () => {
                 },
                 error: null,
             },
-            { data: [publishedItem, archivedItem], error: null },
+            {
+                data: [publishedItem, publishedSiteItem, archivedItem],
+                error: null,
+            },
         ]
 
         const catalog = await mediaCatalogService.listCatalog({
@@ -183,12 +252,21 @@ describe('media catalog service', () => {
             includeAdminFields: true,
         })
 
-        expect(catalog.items).toHaveLength(2)
+        expect(catalog.items).toHaveLength(3)
         expect(mockState.builders[2].eq).not.toHaveBeenCalledWith(
             'status',
             'published'
         )
         expect(catalog.items[1]).toEqual(
+            expect.objectContaining({
+                id: 4,
+                library: 'site',
+                siteCategory: 'About',
+                service: null,
+                subCategory: null,
+            })
+        )
+        expect(catalog.items[2]).toEqual(
             expect.objectContaining({
                 id: 2,
                 status: 'archived',
@@ -222,6 +300,8 @@ describe('media catalog service', () => {
                     service: null,
                     sub_category: null,
                     aspect_ratio: null,
+                    library: 'portfolio',
+                    site_category: null,
                     sort_order: 0,
                 },
                 error: null,
@@ -241,6 +321,8 @@ describe('media catalog service', () => {
             filename: 'new-image.jpg',
             src: 'https://pub.example.test/portrait/new-image.jpg',
             alt: '',
+            library: 'portfolio',
+            site_category: null,
             service: null,
             sub_category: null,
             aspect_ratio: null,
@@ -266,8 +348,53 @@ describe('media catalog service', () => {
                 old_values: null,
                 new_values: expect.objectContaining({
                     key: 'portrait/new-image.jpg',
+                    library: 'portfolio',
                     status: 'draft',
                 }),
+            })
+        )
+    })
+
+    it('creates site draft catalog items without portfolio service metadata', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: null, error: null },
+            { data: draftSiteItem, error: null },
+        ]
+
+        const item = await mediaCatalogService.createItem({
+            websiteSlug: 'iffers-pictures',
+            key: 'site/home/brand-image.jpg',
+            library: 'site',
+            siteCategory: 'Home',
+            service: 'Events',
+            subCategory: 'Baby Shower',
+        })
+
+        expect(mockState.builders[3].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                key: 'site/home/brand-image.jpg',
+                library: 'site',
+                site_category: 'Home',
+                service: null,
+                sub_category: null,
+                status: 'draft',
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                library: 'site',
+                siteCategory: 'Home',
+                service: null,
+                subCategory: null,
             })
         )
     })
@@ -526,6 +653,81 @@ describe('media catalog service', () => {
         )
     })
 
+    it('publishes site media without portfolio service metadata', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: { ...draftSiteItem, site_category: null }, error: null },
+            { data: publishedSiteItem, error: null },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 5,
+            status: 'published',
+            alt: 'Jenn standing near a portrait backdrop',
+            library: 'site',
+            siteCategory: 'About',
+            aspectRatio: 'portrait',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                library: 'site',
+                site_category: 'About',
+                service: null,
+                sub_category: null,
+                aspect_ratio: 'portrait',
+                status: 'published',
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                library: 'site',
+                siteCategory: 'About',
+                service: null,
+                subCategory: null,
+                status: 'published',
+            })
+        )
+    })
+
+    it('requires site category before publishing site media', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: { ...draftSiteItem, site_category: null }, error: null },
+        ]
+
+        await expect(
+            mediaCatalogService.updateItem({
+                websiteSlug: 'iffers-pictures',
+                id: 5,
+                status: 'published',
+                alt: 'Jenn standing near a portrait backdrop',
+                library: 'site',
+                aspectRatio: 'portrait',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.missing_site_category',
+        })
+    })
+
     it('triggers public cache revalidation after publishing media', async () => {
         process.env.MEDIA_REVALIDATION_WEBHOOK_URL =
             'https://revalidate.example.test/api/revalidate'
@@ -765,6 +967,60 @@ describe('media catalog service', () => {
         expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty(
             'media_id'
         )
+    })
+
+    it('batch archives mixed portfolio and site images together', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem, publishedSiteItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                    {
+                        ...publishedSiteItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1, 4],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result.summary).toEqual({
+            requested: 2,
+            succeeded: 2,
+            failed: 0,
+        })
+        expect(result.items).toEqual([
+            expect.objectContaining({
+                id: 1,
+                ok: true,
+                item: expect.objectContaining({ library: 'portfolio' }),
+            }),
+            expect.objectContaining({
+                id: 4,
+                ok: true,
+                item: expect.objectContaining({ library: 'site' }),
+            }),
+        ])
+        expect(mockState.builders[2].in).toHaveBeenCalledWith('id', [1, 4])
     })
 
     it('batch archives multiple published images in one grouped update', async () => {

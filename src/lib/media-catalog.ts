@@ -5,6 +5,12 @@ export const MEDIA_CATALOG_VERSION = 1
 export const MEDIA_STATUSES = ['draft', 'published', 'archived'] as const
 export type MediaStatus = (typeof MEDIA_STATUSES)[number]
 
+export const MEDIA_LIBRARIES = ['portfolio', 'site'] as const
+export type MediaLibrary = (typeof MEDIA_LIBRARIES)[number]
+
+export const MEDIA_SITE_CATEGORIES = ['Home', 'About', 'Brand', 'Misc'] as const
+export type MediaSiteCategory = (typeof MEDIA_SITE_CATEGORIES)[number]
+
 export const MEDIA_ASPECT_RATIOS = [
     'portrait',
     'landscape',
@@ -47,6 +53,43 @@ export const isMediaAspectRatio = (
 
 export const isMediaStatus = (value: unknown): value is MediaStatus =>
     typeof value === 'string' && MEDIA_STATUSES.includes(value as MediaStatus)
+
+export const isMediaLibrary = (value: unknown): value is MediaLibrary =>
+    typeof value === 'string' && MEDIA_LIBRARIES.includes(value as MediaLibrary)
+
+export const isMediaSiteCategory = (
+    value: unknown
+): value is MediaSiteCategory =>
+    typeof value === 'string' &&
+    MEDIA_SITE_CATEGORIES.includes(value as MediaSiteCategory)
+
+export const assertValidLibrary = (library?: string | null): void => {
+    if (library === undefined || library === null) return
+
+    if (!isMediaLibrary(library)) {
+        throw new MediaValidationError(
+            400,
+            'media.invalid_library',
+            'Invalid media library.',
+            { field: 'library', allowed: MEDIA_LIBRARIES }
+        )
+    }
+}
+
+export const assertValidSiteCategory = (
+    siteCategory?: string | null
+): void => {
+    if (!siteCategory) return
+
+    if (!isMediaSiteCategory(siteCategory)) {
+        throw new MediaValidationError(
+            400,
+            'media.invalid_site_category',
+            'Invalid media site category.',
+            { field: 'siteCategory', allowed: MEDIA_SITE_CATEGORIES }
+        )
+    }
+}
 
 export const assertValidServiceSubCategory = ({
     service,

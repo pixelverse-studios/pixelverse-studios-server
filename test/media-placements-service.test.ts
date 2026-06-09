@@ -94,6 +94,8 @@ const publishedMedia = {
     filename: 'baby.jpg',
     src: 'https://media.ifferspictures.com/events/baby-shower/baby.jpg',
     alt: 'Baby shower detail',
+    library: 'portfolio',
+    site_category: null,
     service: 'Events',
     sub_category: 'Baby Shower',
     aspect_ratio: 'portrait',
@@ -104,6 +106,20 @@ const publishedMedia = {
     archived_at: null,
     archived_by: null,
     archived_from_status: null,
+}
+
+const publishedSiteMedia = {
+    ...publishedMedia,
+    id: 4,
+    key: 'site/about/jenn-portrait.jpg',
+    filename: 'jenn-portrait.jpg',
+    src: 'https://media.ifferspictures.com/site/about/jenn-portrait.jpg',
+    alt: 'Jenn portrait for the about page',
+    library: 'site',
+    site_category: 'About',
+    service: null,
+    sub_category: null,
+    aspect_ratio: 'portrait',
 }
 
 const draftMedia = {
@@ -178,6 +194,8 @@ describe('media placements service', () => {
                         filename: 'baby.jpg',
                         src: 'https://media.ifferspictures.com/events/baby-shower/baby.jpg',
                         alt: 'Baby shower detail',
+                        library: 'portfolio',
+                        siteCategory: null,
                         service: 'Events',
                         subCategory: 'Baby Shower',
                         aspectRatio: 'portrait',
@@ -187,6 +205,37 @@ describe('media placements service', () => {
             ],
         })
         expect(mockState.builders[3].in).toHaveBeenCalledWith('id', [1, 2, 3])
+    })
+
+    it('returns published site media through public placement assignments', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: r2Config, error: null },
+            {
+                data: [{ ...placement, slot_key: 'about.hero', media_id: 4 }],
+                error: null,
+            },
+            { data: [publishedSiteMedia], error: null },
+        ]
+
+        const result = await mediaPlacementsService.listPublicPlacements({
+            websiteSlug: 'iffers-pictures',
+        })
+
+        expect(result.placements).toEqual([
+            {
+                slotKey: 'about.hero',
+                media: expect.objectContaining({
+                    id: 4,
+                    key: 'site/about/jenn-portrait.jpg',
+                    library: 'site',
+                    siteCategory: 'About',
+                    service: null,
+                    subCategory: null,
+                    status: 'published',
+                }),
+            },
+        ])
     })
 
     it('allows one published media item to back multiple public placement slots', async () => {
@@ -298,6 +347,46 @@ describe('media placements service', () => {
             actor: 'jenn@example.com',
             affectedPaths: ['/'],
         })
+    })
+
+    it('allows assigning published site media to placement slots', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: publishedSiteMedia, error: null },
+            { data: null, error: null },
+            {
+                data: { ...placement, slot_key: 'about.hero', media_id: 4 },
+                error: null,
+            },
+        ]
+
+        const result = await mediaPlacementsService.assignPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'about.hero',
+            mediaId: 4,
+            actor: 'jenn@example.com',
+        })
+
+        expect(result.assignment?.media).toEqual(
+            expect.objectContaining({
+                id: 4,
+                library: 'site',
+                siteCategory: 'About',
+                service: null,
+                subCategory: null,
+            })
+        )
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mediaId: 4,
+                mediaKey: 'site/about/jenn-portrait.jpg',
+                action: 'placement_assigned',
+                newValues: expect.objectContaining({
+                    library: 'site',
+                    siteCategory: 'About',
+                }),
+            })
+        )
     })
 
     it('replaces an existing placement row', async () => {
