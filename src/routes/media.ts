@@ -270,8 +270,8 @@ router.patch(
             .isInt({ min: 1 })
             .withMessage('ids must contain positive integers'),
         body('status')
-            .isIn(['archived', 'published', 'draft'])
-            .withMessage('status must be archived, published, or draft'),
+            .isIn(['archived'])
+            .withMessage('status must be archived'),
     ],
     validateRequest,
     media.batchUpdateCatalogItems

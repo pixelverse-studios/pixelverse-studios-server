@@ -289,6 +289,52 @@ describe('media placement route coverage', () => {
         expect(mediaCatalogService.batchUpdateItems).not.toHaveBeenCalled()
     })
 
+    it('rejects batch media archive requests with more than 50 ids', async () => {
+        const req = createRequest({
+            body: {
+                ids: Array.from({ length: 51 }, (_, index) => index + 1),
+                status: 'archived',
+            },
+        })
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/batch',
+        })
+        const validatorsThroughValidateRequest = handlers.slice(
+            1,
+            handlers.indexOf(validateRequest) + 1
+        )
+
+        await runHandlers(validatorsThroughValidateRequest, req, res)
+
+        expect(res.statusCode).toBe(400)
+        expect(mediaCatalogService.batchUpdateItems).not.toHaveBeenCalled()
+    })
+
+    it('rejects unsupported batch media statuses before controller execution', async () => {
+        const req = createRequest({
+            body: {
+                ids: [1],
+                status: 'published',
+            },
+        })
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/batch',
+        })
+        const validatorsThroughValidateRequest = handlers.slice(
+            1,
+            handlers.indexOf(validateRequest) + 1
+        )
+
+        await runHandlers(validatorsThroughValidateRequest, req, res)
+
+        expect(res.statusCode).toBe(400)
+        expect(mediaCatalogService.batchUpdateItems).not.toHaveBeenCalled()
+    })
+
     it('applies public catalog cache headers to public placements controller output', async () => {
         vi.mocked(mediaPlacementsService.listPublicPlacements).mockResolvedValue({
             version: 1,

@@ -54,6 +54,10 @@ export interface MediaCatalogRecord {
     archived_from_status: Exclude<MediaStatus, 'archived'> | null
 }
 
+type ArchivableMediaCatalogRecord = MediaCatalogRecord & {
+    status: Exclude<MediaStatus, 'archived'>
+}
+
 export interface CatalogItemResponse {
     id: number
     key: string
@@ -668,6 +672,23 @@ const getItemForWebsite = async ({
     return data as MediaCatalogRecord | null
 }
 
+const getItemsForWebsite = async ({
+    websiteId,
+    ids,
+}: {
+    websiteId: string
+    ids: number[]
+}): Promise<MediaCatalogRecord[]> => {
+    const { data, error } = await db
+        .from(Tables.MEDIA_CATALOG_ITEMS)
+        .select('*')
+        .eq('website_id', websiteId)
+        .in('id', ids)
+
+    if (error) throw error
+    return (data || []) as MediaCatalogRecord[]
+}
+
 interface UpdateMediaItemResult {
     item: CatalogItemResponse
     revalidationReason: MediaRevalidationReason | null
@@ -891,36 +912,6 @@ const updateItem = async (
     return result.item
 }
 
-const batchErrorFor = (err: unknown): BatchMediaItemError => {
-    if (err instanceof MediaValidationError) {
-        return {
-            status: err.status,
-            code: err.code,
-            message: err.message,
-            ...(err.details && { details: err.details }),
-        }
-    }
-
-    if (typeof (err as { status?: unknown })?.status === 'number') {
-        const status = (err as { status: number }).status
-        return {
-            status,
-            code: status === 404 ? 'media.not_found' : 'media.update_failed',
-            message: err instanceof Error ? err.message : 'Media update failed',
-        }
-    }
-
-    return {
-        status: 500,
-        code: 'media.update_failed',
-        message: err instanceof Error ? err.message : 'Media update failed',
-    }
-}
-
-const isExpectedBatchItemError = (err: unknown): boolean =>
-    err instanceof MediaValidationError ||
-    typeof (err as { status?: unknown })?.status === 'number'
-
 const batchRevalidationReason = (
     reasons: MediaRevalidationReason[]
 ): MediaRevalidationReason | null => {
@@ -938,38 +929,177 @@ const batchRevalidationReason = (
     )
 }
 
+const bulkArchiveItems = async ({
+    websiteId,
+    records,
+    actor,
+    archivedAt,
+}: {
+    websiteId: string
+    records: ArchivableMediaCatalogRecord[]
+    actor?: string
+    archivedAt: string
+}): Promise<MediaCatalogRecord[]> => {
+    const statusGroups = records.reduce(
+        (groups, record) => {
+            const group = groups.get(record.status) || []
+            group.push(record.id)
+            groups.set(record.status, group)
+            return groups
+        },
+        new Map<Exclude<MediaStatus, 'archived'>, number[]>()
+    )
+    const updatedRecords: MediaCatalogRecord[] = []
+
+    for (const [archivedFromStatus, ids] of statusGroups.entries()) {
+        const { data, error } = await db
+            .from(Tables.MEDIA_CATALOG_ITEMS)
+            .update({
+                status: 'archived',
+                archived_at: archivedAt,
+                archived_by: actor || null,
+                archived_from_status: archivedFromStatus,
+            })
+            .eq('website_id', websiteId)
+            .in('id', ids)
+            .select('*')
+
+        if (error) throw error
+        updatedRecords.push(...((data || []) as MediaCatalogRecord[]))
+    }
+
+    return updatedRecords
+}
+
+const mediaNotFoundBatchError = (): BatchMediaItemError => ({
+    status: 404,
+    code: 'media.not_found',
+    message: 'Media catalog item not found',
+})
+
+const archivedLockedBatchError = (): BatchMediaItemError => ({
+    status: 409,
+    code: 'media.archived_locked',
+    message: 'Archived media cannot be edited until restored.',
+    details: { status: 'archived' },
+})
+
 const batchUpdateItems = async (
     input: BatchUpdateMediaItemsInput
 ): Promise<BatchUpdateMediaItemsResponse> => {
+    if (input.status !== 'archived') {
+        throw new MediaValidationError(
+            400,
+            'media.invalid_status',
+            'Batch media updates only support archived status.',
+            { status: input.status }
+        )
+    }
+
+    const uniqueIds = [...new Set(input.ids)]
+    const startedAt = Date.now()
+    const website = await getWebsiteOrThrow(input.websiteSlug)
+    const currentRecords = await getItemsForWebsite({
+        websiteId: website.id,
+        ids: uniqueIds,
+    })
+    const currentById = new Map(
+        currentRecords.map(record => [record.id, record])
+    )
+    const eligibleRecords: ArchivableMediaCatalogRecord[] = []
+    uniqueIds.forEach(id => {
+        const record = currentById.get(id)
+        if (record && record.status !== 'archived') {
+            eligibleRecords.push(record as ArchivableMediaCatalogRecord)
+        }
+    })
+
+    const archivedAt = new Date().toISOString()
+    const updatedRecords =
+        eligibleRecords.length > 0
+            ? await bulkArchiveItems({
+                  websiteId: website.id,
+                  records: eligibleRecords,
+                  actor: input.actor,
+                  archivedAt,
+              })
+            : []
+    const updatedById = new Map(
+        updatedRecords.map(record => [record.id, record])
+    )
     const items: BatchMediaItemResult[] = []
     const revalidationReasons: MediaRevalidationReason[] = []
 
-    for (const id of input.ids) {
-        try {
-            const result = await updateItemWithResult(
-                {
-                    websiteSlug: input.websiteSlug,
-                    id,
-                    status: input.status,
-                    actor: input.actor,
-                },
-                { triggerRevalidation: false }
-            )
-
-            items.push({ id, ok: true, item: result.item })
-            if (result.revalidationReason) {
-                revalidationReasons.push(result.revalidationReason)
-            }
-        } catch (err) {
-            if (!isExpectedBatchItemError(err)) throw err
-
+    uniqueIds.forEach(id => {
+        const current = currentById.get(id)
+        if (!current) {
             items.push({
                 id,
                 ok: false,
-                error: batchErrorFor(err),
+                error: mediaNotFoundBatchError(),
             })
+            return
         }
-    }
+
+        if (current.status === 'archived') {
+            items.push({
+                id,
+                ok: false,
+                error: archivedLockedBatchError(),
+            })
+            return
+        }
+
+        const updated = updatedById.get(id)
+        if (!updated) {
+            items.push({
+                id,
+                ok: false,
+                error: {
+                    status: 500,
+                    code: 'media.update_failed',
+                    message: 'Media archive update did not return the updated item.',
+                },
+            })
+            return
+        }
+
+        const oldValues = auditValuesForRecord(current)
+        const newValues = auditValuesForRecord(updated)
+        const auditChanges = determineUpdateAuditChanges({
+            current,
+            updated,
+            oldValues,
+            newValues,
+        })
+
+        auditChanges.forEach(change => {
+            queueAuditLog({
+                websiteId: website.id,
+                clientId: website.client_id,
+                mediaId: updated.id,
+                mediaKey: updated.key,
+                action: change.action,
+                actor: input.actor,
+                oldValues: change.oldValues,
+                newValues: change.newValues,
+            })
+        })
+
+        const revalidationReason = revalidationReasonForChanges(auditChanges)
+        if (
+            revalidationReason &&
+            shouldRevalidatePublicCatalog({ current, updated })
+        ) {
+            revalidationReasons.push(revalidationReason)
+        }
+
+        items.push({
+            id,
+            ok: true,
+            item: toCatalogItemResponse(updated, true),
+        })
+    })
 
     const revalidationReason = batchRevalidationReason(revalidationReasons)
     if (revalidationReason) {
@@ -981,13 +1111,23 @@ const batchUpdateItems = async (
     }
 
     const succeeded = items.filter(item => item.ok).length
+    console.info('Media catalog batch archive service completed', {
+        websiteSlug: input.websiteSlug,
+        requested: input.ids.length,
+        processed: uniqueIds.length,
+        fetched: currentRecords.length,
+        eligible: eligibleRecords.length,
+        succeeded,
+        failed: uniqueIds.length - succeeded,
+        durationMs: Date.now() - startedAt,
+    })
 
     return {
         items,
         summary: {
-            requested: input.ids.length,
+            requested: uniqueIds.length,
             succeeded,
-            failed: input.ids.length - succeeded,
+            failed: uniqueIds.length - succeeded,
         },
     }
 }
