@@ -28,6 +28,7 @@ const makeQueryBuilder = (result: { data: unknown; error: unknown }) => {
         select: vi.fn(),
         eq: vi.fn(),
         is: vi.fn(),
+        in: vi.fn(),
         neq: vi.fn(),
         order: vi.fn(),
         insert: vi.fn(),
@@ -40,6 +41,7 @@ const makeQueryBuilder = (result: { data: unknown; error: unknown }) => {
     builder.select.mockReturnValue(builder)
     builder.eq.mockReturnValue(builder)
     builder.is.mockReturnValue(builder)
+    builder.in.mockReturnValue(builder)
     builder.neq.mockReturnValue(builder)
     builder.order.mockReturnValue(builder)
     builder.insert.mockReturnValue(builder)
@@ -681,36 +683,23 @@ describe('media catalog service', () => {
         vi.mocked(fetch).mockResolvedValue(new Response('ok', { status: 200 }))
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem, archivedItem], error: null },
             {
-                data: {
-                    bucket: 'persisted-bucket',
-                    public_base_url: 'https://pub.example.test',
-                    key_prefix: '',
-                },
-                error: null,
-            },
-            { data: publishedItem, error: null },
-            {
-                data: {
+                data: [
+                    {
                     ...publishedItem,
                     status: 'archived',
                     archived_at: '2026-05-28T01:00:00.000Z',
                     archived_by: 'jenn@example.com',
                     archived_from_status: 'published',
-                },
+                    },
+                ],
                 error: null,
             },
-            { data: null, error: null },
-            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
             {
-                data: {
-                    bucket: 'persisted-bucket',
-                    public_base_url: 'https://pub.example.test',
-                    key_prefix: '',
-                },
+                data: null,
                 error: null,
             },
-            { data: archivedItem, error: null },
         ]
 
         const result = await mediaCatalogService.batchUpdateItems({
@@ -748,14 +737,16 @@ describe('media catalog service', () => {
                 }),
             })
         )
-        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+        expect(mockState.builders[1].in).toHaveBeenCalledWith('id', [1, 2])
+        expect(mockState.builders[2].update).toHaveBeenCalledWith(
             expect.objectContaining({
                 status: 'archived',
                 archived_by: 'jenn@example.com',
                 archived_from_status: 'published',
             })
         )
-        expect(mockState.builders[4].insert).toHaveBeenCalledWith(
+        expect(mockState.builders[2].in).toHaveBeenCalledWith('id', [1])
+        expect(mockState.builders[3].insert).toHaveBeenCalledWith(
             expect.objectContaining({
                 action: 'archived',
                 actor: 'jenn@example.com',
@@ -774,6 +765,235 @@ describe('media catalog service', () => {
         expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty(
             'media_id'
         )
+    })
+
+    it('batch archives multiple published images in one grouped update', async () => {
+        const secondPublishedItem = {
+            ...publishedItem,
+            id: 4,
+            key: 'events/baby-shower/second.jpg',
+            filename: 'second.jpg',
+            src: 'https://pub.example.test/events/baby-shower/second.jpg',
+        }
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem, secondPublishedItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                    {
+                        ...secondPublishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1, 4],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result.summary).toEqual({
+            requested: 2,
+            succeeded: 2,
+            failed: 0,
+        })
+        expect(result.items).toEqual([
+            expect.objectContaining({ id: 1, ok: true }),
+            expect.objectContaining({ id: 4, ok: true }),
+        ])
+        expect(mockState.builders[1].in).toHaveBeenCalledWith('id', [1, 4])
+        expect(mockState.builders[2].in).toHaveBeenCalledWith('id', [1, 4])
+    })
+
+    it('deduplicates batch archive ids before querying or updating', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1, 1, 1],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result.summary).toEqual({
+            requested: 1,
+            succeeded: 1,
+            failed: 0,
+        })
+        expect(result.items).toHaveLength(1)
+        expect(mockState.builders[1].in).toHaveBeenCalledWith('id', [1])
+        expect(mockState.builders[2].in).toHaveBeenCalledWith('id', [1])
+    })
+
+    it('returns not found per-item failures in batch archive responses', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1, 99],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result.summary).toEqual({
+            requested: 2,
+            succeeded: 1,
+            failed: 1,
+        })
+        expect(result.items[1]).toEqual({
+            id: 99,
+            ok: false,
+            error: {
+                status: 404,
+                code: 'media.not_found',
+                message: 'Media catalog item not found',
+            },
+        })
+    })
+
+    it('rejects unsupported batch statuses', async () => {
+        await expect(
+            mediaCatalogService.batchUpdateItems({
+                websiteSlug: 'iffers-pictures',
+                ids: [1],
+                status: 'published',
+                actor: 'jenn@example.com',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.invalid_status',
+        })
+        expect(mockState.from).not.toHaveBeenCalled()
+    })
+
+    it('does not query R2 config or objects during batch archive', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+        ]
+
+        await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.from).not.toHaveBeenCalledWith('media_r2_configs')
+    })
+
+    it('response shape matches the frontend batch archive contract', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            { data: [publishedItem], error: null },
+            {
+                data: [
+                    {
+                        ...publishedItem,
+                        status: 'archived',
+                        archived_at: '2026-05-28T01:00:00.000Z',
+                        archived_by: 'jenn@example.com',
+                        archived_from_status: 'published',
+                    },
+                ],
+                error: null,
+            },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaCatalogService.batchUpdateItems({
+            websiteSlug: 'iffers-pictures',
+            ids: [1],
+            status: 'archived',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result).toEqual({
+            items: [
+                {
+                    id: 1,
+                    ok: true,
+                    item: expect.objectContaining({
+                        id: 1,
+                        key: 'events/baby-shower/baby.jpg',
+                        filename: 'baby.jpg',
+                        src: 'https://pub.example.test/events/baby-shower/baby.jpg',
+                        alt: 'Mother-to-be opening gifts',
+                        service: 'Events',
+                        subCategory: 'Baby Shower',
+                        aspectRatio: 'portrait',
+                        status: 'archived',
+                        sortOrder: 0,
+                    }),
+                },
+            ],
+            summary: {
+                requested: 1,
+                succeeded: 1,
+                failed: 0,
+            },
+        })
     })
 
     it('rethrows unexpected shared failures during batch archive', async () => {

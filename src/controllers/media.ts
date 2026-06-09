@@ -71,11 +71,7 @@ const updateCatalogItemSchema = createCatalogItemSchema
 const batchUpdateCatalogItemsSchema = z
     .object({
         ids: z.array(z.number().int().positive()).min(1).max(50),
-        status: z.enum(['archived', 'published', 'draft']),
-    })
-    .refine(value => new Set(value.ids).size === value.ids.length, {
-        message: 'ids must not contain duplicates.',
-        path: ['ids'],
+        status: z.enum(['archived']),
     })
 
 const assignPlacementSchema = z.object({
@@ -656,6 +652,10 @@ const batchUpdateCatalogItems = async (
     req: Request,
     res: Response
 ): Promise<Response> => {
+    const startedAt = Date.now()
+    const requestedCount = Array.isArray((req.body as { ids?: unknown })?.ids)
+        ? ((req.body as { ids: unknown[] }).ids.length)
+        : 0
     try {
         const parsed = batchUpdateCatalogItemsSchema.parse(req.body)
         const result = await mediaCatalogService.batchUpdateItems({
@@ -665,8 +665,27 @@ const batchUpdateCatalogItems = async (
             actor: req.mediaAdmin?.email,
         })
 
+        console.info('Media batch catalog update completed', {
+            websiteSlug: req.params.websiteSlug,
+            status: parsed.status,
+            requested: requestedCount,
+            processed: result.summary.requested,
+            succeeded: result.summary.succeeded,
+            failed: result.summary.failed,
+            durationMs: Date.now() - startedAt,
+            actor: req.mediaAdmin?.email,
+        })
+
         return res.status(200).json(result)
     } catch (err) {
+        console.error('Media batch catalog update failed', {
+            websiteSlug: req.params.websiteSlug,
+            requested: requestedCount,
+            durationMs: Date.now() - startedAt,
+            actor: req.mediaAdmin?.email,
+            error: err instanceof Error ? err.message : err,
+        })
+
         if (err instanceof ZodError) {
             return sendMediaError(
                 res,
