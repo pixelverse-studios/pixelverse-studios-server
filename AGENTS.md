@@ -131,8 +131,13 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
 | `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
+| `MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS` | Optional cooldown for suppressing duplicate magic-link sends while returning the generic public response; defaults to 60 seconds. |
+| `MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS` | Optional email-level magic-link request rate limit; defaults to disabled. |
+| `MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS` | Optional grace window for magic-link expiry checks; defaults to 120 seconds. |
 | `MEDIA_ADMIN_SESSION_TTL_HOURS` | Optional media admin session duration; defaults to 12 hours. |
 | `MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS` | Optional minimum response time for media admin magic-link requests; defaults to 350ms to reduce email approval probing. |
+| `MEDIA_ADMIN_COOKIE_DOMAIN` | Optional session cookie domain for cross-subdomain deployments. |
+| `MEDIA_ADMIN_COOKIE_SAME_SITE` | Optional session cookie SameSite value (`lax`, `strict`, or `none`); defaults to `lax`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | Optional frontend webhook URL called after public media catalog changes or manual admin revalidation. |
 | `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent to the frontend revalidation webhook. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional revalidation webhook timeout; defaults to 5000ms. |

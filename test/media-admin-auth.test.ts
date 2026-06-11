@@ -17,8 +17,13 @@ const validSessionToken = 'session-token-1234567890'
 vi.mock('../src/services/media-admin-auth', () => ({
     default: {
         createMagicLink: vi.fn(),
+        findPendingMagicLinkByEmail: vi.fn(),
+        findLatestMagicLinkByEmail: vi.fn(),
         findMagicLinkByHash: vi.fn(),
         markMagicLinkUsed: vi.fn(),
+        clearMagicLinkUsed: vi.fn(),
+        revokePendingMagicLinksForEmail: vi.fn(),
+        deleteMagicLink: vi.fn(),
         createSession: vi.fn(),
         findSessionByHash: vi.fn(),
         touchSession: vi.fn(),
@@ -89,12 +94,33 @@ describe('media admin auth controller', () => {
         process.env.MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES = '15'
         process.env.MEDIA_ADMIN_SESSION_TTL_HOURS = '12'
         process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS = '0'
+        process.env.MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS = '60'
+        process.env.MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS = '0'
+        process.env.MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS = '0'
+        vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
         vi.mocked(sendEmail).mockResolvedValue(undefined)
         vi.mocked(mediaAdminAuthService.createMagicLink).mockResolvedValue(
             validMagicLink
         )
+        vi.mocked(
+            mediaAdminAuthService.findPendingMagicLinkByEmail
+        ).mockResolvedValue(null)
+        vi.mocked(
+            mediaAdminAuthService.findLatestMagicLinkByEmail
+        ).mockResolvedValue(null)
         vi.mocked(mediaAdminAuthService.markMagicLinkUsed).mockResolvedValue(
             true
+        )
+        vi.mocked(mediaAdminAuthService.clearMagicLinkUsed).mockResolvedValue(
+            undefined
+        )
+        vi.mocked(
+            mediaAdminAuthService.revokePendingMagicLinksForEmail
+        ).mockResolvedValue(undefined)
+        vi.mocked(mediaAdminAuthService.deleteMagicLink).mockResolvedValue(
+            undefined
         )
         vi.mocked(mediaAdminAuthService.createSession).mockResolvedValue(
             validSession
@@ -114,8 +140,31 @@ describe('media admin auth controller', () => {
 
         expect(res.status).toHaveBeenCalledWith(200)
         expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
             message: 'If that email is approved, a sign-in link has been sent.',
         })
+        expect(mediaAdminAuthService.createMagicLink).not.toHaveBeenCalled()
+        expect(sendEmail).not.toHaveBeenCalled()
+    })
+
+    it('returns a stable invalid payload envelope for malformed magic-link requests', async () => {
+        const res = createResponse()
+
+        await mediaAdminAuthController.requestMagicLink(
+            createRequest({ body: { email: 'not-an-email' } }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.invalid_payload',
+                }),
+            })
+        )
         expect(mediaAdminAuthService.createMagicLink).not.toHaveBeenCalled()
         expect(sendEmail).not.toHaveBeenCalled()
     })
@@ -145,9 +194,14 @@ describe('media admin auth controller', () => {
             })
         )
         expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
+            message: 'If that email is approved, a sign-in link has been sent.',
+        })
     })
 
-    it('does not leak send failures through the magic-link response', async () => {
+    it('does not reveal provider failures through the magic-link response', async () => {
         vi.mocked(sendEmail).mockRejectedValue(new Error('send failed'))
         const res = createResponse()
 
@@ -156,14 +210,19 @@ describe('media admin auth controller', () => {
             res
         )
 
+        expect(mediaAdminAuthService.deleteMagicLink).toHaveBeenCalledWith(
+            validMagicLink.id
+        )
         expect(res.status).toHaveBeenCalledWith(200)
         expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
             message: 'If that email is approved, a sign-in link has been sent.',
         })
         expect(mediaAdminAuthService.createSession).not.toHaveBeenCalled()
     })
 
-    it('does not leak persistence failures through the magic-link response', async () => {
+    it('does not reveal persistence failures through the magic-link response', async () => {
         vi.mocked(mediaAdminAuthService.createMagicLink).mockRejectedValue(
             new Error('database unavailable')
         )
@@ -176,9 +235,84 @@ describe('media admin auth controller', () => {
 
         expect(res.status).toHaveBeenCalledWith(200)
         expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
             message: 'If that email is approved, a sign-in link has been sent.',
         })
         expect(sendEmail).not.toHaveBeenCalled()
+    })
+
+    it('does not reveal already-pending links through the magic-link response', async () => {
+        vi.mocked(
+            mediaAdminAuthService.findPendingMagicLinkByEmail
+        ).mockResolvedValue(validMagicLink)
+        const res = createResponse()
+
+        await mediaAdminAuthController.requestMagicLink(
+            createRequest({ body: { email: 'jenn@example.com' } }),
+            res
+        )
+
+        expect(mediaAdminAuthService.createMagicLink).not.toHaveBeenCalled()
+        expect(sendEmail).not.toHaveBeenCalled()
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
+            message: 'If that email is approved, a sign-in link has been sent.',
+        })
+    })
+
+    it('revokes stale pending links before creating a replacement', async () => {
+        vi.mocked(
+            mediaAdminAuthService.findPendingMagicLinkByEmail
+        ).mockResolvedValue({
+            ...validMagicLink,
+            created_at: new Date(Date.now() - 120_000).toISOString(),
+        })
+        const res = createResponse()
+
+        await mediaAdminAuthController.requestMagicLink(
+            createRequest({ body: { email: 'jenn@example.com' } }),
+            res
+        )
+
+        expect(
+            mediaAdminAuthService.revokePendingMagicLinksForEmail
+        ).toHaveBeenCalledWith('jenn@example.com')
+        expect(mediaAdminAuthService.createMagicLink).toHaveBeenCalled()
+        expect(sendEmail).toHaveBeenCalled()
+        expect(res.status).toHaveBeenCalledWith(200)
+    })
+
+    it('does not reveal rate limits through the magic-link response', async () => {
+        process.env.MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS = '300'
+        vi.mocked(
+            mediaAdminAuthService.findLatestMagicLinkByEmail
+        ).mockResolvedValue({
+            ...validMagicLink,
+            used_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+        })
+        const res = createResponse()
+
+        await mediaAdminAuthController.requestMagicLink(
+            createRequest({ body: { email: 'jenn@example.com' } }),
+            res
+        )
+
+        expect(mediaAdminAuthService.createMagicLink).not.toHaveBeenCalled()
+        expect(sendEmail).not.toHaveBeenCalled()
+        expect(res.setHeader).not.toHaveBeenCalledWith(
+            'Retry-After',
+            expect.any(String)
+        )
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith({
+            ok: true,
+            status: 'sent',
+            message: 'If that email is approved, a sign-in link has been sent.',
+        })
     })
 
     it('rejects invalid callback tokens', async () => {
@@ -193,7 +327,34 @@ describe('media admin auth controller', () => {
         )
 
         expect(res.status).toHaveBeenCalledWith(401)
-        expect(res.json).toHaveBeenCalledWith({ error: 'Invalid sign-in link' })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.invalid_token',
+                }),
+            })
+        )
+    })
+
+    it('returns a stable invalid payload envelope for malformed callbacks', async () => {
+        const res = createResponse()
+
+        await mediaAdminAuthController.callback(
+            createRequest({ body: { token: '' } }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.invalid_payload',
+                }),
+            })
+        )
+        expect(mediaAdminAuthService.findMagicLinkByHash).not.toHaveBeenCalled()
     })
 
     it('rejects already-used callback tokens', async () => {
@@ -209,9 +370,14 @@ describe('media admin auth controller', () => {
         )
 
         expect(res.status).toHaveBeenCalledWith(410)
-        expect(res.json).toHaveBeenCalledWith({
-            error: 'Sign-in link already used',
-        })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.reused_token',
+                }),
+            })
+        )
     })
 
     it('rejects expired callback tokens', async () => {
@@ -227,9 +393,14 @@ describe('media admin auth controller', () => {
         )
 
         expect(res.status).toHaveBeenCalledWith(410)
-        expect(res.json).toHaveBeenCalledWith({
-            error: 'Sign-in link expired',
-        })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.expired_token',
+                }),
+            })
+        )
     })
 
     it('creates an HTTP-only session cookie for a valid callback token', async () => {
@@ -255,6 +426,13 @@ describe('media admin auth controller', () => {
         )
         expect(res.setHeader.mock.calls[0][1]).toContain('HttpOnly')
         expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: true,
+                status: 'authenticated',
+                email: 'jenn@example.com',
+            })
+        )
     })
 
     it('sets a secure session cookie when NODE_ENVIRONMENT is production', async () => {
@@ -288,9 +466,45 @@ describe('media admin auth controller', () => {
 
         expect(mediaAdminAuthService.createSession).not.toHaveBeenCalled()
         expect(res.status).toHaveBeenCalledWith(410)
-        expect(res.json).toHaveBeenCalledWith({
-            error: 'Sign-in link already used',
-        })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.reused_token',
+                }),
+            })
+        )
+    })
+
+    it('returns a session creation failure when callback cannot persist a session', async () => {
+        vi.mocked(mediaAdminAuthService.findMagicLinkByHash).mockResolvedValue(
+            validMagicLink
+        )
+        vi.mocked(mediaAdminAuthService.createSession).mockRejectedValue(
+            new Error('database unavailable')
+        )
+        const res = createResponse()
+
+        await mediaAdminAuthController.callback(
+            createRequest({ body: { token: validCallbackToken } }),
+            res
+        )
+
+        expect(mediaAdminAuthService.markMagicLinkUsed).toHaveBeenCalledWith(
+            validMagicLink.id
+        )
+        expect(mediaAdminAuthService.clearMagicLinkUsed).toHaveBeenCalledWith(
+            validMagicLink.id
+        )
+        expect(res.status).toHaveBeenCalledWith(503)
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.session_creation_failed',
+                }),
+            })
+        )
     })
 
     it('logs out by revoking the current session and clearing cookie', async () => {
@@ -360,9 +574,14 @@ describe('requireMediaAdminSession', () => {
         await requireMediaAdminSession(createRequest({}), res, next)
 
         expect(res.status).toHaveBeenCalledWith(401)
-        expect(res.json).toHaveBeenCalledWith({
-            error: 'Authentication required',
-        })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.session_required',
+                }),
+            })
+        )
         expect(next).not.toHaveBeenCalled()
     })
 
@@ -388,7 +607,14 @@ describe('requireMediaAdminSession', () => {
         )
 
         expect(res.status).toHaveBeenCalledWith(401)
-        expect(res.json).toHaveBeenCalledWith({ error: 'Session expired' })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.session_expired',
+                }),
+            })
+        )
         expect(next).not.toHaveBeenCalled()
     })
 
@@ -414,7 +640,14 @@ describe('requireMediaAdminSession', () => {
         )
 
         expect(res.status).toHaveBeenCalledWith(403)
-        expect(res.json).toHaveBeenCalledWith({ error: 'Unauthorized' })
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ok: false,
+                error: expect.objectContaining({
+                    code: 'media_admin_auth.unapproved_email',
+                }),
+            })
+        )
         expect(next).not.toHaveBeenCalled()
     })
 

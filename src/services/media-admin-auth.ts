@@ -52,6 +52,39 @@ const createMagicLink = async ({
     return data as MagicLinkRecord
 }
 
+const findPendingMagicLinkByEmail = async (
+    email: string,
+    now: Date = new Date()
+): Promise<MagicLinkRecord | null> => {
+    const { data, error } = await db
+        .from(Tables.MEDIA_ADMIN_MAGIC_LINKS)
+        .select('*')
+        .eq('email', email)
+        .is('used_at', null)
+        .gt('expires_at', now.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) throw error
+    return data as MagicLinkRecord | null
+}
+
+const findLatestMagicLinkByEmail = async (
+    email: string
+): Promise<MagicLinkRecord | null> => {
+    const { data, error } = await db
+        .from(Tables.MEDIA_ADMIN_MAGIC_LINKS)
+        .select('*')
+        .eq('email', email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) throw error
+    return data as MagicLinkRecord | null
+}
+
 const findMagicLinkByHash = async (
     tokenHash: string
 ): Promise<MagicLinkRecord | null> => {
@@ -76,6 +109,34 @@ const markMagicLinkUsed = async (id: string): Promise<boolean> => {
 
     if (error) throw error
     return Boolean(data)
+}
+
+const clearMagicLinkUsed = async (id: string): Promise<void> => {
+    const { error } = await db
+        .from(Tables.MEDIA_ADMIN_MAGIC_LINKS)
+        .update({ used_at: null })
+        .eq('id', id)
+
+    if (error) throw error
+}
+
+const revokePendingMagicLinksForEmail = async (email: string): Promise<void> => {
+    const { error } = await db
+        .from(Tables.MEDIA_ADMIN_MAGIC_LINKS)
+        .update({ used_at: new Date().toISOString() })
+        .eq('email', email)
+        .is('used_at', null)
+
+    if (error) throw error
+}
+
+const deleteMagicLink = async (id: string): Promise<void> => {
+    const { error } = await db
+        .from(Tables.MEDIA_ADMIN_MAGIC_LINKS)
+        .delete()
+        .eq('id', id)
+
+    if (error) throw error
 }
 
 const createSession = async ({
@@ -135,8 +196,13 @@ const revokeSession = async (sessionHash: string): Promise<void> => {
 
 export default {
     createMagicLink,
+    findPendingMagicLinkByEmail,
+    findLatestMagicLinkByEmail,
     findMagicLinkByHash,
     markMagicLinkUsed,
+    clearMagicLinkUsed,
+    revokePendingMagicLinksForEmail,
+    deleteMagicLink,
     createSession,
     findSessionByHash,
     touchSession,
