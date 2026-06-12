@@ -43,6 +43,7 @@ describe('media placement slot registry', () => {
             'portfolio.hero',
             'investment.hero',
             'investment.detail',
+            'inquire.what_happens_next',
             'faq.hero',
         ])
     })
@@ -104,7 +105,26 @@ describe('media placement slot registry', () => {
         ).toBe(true)
         expect(
             getMediaPlacementSlotsForWebsite(IFFERS_PICTURES_WEBSITE_SLUG)
-        ).toHaveLength(23)
+        ).toHaveLength(24)
+    })
+
+    it('returns metadata for the Inquire page image slot', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'inquire.what_happens_next',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'inquire.what_happens_next',
+                pageLabel: 'Inquire',
+                sectionLabel: 'What Happens Next',
+                description:
+                    'Image used beside the What Happens Next steps on the inquire page.',
+                expectedAspectRatios: ['landscape', 'portrait'],
+                affectedPaths: ['/inquire'],
+            })
+        )
     })
 
     it('rejects unknown placement slots with a structured media error', () => {

@@ -152,6 +152,10 @@ const newPlacementSlots = [
     },
     { slotKey: 'services.card.portrait', affectedPaths: ['/services'] },
     { slotKey: 'services.card.custom_request', affectedPaths: ['/services'] },
+    {
+        slotKey: 'inquire.what_happens_next',
+        affectedPaths: ['/inquire'],
+    },
 ]
 
 describe('media placements service', () => {
@@ -330,7 +334,7 @@ describe('media placements service', () => {
             websiteSlug: 'iffers-pictures',
         })
 
-        expect(result.slots).toHaveLength(23)
+        expect(result.slots).toHaveLength(24)
         expect(result.slots[0]).toEqual(
             expect.objectContaining({
                 slotKey: 'home.hero',
@@ -367,6 +371,21 @@ describe('media placements service', () => {
                 pageLabel: 'Services',
                 sectionLabel: 'Couples & Engagement Card',
                 affectedPaths: ['/services'],
+                assignment: null,
+            })
+        )
+        expect(
+            result.slots.find(
+                slot => slot.slotKey === 'inquire.what_happens_next'
+            )
+        ).toEqual(
+            expect.objectContaining({
+                pageLabel: 'Inquire',
+                sectionLabel: 'What Happens Next',
+                description:
+                    'Image used beside the What Happens Next steps on the inquire page.',
+                expectedAspectRatios: ['landscape', 'portrait'],
+                affectedPaths: ['/inquire'],
                 assignment: null,
             })
         )

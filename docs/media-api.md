@@ -218,6 +218,23 @@ assignment state when a slot has an assigned media item.
 
 Response headers include `Cache-Control: no-store`.
 
+The Iffer's Pictures registry includes the Inquire page image slot:
+
+```json
+{
+  "slotKey": "inquire.what_happens_next",
+  "pageLabel": "Inquire",
+  "sectionLabel": "What Happens Next",
+  "description": "Image used beside the What Happens Next steps on the inquire page.",
+  "expectedAspectRatios": ["landscape", "portrait"],
+  "affectedPaths": ["/inquire"],
+  "assignment": null
+}
+```
+
+`assignment` is `null` until a published media item is assigned through the
+same placement mutation endpoint used by homepage slots.
+
 ```json
 {
   "version": 1,
