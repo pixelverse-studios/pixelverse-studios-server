@@ -54,7 +54,13 @@ export const requireMediaAdminSession = async (
         const sessionToken = cookies[MEDIA_ADMIN_SESSION_COOKIE]
 
         if (!sessionToken) {
-            res.status(401).json({ error: 'Authentication required' })
+            res.status(401).json({
+                ok: false,
+                error: {
+                    code: 'media_admin_auth.session_required',
+                    message: 'Authentication required',
+                },
+            })
             return
         }
 
@@ -67,12 +73,38 @@ export const requireMediaAdminSession = async (
             session.revoked_at ||
             new Date(session.expires_at).getTime() <= Date.now()
         ) {
-            res.status(401).json({ error: 'Session expired' })
+            console.warn('Media admin auth session rejected', {
+                reason: !session
+                    ? 'not_found'
+                    : session.revoked_at
+                      ? 'revoked'
+                      : 'expired',
+                sessionId: session?.id,
+                expiresAt: session?.expires_at,
+            })
+            res.status(401).json({
+                ok: false,
+                error: {
+                    code: 'media_admin_auth.session_expired',
+                    message: 'Session expired',
+                },
+            })
             return
         }
 
         if (!isApprovedAdminEmail(session.email)) {
-            res.status(403).json({ error: 'Unauthorized' })
+            console.warn('Media admin auth session rejected', {
+                reason: 'unapproved_email',
+                sessionId: session.id,
+                email: session.email,
+            })
+            res.status(403).json({
+                ok: false,
+                error: {
+                    code: 'media_admin_auth.unapproved_email',
+                    message: 'Unauthorized',
+                },
+            })
             return
         }
 
