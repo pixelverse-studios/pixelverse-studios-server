@@ -5,14 +5,17 @@ import mediaController from '../src/controllers/media'
 import {
     buildR2ObjectKey,
     joinPublicUrl,
+    MediaOperationError,
     validateUploadInput,
 } from '../src/lib/media-r2'
+import mediaCatalogService from '../src/services/media-catalog'
 import mediaR2Service from '../src/services/media-r2'
 import mediaRevalidationService from '../src/services/media-revalidation'
 
 vi.mock('../src/services/media-r2', () => ({
     default: {
         createPresignedUpload: vi.fn(),
+        checkDestination: vi.fn(),
     },
 }))
 
@@ -59,13 +62,16 @@ const createResponse = () => {
 const createRequest = ({
     params = { websiteSlug: 'iffers-pictures' },
     body = {},
+    headers = {},
 }: {
     params?: Record<string, string>
     body?: unknown
+    headers?: Record<string, string>
 }): Request =>
     ({
         params,
         body,
+        headers,
     }) as unknown as Request
 
 describe('media R2 key and upload validation helpers', () => {
@@ -132,7 +138,9 @@ describe('media R2 key and upload validation helpers', () => {
 describe('media presigned upload controller', () => {
     beforeEach(() => {
         vi.mocked(mediaR2Service.createPresignedUpload).mockReset()
+        vi.mocked(mediaR2Service.checkDestination).mockReset()
         vi.mocked(mediaRevalidationService.triggerMediaRevalidation).mockReset()
+        vi.mocked(mediaCatalogService.createItem).mockReset()
         vi.mocked(mediaR2Service.createPresignedUpload).mockResolvedValue({
             presigned_url: 'https://signed.example.test/upload',
             public_url:
@@ -171,6 +179,73 @@ describe('media presigned upload controller', () => {
                 'https://pub.example.test/events/baby-shower/1712345678000-abc123-baby.jpg',
             r2_key: 'events/baby-shower/1712345678000-abc123-baby.jpg',
             expires_at: '2026-05-27T12:00:00.000Z',
+            request_id: expect.any(String),
+        })
+    })
+
+    it('returns a retryable timeout envelope for upload provider timeouts', async () => {
+        vi.mocked(mediaR2Service.createPresignedUpload).mockRejectedValue(
+            new MediaOperationError({
+                status: 504,
+                code: 'media.upload_timeout',
+                message: 'Media storage request timed out.',
+                retryable: true,
+                details: { provider: 'r2', operation: 'presign_upload' },
+            })
+        )
+        const res = createResponse()
+
+        await mediaController.presignUpload(
+            createRequest({
+                headers: { 'x-request-id': 'req-upload-timeout' },
+                body: {
+                    filename: 'Baby.jpg',
+                    content_type: 'image/jpeg',
+                    folder: 'events/baby-shower',
+                    size: 123456,
+                },
+            }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(504)
+        expect(res.json).toHaveBeenCalledWith({
+            error: expect.objectContaining({
+                code: 'media.upload_timeout',
+                request_id: 'req-upload-timeout',
+                retryable: true,
+            }),
+        })
+    })
+
+    it('returns retryable upload codes from destination checks', async () => {
+        vi.mocked(mediaR2Service.checkDestination).mockRejectedValue(
+            new MediaOperationError({
+                status: 503,
+                code: 'media.upload_temporary_unavailable',
+                message: 'Media storage is temporarily busy.',
+                retryable: true,
+            })
+        )
+        const res = createResponse()
+
+        await mediaController.checkDestination(
+            createRequest({
+                headers: { 'x-request-id': 'req-check-busy' },
+                body: {
+                    destination_key: 'events/baby-shower/new.jpg',
+                },
+            }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(503)
+        expect(res.json).toHaveBeenCalledWith({
+            error: expect.objectContaining({
+                code: 'media.upload_temporary_unavailable',
+                request_id: 'req-check-busy',
+                retryable: true,
+            }),
         })
     })
 
@@ -193,9 +268,165 @@ describe('media presigned upload controller', () => {
             expect.objectContaining({
                 error: expect.objectContaining({
                     code: 'media.invalid_payload',
+                    retryable: false,
                 }),
             })
         )
+    })
+})
+
+describe('media catalog upload completion controller', () => {
+    beforeEach(() => {
+        vi.mocked(mediaCatalogService.createItem).mockReset()
+        vi.mocked(mediaCatalogService.createItem).mockResolvedValue({
+            id: 1,
+            key: 'events/baby-shower/one.jpg',
+            filename: 'one.jpg',
+            src: 'https://pub.example.test/events/baby-shower/one.jpg',
+            alt: '',
+            library: 'portfolio',
+            siteCategory: null,
+            service: null,
+            subCategory: null,
+            aspectRatio: null,
+            status: 'draft',
+            sortOrder: 0,
+        })
+    })
+
+    it('creates uploaded catalog drafts as a batch with per-file success', async () => {
+        const res = createResponse()
+
+        await mediaController.batchCreateCatalogItems(
+            createRequest({
+                headers: { 'x-request-id': 'req-batch-success' },
+                body: {
+                    items: [
+                        {
+                            key: 'events/baby-shower/one.jpg',
+                            filename: 'one.jpg',
+                        },
+                    ],
+                },
+            }),
+            res
+        )
+
+        expect(mediaCatalogService.createItem).toHaveBeenCalledWith(
+            expect.objectContaining({
+                websiteSlug: 'iffers-pictures',
+                key: 'events/baby-shower/one.jpg',
+                filename: 'one.jpg',
+            })
+        )
+        expect(res.status).toHaveBeenCalledWith(201)
+        expect(res.json).toHaveBeenCalledWith({
+            request_id: 'req-batch-success',
+            status: 'completed',
+            items: [
+                expect.objectContaining({
+                    index: 0,
+                    key: 'events/baby-shower/one.jpg',
+                    ok: true,
+                }),
+            ],
+            summary: {
+                requested: 1,
+                succeeded: 1,
+                failed: 0,
+            },
+        })
+    })
+
+    it('preserves batch partial success with per-file failure codes', async () => {
+        vi.mocked(mediaCatalogService.createItem)
+            .mockResolvedValueOnce({
+                id: 1,
+                key: 'events/baby-shower/one.jpg',
+                filename: 'one.jpg',
+                src: 'https://pub.example.test/events/baby-shower/one.jpg',
+                alt: '',
+                library: 'portfolio',
+                siteCategory: null,
+                service: null,
+                subCategory: null,
+                aspectRatio: null,
+                status: 'draft',
+                sortOrder: 0,
+            })
+            .mockRejectedValueOnce(
+                new MediaOperationError({
+                    status: 503,
+                    code: 'media.upload_temporary_unavailable',
+                    message: 'Media storage is temporarily busy.',
+                    retryable: true,
+                })
+            )
+        const res = createResponse()
+
+        await mediaController.batchCreateCatalogItems(
+            createRequest({
+                headers: { 'x-request-id': 'req-batch-partial' },
+                body: {
+                    items: [
+                        { key: 'events/baby-shower/one.jpg' },
+                        { key: 'events/baby-shower/two.jpg' },
+                    ],
+                },
+            }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(207)
+        expect(res.json).toHaveBeenCalledWith({
+            request_id: 'req-batch-partial',
+            status: 'partial_success',
+            items: [
+                expect.objectContaining({
+                    index: 0,
+                    key: 'events/baby-shower/one.jpg',
+                    ok: true,
+                }),
+                {
+                    index: 1,
+                    key: 'events/baby-shower/two.jpg',
+                    ok: false,
+                    error: {
+                        code: 'media.upload_temporary_unavailable',
+                        message: 'Media storage is temporarily busy.',
+                        status: 503,
+                        retryable: true,
+                    },
+                },
+            ],
+            summary: {
+                requested: 2,
+                succeeded: 1,
+                failed: 1,
+            },
+        })
+    })
+
+    it('returns the stable media envelope for malformed batch payloads', async () => {
+        const res = createResponse()
+
+        await mediaController.batchCreateCatalogItems(
+            createRequest({
+                headers: { 'x-request-id': 'req-batch-invalid' },
+                body: {},
+            }),
+            res
+        )
+
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(res.json).toHaveBeenCalledWith({
+            error: expect.objectContaining({
+                code: 'media.invalid_payload',
+                request_id: 'req-batch-invalid',
+                retryable: false,
+            }),
+        })
+        expect(mediaCatalogService.createItem).not.toHaveBeenCalled()
     })
 })
 
