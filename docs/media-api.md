@@ -315,7 +315,8 @@ Response:
   "presigned_url": "https://...",
   "public_url": "https://pub.example.r2.dev/events/baby-shower/1712345678-baby-shower-15.jpg",
   "r2_key": "events/baby-shower/1712345678-baby-shower-15.jpg",
-  "expires_at": "2026-05-31T12:15:00.000Z"
+  "expires_at": "2026-05-31T12:15:00.000Z",
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c"
 }
 ```
 
@@ -363,6 +364,98 @@ Site image draft example:
 
 Site images use the same bucket and public base URL. Recommended folders are
 `site/home/`, `site/about/`, `site/brand/`, and `site/misc/`.
+
+## Complete Uploaded Drafts In Batch
+
+`POST /api/media/:websiteSlug/admin/items/batch`
+
+Protected. Call this after one or more direct R2 PUTs succeed when the frontend
+wants one response that preserves per-file partial success and failure state.
+The endpoint creates catalog draft records sequentially and does not roll back
+successful files when a later file fails.
+
+Request:
+
+```json
+{
+  "items": [
+    {
+      "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+      "filename": "baby-shower-15.jpg",
+      "src": "https://pub.example.r2.dev/events/baby-shower/1712345678-baby-shower-15.jpg",
+      "alt": "",
+      "library": "portfolio",
+      "service": null,
+      "subCategory": null,
+      "aspectRatio": null,
+      "sortOrder": 0
+    }
+  ]
+}
+```
+
+Response when every draft is created:
+
+```json
+{
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c",
+  "status": "completed",
+  "items": [
+    {
+      "index": 0,
+      "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+      "ok": true,
+      "item": {
+        "id": 123,
+        "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+        "status": "draft"
+      }
+    }
+  ],
+  "summary": {
+    "requested": 1,
+    "succeeded": 1,
+    "failed": 0
+  }
+}
+```
+
+Response when some files fail uses HTTP `207` and preserves created drafts:
+
+```json
+{
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c",
+  "status": "partial_success",
+  "items": [
+    {
+      "index": 0,
+      "key": "events/baby-shower/one.jpg",
+      "ok": true,
+      "item": {
+        "id": 123,
+        "key": "events/baby-shower/one.jpg",
+        "status": "draft"
+      }
+    },
+    {
+      "index": 1,
+      "key": "events/baby-shower/two.jpg",
+      "ok": false,
+      "error": {
+        "status": 503,
+        "code": "media.upload_temporary_unavailable",
+        "message": "Media storage is temporarily busy. Retry this upload shortly.",
+        "retryable": true
+      }
+    }
+  ],
+  "summary": {
+    "requested": 2,
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
 
 ## Update Metadata, Publish, Archive, Restore, Reorder
 
@@ -684,7 +777,10 @@ Server runtime:
 | `R2_BUCKET_NAME` | fallback | Fallback bucket when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | fallback | Fallback public object base URL. |
 | `R2_PRESIGN_EXPIRES_SECONDS` | no | Presign expiry. Defaults to `900`. |
+| `R2_CONNECTION_TIMEOUT_MS` | no | R2 S3 connection timeout. Defaults to `2000`. |
+| `R2_REQUEST_TIMEOUT_MS` | no | R2 S3 request timeout. Defaults to `8000`. |
 | `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 10 MB. |
+| `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | no | Max batch draft-completion items. Defaults to `10`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | no | Frontend revalidation webhook. |
 | `MEDIA_REVALIDATION_SECRET` | no | Optional webhook bearer token. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | no | Webhook timeout. Defaults to `5000`. |
@@ -708,9 +804,19 @@ Upload:
 
 1. Request a presigned URL.
 2. PUT the file directly to R2 with the returned URL.
-3. Create a draft catalog item with `key: r2_key` and `src: public_url`.
+3. Create a draft catalog item with `key: r2_key` and `src: public_url`, or call
+   batch draft completion after several direct PUTs succeed.
 4. Let Jenn fill alt/category/aspect metadata.
 5. Publish with `status: "published"` after required metadata is present.
+
+Upload-related retryable server error codes:
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `media.upload_timeout` | `504` | R2/provider operation timed out. Retry the affected file. |
+| `media.upload_temporary_unavailable` | `503` | R2/provider reported temporary pressure or rate limiting. Retry after a short delay. |
+| `media.upload_provider_error` | `502` | R2/provider failed without a more specific timeout/busy signal. Retryable. |
+| `media.upload_catalog_create_failed` | `500` | The object may be in R2, but the draft catalog row failed. Refresh catalog and retry draft completion for that file. |
 
 Rename or move draft media:
 

@@ -63,6 +63,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/admin/revalidate` | POST | Trigger the configured frontend cache revalidation webhook for public media pages. | `controllers/media.revalidateCatalog` |
 | `/api/media/:websiteSlug/admin/objects/check-destination` | POST | Check catalog and R2 destination collisions before moving media. | `controllers/media.checkDestination` |
 | `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/batch` | POST | Create multiple draft media catalog items after direct uploads and return per-file success/failure results. | `controllers/media.batchCreateCatalogItems` |
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
@@ -127,7 +128,10 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
 | `R2_PRESIGN_EXPIRES_SECONDS` | Optional R2 presigned upload expiry; defaults to 900 seconds. |
+| `R2_CONNECTION_TIMEOUT_MS` | Optional R2 S3 connection timeout; defaults to 2000ms. |
+| `R2_REQUEST_TIMEOUT_MS` | Optional R2 S3 request timeout; defaults to 8000ms. |
 | `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
+| `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | Optional maximum batch draft-completion item count; defaults to 10. |
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
 | `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
