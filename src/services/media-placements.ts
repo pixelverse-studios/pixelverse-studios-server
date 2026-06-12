@@ -9,6 +9,7 @@ import type {
     CatalogItemResponse,
     MediaCatalogRecord,
 } from './media-catalog'
+import { normalizeCropPosition } from '../lib/media-catalog'
 import { MediaValidationError } from '../lib/media-r2'
 import mediaAuditService from './media-audit'
 import { tryTriggerMediaRevalidation } from './media-revalidation'
@@ -173,6 +174,8 @@ const toPlacementMediaResponse = (
     service: item.service,
     subCategory: item.sub_category,
     aspectRatio: item.aspect_ratio,
+    aspect_ratio: item.aspect_ratio,
+    cropPosition: normalizeCropPosition(item.crop_position),
     status: item.status,
 })
 
@@ -270,6 +273,7 @@ const auditValuesForPlacement = ({
     service: media?.service ?? null,
     subCategory: media?.sub_category ?? null,
     aspectRatio: media?.aspect_ratio ?? null,
+    cropPosition: media ? normalizeCropPosition(media.crop_position) : null,
     status: media?.status ?? null,
     updatedBy: placement?.updated_by ?? null,
 })

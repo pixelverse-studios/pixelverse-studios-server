@@ -48,6 +48,10 @@ const nullableCatalogString = z
     .union([z.string().trim().max(255), z.null()])
     .optional()
 
+const nullableCropPositionString = z
+    .union([z.string().trim().max(100), z.null()])
+    .optional()
+
 const createCatalogItemSchema = z.object({
     key: z.string().trim().min(1).max(1000),
     filename: z.string().trim().min(1).max(255).optional(),
@@ -58,6 +62,9 @@ const createCatalogItemSchema = z.object({
     service: nullableCatalogString,
     subCategory: nullableCatalogString,
     aspectRatio: nullableCatalogString,
+    aspect_ratio: nullableCatalogString,
+    cropPosition: nullableCropPositionString,
+    crop_position: nullableCropPositionString,
     sortOrder: z.number().int().min(0).optional(),
 })
 
@@ -79,6 +86,40 @@ const batchUpdateCatalogItemsSchema = z
 const assignPlacementSchema = z.object({
     media_id: z.number().int().positive(),
 })
+
+const getParsedCropPosition = (
+    parsed: {
+        cropPosition?: string | null
+        crop_position?: string | null
+    }
+): string | null | undefined => {
+    if (Object.prototype.hasOwnProperty.call(parsed, 'cropPosition')) {
+        return parsed.cropPosition
+    }
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'crop_position')) {
+        return parsed.crop_position
+    }
+
+    return undefined
+}
+
+const getParsedAspectRatio = (
+    parsed: {
+        aspectRatio?: string | null
+        aspect_ratio?: string | null
+    }
+): string | null | undefined => {
+    if (Object.prototype.hasOwnProperty.call(parsed, 'aspectRatio')) {
+        return parsed.aspectRatio
+    }
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'aspect_ratio')) {
+        return parsed.aspect_ratio
+    }
+
+    return undefined
+}
 
 const sendMediaError = (
     res: Response,
@@ -549,7 +590,8 @@ const createCatalogItem = async (
             siteCategory: parsed.siteCategory,
             service: parsed.service,
             subCategory: parsed.subCategory,
-            aspectRatio: parsed.aspectRatio,
+            aspectRatio: getParsedAspectRatio(parsed),
+            cropPosition: getParsedCropPosition(parsed),
             sortOrder: parsed.sortOrder,
             actor: req.mediaAdmin?.email,
         })
@@ -610,7 +652,8 @@ const updateCatalogItem = async (
             siteCategory: parsed.siteCategory,
             service: parsed.service,
             subCategory: parsed.subCategory,
-            aspectRatio: parsed.aspectRatio,
+            aspectRatio: getParsedAspectRatio(parsed),
+            cropPosition: getParsedCropPosition(parsed),
             sortOrder: parsed.sortOrder,
             status: parsed.status,
             actor: req.mediaAdmin?.email,

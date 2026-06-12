@@ -68,6 +68,7 @@ const publishedItem = {
     service: 'Events',
     sub_category: 'Baby Shower',
     aspect_ratio: 'portrait',
+    crop_position: null,
     status: 'published',
     sort_order: 0,
     created_at: '2026-05-27T12:00:00.000Z',
@@ -89,6 +90,7 @@ const publishedSiteItem = {
     service: null,
     sub_category: null,
     aspect_ratio: 'portrait',
+    crop_position: 'center top',
 }
 
 const draftSiteItem = {
@@ -182,6 +184,8 @@ describe('media catalog service', () => {
                     service: 'Events',
                     subCategory: 'Baby Shower',
                     aspectRatio: 'portrait',
+                    aspect_ratio: 'portrait',
+                    cropPosition: 'center center',
                     status: 'published',
                     sortOrder: 0,
                 },
@@ -222,6 +226,8 @@ describe('media catalog service', () => {
                 id: 1,
                 library: 'portfolio',
                 siteCategory: null,
+                aspect_ratio: 'portrait',
+                cropPosition: 'center center',
             }),
         ])
         expect(mockState.builders[2].eq).toHaveBeenCalledWith(
@@ -264,6 +270,8 @@ describe('media catalog service', () => {
                 siteCategory: 'About',
                 service: null,
                 subCategory: null,
+                aspect_ratio: 'portrait',
+                cropPosition: 'center top',
             })
         )
         expect(catalog.items[2]).toEqual(
@@ -299,7 +307,8 @@ describe('media catalog service', () => {
                     alt: '',
                     service: null,
                     sub_category: null,
-                    aspect_ratio: null,
+                    aspect_ratio: 'portrait',
+                    crop_position: 'center center',
                     library: 'portfolio',
                     site_category: null,
                     sort_order: 0,
@@ -311,6 +320,7 @@ describe('media catalog service', () => {
         const item = await mediaCatalogService.createItem({
             websiteSlug: 'iffers-pictures',
             key: 'portrait/new-image.jpg',
+            aspectRatio: 'portrait',
             actor: 'jenn@example.com',
         })
 
@@ -325,7 +335,8 @@ describe('media catalog service', () => {
             site_category: null,
             service: null,
             sub_category: null,
-            aspect_ratio: null,
+            aspect_ratio: 'portrait',
+            crop_position: 'center center',
             status: 'draft',
             sort_order: 0,
         })
@@ -333,6 +344,9 @@ describe('media catalog service', () => {
             expect.objectContaining({
                 key: 'portrait/new-image.jpg',
                 status: 'draft',
+                aspectRatio: 'portrait',
+                aspect_ratio: 'portrait',
+                cropPosition: 'center center',
                 createdAt: '2026-05-27T12:00:00.000Z',
             })
         )
@@ -350,6 +364,8 @@ describe('media catalog service', () => {
                     key: 'portrait/new-image.jpg',
                     library: 'portfolio',
                     status: 'draft',
+                    aspectRatio: 'portrait',
+                    cropPosition: 'center center',
                 }),
             })
         )
@@ -532,6 +548,56 @@ describe('media catalog service', () => {
         })
     })
 
+    it('rejects unsafe crop position values', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+        ]
+
+        await expect(
+            mediaCatalogService.createItem({
+                websiteSlug: 'iffers-pictures',
+                key: 'events/baby-shower/unsafe.jpg',
+                cropPosition: 'top; background: red',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.invalid_crop_position',
+        })
+    })
+
+    it('rejects invalid aspect ratio values', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+        ]
+
+        await expect(
+            mediaCatalogService.createItem({
+                websiteSlug: 'iffers-pictures',
+                key: 'events/baby-shower/wide.jpg',
+                aspectRatio: 'wide',
+            })
+        ).rejects.toMatchObject({
+            status: 400,
+            code: 'media.invalid_aspect_ratio',
+        })
+    })
+
     it('blocks publishing when required public metadata is missing', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
@@ -649,6 +715,87 @@ describe('media catalog service', () => {
                     subCategory: 'Portrait',
                     aspectRatio: 'portrait',
                 }),
+            })
+        )
+    })
+
+    it('updates crop position metadata with safe percentage values', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: publishedItem, error: null },
+            {
+                data: {
+                    ...publishedItem,
+                    crop_position: '50% 30%',
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 1,
+            cropPosition: '50% 30%',
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                crop_position: '50% 30%',
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                cropPosition: '50% 30%',
+            })
+        )
+    })
+
+    it('updates aspect ratio metadata', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: publishedItem, error: null },
+            {
+                data: {
+                    ...publishedItem,
+                    aspect_ratio: 'landscape',
+                },
+                error: null,
+            },
+        ]
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 1,
+            aspectRatio: 'landscape',
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[3].update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                aspect_ratio: 'landscape',
+            })
+        )
+        expect(item).toEqual(
+            expect.objectContaining({
+                aspectRatio: 'landscape',
+                aspect_ratio: 'landscape',
             })
         )
     })

@@ -253,6 +253,18 @@ router.post(
             .optional({ nullable: true })
             .isString()
             .withMessage('aspectRatio must be a string'),
+        body('aspect_ratio')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('aspect_ratio must be a string'),
+        body('cropPosition')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('cropPosition must be a string'),
+        body('crop_position')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('crop_position must be a string'),
         body('sortOrder')
             .optional()
             .isInt({ min: 0 })
@@ -355,6 +367,18 @@ router.patch(
             .optional({ nullable: true })
             .isString()
             .withMessage('aspectRatio must be a string'),
+        body('aspect_ratio')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('aspect_ratio must be a string'),
+        body('cropPosition')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('cropPosition must be a string'),
+        body('crop_position')
+            .optional({ nullable: true })
+            .isString()
+            .withMessage('crop_position must be a string'),
         body('status')
             .optional()
             .isString()

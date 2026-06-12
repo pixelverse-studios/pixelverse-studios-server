@@ -28,6 +28,20 @@ export const MEDIA_SERVICES = [
 ] as const
 export type MediaService = (typeof MEDIA_SERVICES)[number]
 
+export const DEFAULT_MEDIA_CROP_POSITION = 'center center'
+
+export const MEDIA_CROP_POSITION_KEYWORDS = [
+    'center center',
+    'center top',
+    'center bottom',
+    'left center',
+    'right center',
+] as const
+
+export type MediaCropPosition =
+    | (typeof MEDIA_CROP_POSITION_KEYWORDS)[number]
+    | `${number}% ${number}%`
+
 export const MEDIA_SUB_CATEGORIES: Record<MediaService, string[]> = {
     Events: [
         'Baby Shower',
@@ -155,6 +169,46 @@ export const assertValidStatus = (status?: string | null): void => {
             { field: 'status', allowed: MEDIA_STATUSES }
         )
     }
+}
+
+const isPercentageCropPosition = (value: string): boolean => {
+    const parts = value.split(/\s+/)
+    if (parts.length !== 2) return false
+
+    return parts.every(part => {
+        if (!/^(?:100|[0-9]{1,2})(?:\.[0-9]{1,2})?%$/.test(part)) {
+            return false
+        }
+
+        const numericValue = Number(part.slice(0, -1))
+        return numericValue >= 0 && numericValue <= 100
+    })
+}
+
+export const normalizeCropPosition = (
+    cropPosition?: string | null
+): string => {
+    const value = cropPosition?.trim() || DEFAULT_MEDIA_CROP_POSITION
+
+    if (
+        MEDIA_CROP_POSITION_KEYWORDS.includes(
+            value as (typeof MEDIA_CROP_POSITION_KEYWORDS)[number]
+        ) ||
+        isPercentageCropPosition(value)
+    ) {
+        return value
+    }
+
+    throw new MediaValidationError(
+        400,
+        'media.invalid_crop_position',
+        'Crop position must be an allowed keyword pair or safe percentage pair.',
+        {
+            field: 'cropPosition',
+            allowed: MEDIA_CROP_POSITION_KEYWORDS,
+            percentageFormat: '0% 0% through 100% 100%',
+        }
+    )
 }
 
 export const assertSafeMediaKey = (key: string): void => {

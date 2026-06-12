@@ -10,10 +10,12 @@ import {
     filenameFromKey,
     MEDIA_CATALOG_VERSION,
     MediaAspectRatio,
+    MediaCropPosition,
     MediaLibrary,
     MediaService,
     MediaSiteCategory,
     MediaStatus,
+    normalizeCropPosition,
 } from '../lib/media-catalog'
 import { joinPublicUrl, MediaValidationError } from '../lib/media-r2'
 import mediaAuditService, { MediaAuditAction } from './media-audit'
@@ -51,6 +53,7 @@ export interface MediaCatalogRecord {
     service: MediaService | null
     sub_category: string | null
     aspect_ratio: MediaAspectRatio | null
+    crop_position: MediaCropPosition | string | null
     status: MediaStatus
     sort_order: number
     created_at: string
@@ -75,6 +78,8 @@ export interface CatalogItemResponse {
     service: MediaService | null
     subCategory: string | null
     aspectRatio: MediaAspectRatio | null
+    aspect_ratio: MediaAspectRatio | null
+    cropPosition: string
     status: MediaStatus
     sortOrder: number
     createdAt?: string
@@ -102,6 +107,7 @@ export interface CreateMediaItemInput {
     service?: string | null
     subCategory?: string | null
     aspectRatio?: string | null
+    cropPosition?: string | null
     sortOrder?: number
     actor?: string
 }
@@ -118,6 +124,7 @@ export interface UpdateMediaItemInput {
     service?: string | null
     subCategory?: string | null
     aspectRatio?: string | null
+    cropPosition?: string | null
     sortOrder?: number
     status?: string
     actor?: string
@@ -233,6 +240,8 @@ const toCatalogItemResponse = (
     service: item.service,
     subCategory: item.sub_category,
     aspectRatio: item.aspect_ratio,
+    aspect_ratio: item.aspect_ratio,
+    cropPosition: normalizeCropPosition(item.crop_position),
     status: item.status,
     sortOrder: item.sort_order,
     ...(includeAdminFields && {
@@ -416,6 +425,7 @@ const buildValidatedDraftPayload = async ({
         subCategory,
     })
     assertValidAspectRatio(input.aspectRatio)
+    const cropPosition = normalizeCropPosition(input.cropPosition)
     await assertNoDuplicateKey({ websiteId: website.id, key: input.key })
 
     return {
@@ -430,6 +440,7 @@ const buildValidatedDraftPayload = async ({
         service: service || null,
         sub_category: subCategory || null,
         aspect_ratio: input.aspectRatio || null,
+        crop_position: cropPosition,
         status: 'draft',
         sort_order: input.sortOrder ?? 0,
     }
@@ -447,6 +458,7 @@ const auditValuesForRecord = (
     service: item.service,
     subCategory: item.sub_category,
     aspectRatio: item.aspect_ratio,
+    cropPosition: normalizeCropPosition(item.crop_position),
     status: item.status,
     sortOrder: item.sort_order,
     archivedAt: item.archived_at,
@@ -605,6 +617,7 @@ const determineUpdateAuditChanges = ({
             'service',
             'subCategory',
             'aspectRatio',
+            'cropPosition',
         ],
     })
     if (metadataChange) changes.push(metadataChange)
@@ -789,6 +802,7 @@ const updateItemWithResult = async (
         input.service !== undefined ||
         input.subCategory !== undefined ||
         input.aspectRatio !== undefined ||
+        input.cropPosition !== undefined ||
         input.sortOrder !== undefined
 
     if (current.status === 'archived' && !isArchivedRestore) {
@@ -831,6 +845,11 @@ const updateItemWithResult = async (
         input.aspectRatio === undefined
             ? current.aspect_ratio
             : input.aspectRatio
+    const nextCropPosition = normalizeCropPosition(
+        input.cropPosition === undefined
+            ? current.crop_position
+            : input.cropPosition
+    )
     const nextStatus =
         isArchivedRestore && current.archived_from_status
             ? current.archived_from_status
@@ -867,6 +886,7 @@ const updateItemWithResult = async (
         service: nextService || null,
         sub_category: nextSubCategory || null,
         aspect_ratio: nextAspectRatio || null,
+        crop_position: nextCropPosition,
         sort_order: input.sortOrder ?? current.sort_order,
     }
 

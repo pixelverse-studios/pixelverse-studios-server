@@ -31,6 +31,8 @@ Catalog responses use the frontend-compatible media catalog shape:
       "service": "Events",
       "subCategory": "Baby Shower",
       "aspectRatio": "portrait",
+      "aspect_ratio": "portrait",
+      "cropPosition": "center center",
       "status": "published",
       "sortOrder": 0
     }
@@ -58,7 +60,9 @@ Allowed values:
 | `library` | `portfolio`, `site` |
 | `siteCategory` | `Home`, `About`, `Brand`, `Misc` |
 | `aspectRatio` | `portrait`, `landscape`, `square`, `video` |
+| `aspect_ratio` | Alias for `aspectRatio`; accepted in create/update requests and returned in media responses. |
 | `service` | `Events`, `Family`, `Maternity`, `Couples`, `Portrait` |
+| `cropPosition` | `center center`, `center top`, `center bottom`, `left center`, `right center`, or safe percentage pairs such as `50% 30%` |
 
 Allowed sub-categories:
 
@@ -176,6 +180,8 @@ Response:
         "service": "Events",
         "subCategory": "Baby Shower",
         "aspectRatio": "portrait",
+        "aspect_ratio": "portrait",
+        "cropPosition": "center center",
         "status": "published"
       }
     }
@@ -246,6 +252,8 @@ Response headers include `Cache-Control: no-store`.
           "service": "Events",
           "subCategory": "Baby Shower",
           "aspectRatio": "portrait",
+          "aspect_ratio": "portrait",
+          "cropPosition": "center center",
           "status": "published"
         }
       }
@@ -341,13 +349,19 @@ Request:
   "service": null,
   "subCategory": null,
   "aspectRatio": null,
+  "aspect_ratio": null,
+  "cropPosition": "center center",
   "sortOrder": 0
 }
 ```
 
 Only `key` is required. The server derives `filename` from `key`, `src` from the
 configured public base URL, stores `status: "draft"` when omitted, and defaults
-missing `library` to `"portfolio"`.
+missing `library` to `"portfolio"` and missing `cropPosition` to
+`"center center"`. Create and update requests accept either `cropPosition` or
+`crop_position`; responses return `cropPosition`. Create and update requests
+also accept either `aspectRatio` or `aspect_ratio`; responses return both for
+compatibility.
 
 Site image draft example:
 
@@ -357,12 +371,18 @@ Site image draft example:
   "library": "site",
   "siteCategory": "About",
   "alt": "",
-  "aspectRatio": null
+  "aspectRatio": null,
+  "aspect_ratio": null
 }
 ```
 
 Site images use the same bucket and public base URL. Recommended folders are
 `site/home/`, `site/about/`, `site/brand/`, and `site/misc/`.
+
+The backend does not currently receive image dimensions on the catalog-item
+create request, so it does not infer `aspectRatio` server-side. Draft items may
+store `null` when omitted; publishing remains blocked until an allowed value is
+set.
 
 ## Update Metadata, Publish, Archive, Restore, Reorder
 
@@ -378,6 +398,8 @@ Protected. Accepts any subset of:
   "service": "Events",
   "subCategory": "Baby Shower",
   "aspectRatio": "portrait",
+  "aspect_ratio": "portrait",
+  "cropPosition": "center top",
   "sortOrder": 12,
   "status": "published"
 }
@@ -389,6 +411,8 @@ Portfolio publish requirements:
 - `service` is required.
 - `subCategory` is required and must match `service`.
 - `aspectRatio` is required.
+- `cropPosition` is optional and defaults to `center center`; unsafe arbitrary CSS
+  values are rejected.
 
 Site publish requirements:
 
@@ -508,6 +532,8 @@ Response:
     "service": null,
     "subCategory": null,
     "aspectRatio": null,
+    "aspect_ratio": null,
+    "cropPosition": "center center",
     "status": "draft",
     "sortOrder": 0,
     "createdAt": "2026-05-31T12:00:00.000Z",

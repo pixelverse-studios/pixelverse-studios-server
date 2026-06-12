@@ -7,6 +7,7 @@ import {
     joinPublicUrl,
     validateUploadInput,
 } from '../src/lib/media-r2'
+import mediaCatalogService from '../src/services/media-catalog'
 import mediaR2Service from '../src/services/media-r2'
 import mediaRevalidationService from '../src/services/media-revalidation'
 
@@ -235,6 +236,91 @@ describe('media revalidation controller', () => {
             mediaKey: 'events/baby-shower/baby.jpg',
             actor: undefined,
         })
+        expect(res.status).toHaveBeenCalledWith(200)
+    })
+})
+
+describe('media catalog item controller', () => {
+    beforeEach(() => {
+        vi.mocked(mediaCatalogService.createItem).mockReset()
+        vi.mocked(mediaCatalogService.updateItem).mockReset()
+        vi.mocked(mediaCatalogService.createItem).mockResolvedValue({
+            id: 1,
+            key: 'portrait/new-image.jpg',
+            filename: 'new-image.jpg',
+            src: 'https://pub.example.test/portrait/new-image.jpg',
+            alt: '',
+            library: 'portfolio',
+            siteCategory: null,
+            service: null,
+            subCategory: null,
+            aspectRatio: 'portrait',
+            aspect_ratio: 'portrait',
+            cropPosition: 'center center',
+            status: 'draft',
+            sortOrder: 0,
+        })
+        vi.mocked(mediaCatalogService.updateItem).mockResolvedValue({
+            id: 1,
+            key: 'portrait/new-image.jpg',
+            filename: 'new-image.jpg',
+            src: 'https://pub.example.test/portrait/new-image.jpg',
+            alt: '',
+            library: 'portfolio',
+            siteCategory: null,
+            service: null,
+            subCategory: null,
+            aspectRatio: 'landscape',
+            aspect_ratio: 'landscape',
+            cropPosition: 'center center',
+            status: 'draft',
+            sortOrder: 0,
+        })
+    })
+
+    it('maps snake_case aspect_ratio on draft creation', async () => {
+        const res = createResponse()
+
+        await mediaController.createCatalogItem(
+            createRequest({
+                body: {
+                    key: 'portrait/new-image.jpg',
+                    aspect_ratio: 'portrait',
+                },
+            }),
+            res
+        )
+
+        expect(mediaCatalogService.createItem).toHaveBeenCalledWith(
+            expect.objectContaining({
+                websiteSlug: 'iffers-pictures',
+                key: 'portrait/new-image.jpg',
+                aspectRatio: 'portrait',
+            })
+        )
+        expect(res.status).toHaveBeenCalledWith(201)
+    })
+
+    it('maps snake_case aspect_ratio on metadata update', async () => {
+        const res = createResponse()
+
+        await mediaController.updateCatalogItem(
+            createRequest({
+                params: { websiteSlug: 'iffers-pictures', id: '1' },
+                body: {
+                    aspect_ratio: 'landscape',
+                },
+            }),
+            res
+        )
+
+        expect(mediaCatalogService.updateItem).toHaveBeenCalledWith(
+            expect.objectContaining({
+                websiteSlug: 'iffers-pictures',
+                id: 1,
+                aspectRatio: 'landscape',
+            })
+        )
         expect(res.status).toHaveBeenCalledWith(200)
     })
 })
