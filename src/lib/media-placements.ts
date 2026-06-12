@@ -195,6 +195,15 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         affectedPaths: ['/investment'],
     },
     {
+        key: 'inquire.what_happens_next',
+        pageLabel: 'Inquire',
+        sectionLabel: 'What Happens Next',
+        description:
+            'Image used beside the What Happens Next steps on the inquire page.',
+        expectedAspectRatios: ['landscape', 'portrait'],
+        affectedPaths: ['/inquire'],
+    },
+    {
         key: 'faq.hero',
         pageLabel: 'FAQ',
         sectionLabel: 'Hero',
