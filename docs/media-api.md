@@ -218,7 +218,22 @@ assignment state when a slot has an assigned media item.
 
 Response headers include `Cache-Control: no-store`.
 
-The Iffer's Pictures registry includes the Inquire page image slot:
+The Iffer's Pictures registry includes homepage image strip slots, including
+the third below-hero strip image:
+
+```json
+{
+  "slotKey": "home.strip.3",
+  "pageLabel": "Home",
+  "sectionLabel": "Image Strip 3",
+  "description": "Third supporting image in the homepage image strip.",
+  "expectedAspectRatios": ["portrait", "landscape"],
+  "affectedPaths": ["/"],
+  "assignment": null
+}
+```
+
+The registry also includes the Inquire page image slot:
 
 ```json
 {

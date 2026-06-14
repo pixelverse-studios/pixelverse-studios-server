@@ -24,6 +24,7 @@ describe('media placement slot registry', () => {
             'home.hero',
             'home.strip.1',
             'home.strip.2',
+            'home.strip.3',
             'home.meet_jenn',
             'home.quote_image',
             'about.hero',
@@ -105,7 +106,26 @@ describe('media placement slot registry', () => {
         ).toBe(true)
         expect(
             getMediaPlacementSlotsForWebsite(IFFERS_PICTURES_WEBSITE_SLUG)
-        ).toHaveLength(24)
+        ).toHaveLength(25)
+    })
+
+    it('returns metadata for all homepage image strip slots', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'home.strip.3',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'home.strip.3',
+                pageLabel: 'Home',
+                sectionLabel: 'Image Strip 3',
+                description:
+                    'Third supporting image in the homepage image strip.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/'],
+            })
+        )
     })
 
     it('returns metadata for the Inquire page image slot', () => {

@@ -163,7 +163,9 @@ describe('media placement route coverage', () => {
     beforeEach(() => {
         vi.mocked(mediaCatalogService.batchUpdateItems).mockReset()
         vi.mocked(mediaPlacementsService.listPublicPlacements).mockReset()
+        vi.mocked(mediaPlacementsService.listAdminPlacements).mockReset()
         vi.mocked(mediaPlacementsService.assignPlacement).mockReset()
+        vi.mocked(mediaPlacementsService.clearPlacement).mockReset()
         vi.mocked(mediaRevalidationService.publicCatalogCacheControl).mockReset()
         vi.mocked(mediaRevalidationService.triggerMediaRevalidation).mockReset()
         vi.mocked(mediaRevalidationService.publicCatalogCacheControl).mockReturnValue(
@@ -341,7 +343,7 @@ describe('media placement route coverage', () => {
             publicBaseUrl: 'https://media.ifferspictures.com',
             placements: [
                 {
-                    slotKey: 'home.hero',
+                    slotKey: 'home.strip.3',
                     media: {
                         id: 1,
                         key: 'events/baby-shower/baby.jpg',
@@ -376,7 +378,7 @@ describe('media placement route coverage', () => {
             expect.objectContaining({
                 placements: [
                     expect.objectContaining({
-                        slotKey: 'home.hero',
+                        slotKey: 'home.strip.3',
                         media: expect.objectContaining({
                             id: 1,
                             subCategory: 'Baby Shower',
@@ -389,12 +391,62 @@ describe('media placement route coverage', () => {
         )
     })
 
+    it('returns Image Strip 3 in admin placement listing responses', async () => {
+        vi.mocked(mediaPlacementsService.listAdminPlacements).mockResolvedValue({
+            version: 1,
+            publicBaseUrl: 'https://media.ifferspictures.com',
+            slots: [
+                {
+                    slotKey: 'home.strip.3',
+                    pageLabel: 'Home',
+                    sectionLabel: 'Image Strip 3',
+                    description:
+                        'Third supporting image in the homepage image strip.',
+                    expectedAspectRatios: ['portrait', 'landscape'],
+                    affectedPaths: ['/'],
+                    assignment: null,
+                },
+            ],
+        })
+        const req = createRequest({})
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'get',
+            path: '/api/media/:websiteSlug/admin/placements',
+        })
+
+        await runHandlers(handlers.slice(1), req, res)
+
+        expect(res.statusCode).toBe(200)
+        expect(res.headers['cache-control']).toBe('no-store')
+        expect(mediaPlacementsService.listAdminPlacements).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+        })
+        expect(res.payload).toEqual(
+            expect.objectContaining({
+                slots: [
+                    expect.objectContaining({
+                        slotKey: 'home.strip.3',
+                        pageLabel: 'Home',
+                        sectionLabel: 'Image Strip 3',
+                        description:
+                            'Third supporting image in the homepage image strip.',
+                        expectedAspectRatios: ['portrait', 'landscape'],
+                        affectedPaths: ['/'],
+                        assignment: null,
+                    }),
+                ],
+            })
+        )
+    })
+
     it('passes authenticated admin actor context to placement assignment controller', async () => {
         vi.mocked(mediaPlacementsService.assignPlacement).mockResolvedValue({
-            slotKey: 'home.hero',
+            slotKey: 'home.strip.3',
             pageLabel: 'Home',
-            sectionLabel: 'Hero',
-            description: 'Primary homepage hero image.',
+            sectionLabel: 'Image Strip 3',
+            description: 'Third supporting image in the homepage image strip.',
+            expectedAspectRatios: ['portrait', 'landscape'],
             affectedPaths: ['/'],
             assignment: {
                 id: 10,
@@ -417,7 +469,7 @@ describe('media placement route coverage', () => {
         const req = createRequest({
             params: {
                 websiteSlug: 'iffers-pictures',
-                slotKey: 'home.hero',
+                slotKey: 'home.strip.3',
             },
             body: { media_id: 1 },
         })
@@ -437,9 +489,53 @@ describe('media placement route coverage', () => {
         expect(res.statusCode).toBe(200)
         expect(mediaPlacementsService.assignPlacement).toHaveBeenCalledWith({
             websiteSlug: 'iffers-pictures',
-            slotKey: 'home.hero',
+            slotKey: 'home.strip.3',
             mediaId: 1,
             actor: 'jenn@example.com',
+        })
+        expect(res.payload).toEqual(
+            expect.objectContaining({
+                slotKey: 'home.strip.3',
+                sectionLabel: 'Image Strip 3',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/'],
+            })
+        )
+    })
+
+    it('passes authenticated admin actor context to placement clearing controller', async () => {
+        vi.mocked(mediaPlacementsService.clearPlacement).mockResolvedValue({
+            cleared: true,
+            slotKey: 'home.strip.3',
+        })
+        const req = createRequest({
+            params: {
+                websiteSlug: 'iffers-pictures',
+                slotKey: 'home.strip.3',
+            },
+        })
+        req.mediaAdmin = {
+            email: 'jenn@example.com',
+            sessionId: 'session-1',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+        }
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'delete',
+            path: '/api/media/:websiteSlug/admin/placements/:slotKey',
+        })
+
+        await runHandlers(handlers.slice(1), req, res)
+
+        expect(res.statusCode).toBe(200)
+        expect(mediaPlacementsService.clearPlacement).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.strip.3',
+            actor: 'jenn@example.com',
+        })
+        expect(res.payload).toEqual({
+            cleared: true,
+            slotKey: 'home.strip.3',
         })
     })
 
