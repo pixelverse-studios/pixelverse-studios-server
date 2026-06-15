@@ -130,7 +130,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_PRESIGN_EXPIRES_SECONDS` | Optional R2 presigned upload expiry; defaults to 900 seconds. |
 | `R2_CONNECTION_TIMEOUT_MS` | Optional R2 S3 connection timeout; defaults to 2000ms. |
 | `R2_REQUEST_TIMEOUT_MS` | Optional R2 S3 request timeout; defaults to 8000ms. |
-| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
+| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 25MB. |
 | `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | Optional maximum batch draft-completion item count; defaults to 10. |
 | `MEDIA_DB_LATENCY_WARN_MS` | Optional Supabase media mutation DB latency warning threshold; defaults to 1000ms. |
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import mediaController from '../src/controllers/media'
 import {
     buildR2ObjectKey,
+    DEFAULT_MAX_UPLOAD_BYTES,
     joinPublicUrl,
     MediaOperationError,
     validateUploadInput,
@@ -118,6 +119,28 @@ describe('media R2 key and upload validation helpers', () => {
                 size: 1000,
             })
         ).toThrow('Unsupported upload content type.')
+    })
+
+    it('accepts the default 25 MB upload limit', () => {
+        delete process.env.MEDIA_MAX_UPLOAD_BYTES
+
+        expect(
+            validateUploadInput({
+                contentType: 'image/jpeg',
+                size: DEFAULT_MAX_UPLOAD_BYTES,
+            })
+        ).toBe('image/jpeg')
+    })
+
+    it('rejects uploads one byte over the default 25 MB limit', () => {
+        delete process.env.MEDIA_MAX_UPLOAD_BYTES
+
+        expect(() =>
+            validateUploadInput({
+                contentType: 'image/jpeg',
+                size: DEFAULT_MAX_UPLOAD_BYTES + 1,
+            })
+        ).toThrow('Upload exceeds the configured maximum size.')
     })
 
     it('rejects oversized uploads', () => {

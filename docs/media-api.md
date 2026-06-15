@@ -321,7 +321,8 @@ Response:
 `POST /api/media/:websiteSlug/admin/uploads/presign`
 
 Protected. Creates a short-lived direct-upload URL for R2. Uploads default to
-draft only after the frontend creates the catalog item.
+draft only after the frontend creates the catalog item. The default maximum file
+size is 25 MB and can be overridden with `MEDIA_MAX_UPLOAD_BYTES`.
 
 Request:
 
@@ -812,7 +813,7 @@ Server runtime:
 | `R2_PRESIGN_EXPIRES_SECONDS` | no | Presign expiry. Defaults to `900`. |
 | `R2_CONNECTION_TIMEOUT_MS` | no | R2 S3 connection timeout. Defaults to `2000`. |
 | `R2_REQUEST_TIMEOUT_MS` | no | R2 S3 request timeout. Defaults to `8000`. |
-| `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 10 MB. |
+| `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 25 MB. |
 | `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | no | Max batch draft-completion items. Defaults to `10`. |
 | `MEDIA_DB_LATENCY_WARN_MS` | no | Supabase media mutation DB latency warning threshold. Defaults to `1000`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | no | Frontend revalidation webhook. |
