@@ -210,6 +210,20 @@ router.post(
 )
 
 router.post(
+    `${BASE_ROUTE}/:websiteSlug/admin/items/batch`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+    ],
+    validateRequest,
+    media.batchCreateCatalogItems
+)
+
+router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/items`,
     requireMediaAdminSession,
     [

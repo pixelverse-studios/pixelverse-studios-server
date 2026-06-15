@@ -152,6 +152,11 @@ const newPlacementSlots = [
     },
     { slotKey: 'services.card.portrait', affectedPaths: ['/services'] },
     { slotKey: 'services.card.custom_request', affectedPaths: ['/services'] },
+    {
+        slotKey: 'inquire.what_happens_next',
+        affectedPaths: ['/inquire'],
+    },
+    { slotKey: 'faq.cta', affectedPaths: ['/faq'] },
 ]
 
 describe('media placements service', () => {
@@ -184,11 +189,20 @@ describe('media placements service', () => {
                     placement,
                     { ...placement, id: 11, slot_key: 'home.strip.1', media_id: 2 },
                     { ...placement, id: 12, slot_key: 'home.strip.2', media_id: 3 },
-                    { ...placement, id: 13, slot_key: 'legacy.hero', media_id: 1 },
+                    { ...placement, id: 13, slot_key: 'home.strip.3', media_id: 4 },
+                    { ...placement, id: 14, slot_key: 'legacy.hero', media_id: 1 },
                 ],
                 error: null,
             },
-            { data: [publishedMedia, draftMedia, archivedMedia], error: null },
+            {
+                data: [
+                    publishedMedia,
+                    draftMedia,
+                    archivedMedia,
+                    publishedSiteMedia,
+                ],
+                error: null,
+            },
         ]
 
         const result = await mediaPlacementsService.listPublicPlacements({
@@ -215,9 +229,27 @@ describe('media placements service', () => {
                         status: 'published',
                     },
                 },
+                {
+                    slotKey: 'home.strip.3',
+                    media: {
+                        id: 4,
+                        key: 'site/about/jenn-portrait.jpg',
+                        filename: 'jenn-portrait.jpg',
+                        src: 'https://media.ifferspictures.com/site/about/jenn-portrait.jpg',
+                        alt: 'Jenn portrait for the about page',
+                        library: 'site',
+                        siteCategory: 'About',
+                        service: null,
+                        subCategory: null,
+                        aspectRatio: 'portrait',
+                        status: 'published',
+                    },
+                },
             ],
         })
-        expect(mockState.builders[3].in).toHaveBeenCalledWith('id', [1, 2, 3])
+        expect(mockState.builders[3].in).toHaveBeenCalledWith('id', [
+            1, 2, 3, 4,
+        ])
     })
 
     it('returns published site media through public placement assignments', async () => {
@@ -330,7 +362,7 @@ describe('media placements service', () => {
             websiteSlug: 'iffers-pictures',
         })
 
-        expect(result.slots).toHaveLength(23)
+        expect(result.slots).toHaveLength(26)
         expect(result.slots[0]).toEqual(
             expect.objectContaining({
                 slotKey: 'home.hero',
@@ -347,6 +379,19 @@ describe('media placements service', () => {
         )
         expect(result.slots.find(slot => slot.slotKey === 'faq.hero')).toEqual(
             expect.objectContaining({ assignment: null })
+        )
+        expect(
+            result.slots.find(slot => slot.slotKey === 'home.strip.3')
+        ).toEqual(
+            expect.objectContaining({
+                pageLabel: 'Home',
+                sectionLabel: 'Image Strip 3',
+                description:
+                    'Third supporting image in the homepage image strip.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/'],
+                assignment: null,
+            })
         )
         expect(
             result.slots.find(slot => slot.slotKey === 'about.beyond_camera')
@@ -367,6 +412,31 @@ describe('media placements service', () => {
                 pageLabel: 'Services',
                 sectionLabel: 'Couples & Engagement Card',
                 affectedPaths: ['/services'],
+                assignment: null,
+            })
+        )
+        expect(
+            result.slots.find(
+                slot => slot.slotKey === 'inquire.what_happens_next'
+            )
+        ).toEqual(
+            expect.objectContaining({
+                pageLabel: 'Inquire',
+                sectionLabel: 'What Happens Next',
+                description:
+                    'Image used beside the What Happens Next steps on the inquire page.',
+                expectedAspectRatios: ['landscape', 'portrait'],
+                affectedPaths: ['/inquire'],
+                assignment: null,
+            })
+        )
+        expect(result.slots.find(slot => slot.slotKey === 'faq.cta')).toEqual(
+            expect.objectContaining({
+                pageLabel: 'FAQ',
+                sectionLabel: 'Still Have Questions',
+                description: 'Image paired with the FAQ page bottom CTA.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/faq'],
                 assignment: null,
             })
         )
@@ -410,6 +480,59 @@ describe('media placements service', () => {
                 mediaKey: 'events/baby-shower/baby.jpg',
             }),
         })
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_assigned',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            actor: 'jenn@example.com',
+            affectedPaths: ['/'],
+        })
+    })
+
+    it('assigns published portrait media to the homepage Image Strip 3 placement', async () => {
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: publishedMedia, error: null },
+            { data: null, error: null },
+            {
+                data: { ...placement, slot_key: 'home.strip.3' },
+                error: null,
+            },
+        ]
+
+        const result = await mediaPlacementsService.assignPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.strip.3',
+            mediaId: 1,
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[3].insert).toHaveBeenCalledWith({
+            website_id: 'website-1',
+            client_id: 'client-1',
+            slot_key: 'home.strip.3',
+            media_id: 1,
+            updated_by: 'jenn@example.com',
+        })
+        expect(result).toEqual(
+            expect.objectContaining({
+                slotKey: 'home.strip.3',
+                pageLabel: 'Home',
+                sectionLabel: 'Image Strip 3',
+                description:
+                    'Third supporting image in the homepage image strip.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/'],
+                assignment: expect.objectContaining({
+                    media: expect.objectContaining({
+                        id: 1,
+                        aspectRatio: 'portrait',
+                        status: 'published',
+                    }),
+                }),
+            })
+        )
         expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
             websiteSlug: 'iffers-pictures',
             reason: 'placement_assigned',
@@ -555,6 +678,80 @@ describe('media placements service', () => {
             reason: 'placement_replaced',
             mediaId: 4,
             mediaKey: 'events/replacement.jpg',
+            actor: 'jenn@example.com',
+            affectedPaths: ['/'],
+        })
+    })
+
+    it('replaces the homepage Image Strip 3 placement with published landscape media', async () => {
+        const currentPlacement = { ...placement, slot_key: 'home.strip.3' }
+        const replacementMedia = {
+            ...publishedMedia,
+            id: 5,
+            key: 'events/strip-landscape.jpg',
+            filename: 'strip-landscape.jpg',
+            src: 'https://media.ifferspictures.com/events/strip-landscape.jpg',
+            aspect_ratio: 'landscape',
+        }
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: replacementMedia, error: null },
+            { data: currentPlacement, error: null },
+            { data: publishedMedia, error: null },
+            {
+                data: {
+                    ...currentPlacement,
+                    media_id: 5,
+                },
+                error: null,
+            },
+        ]
+
+        const result = await mediaPlacementsService.assignPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.strip.3',
+            mediaId: 5,
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.builders[4].update).toHaveBeenCalledWith({
+            website_id: 'website-1',
+            client_id: 'client-1',
+            slot_key: 'home.strip.3',
+            media_id: 5,
+            updated_by: 'jenn@example.com',
+        })
+        expect(result.assignment?.media).toEqual(
+            expect.objectContaining({
+                id: 5,
+                aspectRatio: 'landscape',
+                status: 'published',
+            })
+        )
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith({
+            websiteId: 'website-1',
+            clientId: 'client-1',
+            mediaId: 5,
+            mediaKey: 'events/strip-landscape.jpg',
+            action: 'placement_replaced',
+            actor: 'jenn@example.com',
+            oldValues: expect.objectContaining({
+                slotKey: 'home.strip.3',
+                mediaId: 1,
+                mediaKey: 'events/baby-shower/baby.jpg',
+            }),
+            newValues: expect.objectContaining({
+                slotKey: 'home.strip.3',
+                mediaId: 5,
+                mediaKey: 'events/strip-landscape.jpg',
+                aspectRatio: 'landscape',
+            }),
+        })
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_replaced',
+            mediaId: 5,
+            mediaKey: 'events/strip-landscape.jpg',
             actor: 'jenn@example.com',
             affectedPaths: ['/'],
         })
@@ -727,6 +924,50 @@ describe('media placements service', () => {
             mediaId: 1,
             mediaKey: 'events/baby-shower/baby.jpg',
             actor: undefined,
+            affectedPaths: ['/'],
+        })
+    })
+
+    it('clears only the homepage Image Strip 3 placement assignment', async () => {
+        const stripThreePlacement = {
+            ...placement,
+            id: 33,
+            slot_key: 'home.strip.3',
+        }
+        mockState.queryResults = [
+            { data: website, error: null },
+            { data: stripThreePlacement, error: null },
+            { data: publishedMedia, error: null },
+            { data: null, error: null },
+        ]
+
+        const result = await mediaPlacementsService.clearPlacement({
+            websiteSlug: 'iffers-pictures',
+            slotKey: 'home.strip.3',
+            actor: 'jenn@example.com',
+        })
+
+        expect(result).toEqual({ cleared: true, slotKey: 'home.strip.3' })
+        expect(mockState.builders[3].delete).toHaveBeenCalled()
+        expect(mockState.builders[3].eq).toHaveBeenCalledWith('id', 33)
+        expect(mediaAuditService.tryCreateLog).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: 'placement_cleared',
+                actor: 'jenn@example.com',
+                oldValues: expect.objectContaining({
+                    slotKey: 'home.strip.3',
+                    placementId: 33,
+                    mediaId: 1,
+                }),
+                newValues: null,
+            })
+        )
+        expect(tryTriggerMediaRevalidation).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            reason: 'placement_cleared',
+            mediaId: 1,
+            mediaKey: 'events/baby-shower/baby.jpg',
+            actor: 'jenn@example.com',
             affectedPaths: ['/'],
         })
     })

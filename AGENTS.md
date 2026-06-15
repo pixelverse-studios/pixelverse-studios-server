@@ -63,6 +63,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/admin/revalidate` | POST | Trigger the configured frontend cache revalidation webhook for public media pages. | `controllers/media.revalidateCatalog` |
 | `/api/media/:websiteSlug/admin/objects/check-destination` | POST | Check catalog and R2 destination collisions before moving media. | `controllers/media.checkDestination` |
 | `/api/media/:websiteSlug/admin/items` | POST | Create a draft media catalog item after upload. | `controllers/media.createCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/batch` | POST | Create multiple draft media catalog items after direct uploads and return per-file success/failure results. | `controllers/media.batchCreateCatalogItems` |
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
@@ -127,12 +128,21 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_BUCKET_NAME` | Fallback Cloudflare R2 bucket name for media manager features when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | Fallback public base URL for R2 media objects when no per-client config exists. |
 | `R2_PRESIGN_EXPIRES_SECONDS` | Optional R2 presigned upload expiry; defaults to 900 seconds. |
-| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
+| `R2_CONNECTION_TIMEOUT_MS` | Optional R2 S3 connection timeout; defaults to 2000ms. |
+| `R2_REQUEST_TIMEOUT_MS` | Optional R2 S3 request timeout; defaults to 8000ms. |
+| `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 25MB. |
+| `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | Optional maximum batch draft-completion item count; defaults to 10. |
+| `MEDIA_DB_LATENCY_WARN_MS` | Optional Supabase media mutation DB latency warning threshold; defaults to 1000ms. |
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
 | `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |
+| `MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS` | Optional cooldown for suppressing duplicate magic-link sends while returning the generic public response; defaults to 60 seconds. |
+| `MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS` | Optional email-level magic-link request rate limit; defaults to disabled. |
+| `MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS` | Optional grace window for magic-link expiry checks; defaults to 120 seconds. |
 | `MEDIA_ADMIN_SESSION_TTL_HOURS` | Optional media admin session duration; defaults to 12 hours. |
 | `MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS` | Optional minimum response time for media admin magic-link requests; defaults to 350ms to reduce email approval probing. |
+| `MEDIA_ADMIN_COOKIE_DOMAIN` | Optional session cookie domain for cross-subdomain deployments. |
+| `MEDIA_ADMIN_COOKIE_SAME_SITE` | Optional session cookie SameSite value (`lax`, `strict`, or `none`); defaults to `lax`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | Optional frontend webhook URL called after public media catalog changes or manual admin revalidation. |
 | `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent to the frontend revalidation webhook. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional revalidation webhook timeout; defaults to 5000ms. |

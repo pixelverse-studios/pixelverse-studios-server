@@ -7,6 +7,7 @@ import {
     S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 import { COLUMNS, db, Tables } from '../lib/db'
 import {
@@ -18,7 +19,10 @@ import {
     buildR2ObjectKey,
     joinPublicUrl,
     presignExpiresSeconds,
+    r2ConnectionTimeoutMs,
+    r2RequestTimeoutMs,
     validateUploadInput,
+    MediaOperationError,
     MediaValidationError,
 } from '../lib/media-r2'
 import mediaCatalogService, {
@@ -180,12 +184,134 @@ const createR2Client = (): S3Client => {
     return new S3Client({
         region: 'auto',
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        requestHandler: new NodeHttpHandler({
+            connectionTimeout: r2ConnectionTimeoutMs(),
+            requestTimeout: r2RequestTimeoutMs(),
+        }),
         requestChecksumCalculation: 'WHEN_REQUIRED',
         credentials: {
             accessKeyId,
             secretAccessKey,
         },
     })
+}
+
+const providerStatusCode = (err: unknown): number | undefined =>
+    (err as { $metadata?: { httpStatusCode?: number } })?.$metadata
+        ?.httpStatusCode
+
+const providerErrorName = (err: unknown): string | undefined =>
+    (err as { name?: string })?.name
+
+const providerErrorCode = (err: unknown): string | undefined =>
+    (err as { code?: string })?.code
+
+const providerRetryAfter = (err: unknown): string | undefined => {
+    const headers = (err as { $metadata?: { httpHeaders?: Record<string, string> } })
+        ?.$metadata?.httpHeaders
+    return headers?.['retry-after']
+}
+
+const isProviderTimeoutError = (err: unknown): boolean => {
+    const name = providerErrorName(err)
+    const code = providerErrorCode(err)
+    return [
+        'AbortError',
+        'TimeoutError',
+        'RequestTimeout',
+        'RequestTimeoutException',
+    ].includes(name || '') || ['ETIMEDOUT', 'ESOCKETTIMEDOUT'].includes(code || '')
+}
+
+const isProviderBusyError = (err: unknown): boolean => {
+    const statusCode = providerStatusCode(err)
+    const name = providerErrorName(err)
+    return (
+        statusCode === 429 ||
+        statusCode === 503 ||
+        name === 'SlowDown' ||
+        name === 'Throttling' ||
+        name === 'TooManyRequestsException'
+    )
+}
+
+const mapR2OperationError = ({
+    err,
+    operation,
+    key,
+}: {
+    err: unknown
+    operation: string
+    key?: string
+}): never => {
+    const statusCode = providerStatusCode(err)
+    const details: Record<string, unknown> = {
+        provider: 'r2',
+        operation,
+        ...(key && { key }),
+        ...(providerErrorName(err) && { provider_error: providerErrorName(err) }),
+        ...(statusCode && { provider_status: statusCode }),
+    }
+
+    if (isProviderTimeoutError(err)) {
+        throw new MediaOperationError({
+            status: 504,
+            code: 'media.upload_timeout',
+            message: 'Media storage request timed out.',
+            retryable: true,
+            details,
+        })
+    }
+
+    if (isProviderBusyError(err)) {
+        throw new MediaOperationError({
+            status: 503,
+            code: 'media.upload_temporary_unavailable',
+            message: 'Media storage is temporarily busy. Retry this upload shortly.',
+            retryable: true,
+            details: {
+                ...details,
+                ...(providerRetryAfter(err) && {
+                    retry_after: providerRetryAfter(err),
+                }),
+            },
+        })
+    }
+
+    throw new MediaOperationError({
+        status: 502,
+        code: 'media.upload_provider_error',
+        message: 'Media storage provider request failed.',
+        retryable: true,
+        details,
+    })
+}
+
+const sendR2Command = async <T>(
+    client: S3Client,
+    command: any,
+    operation: string,
+    key?: string
+): Promise<T> => {
+    try {
+        return (await client.send(command as never)) as T
+    } catch (err) {
+        const statusCode = providerStatusCode(err)
+        if (
+            statusCode === 404 ||
+            statusCode === 409 ||
+            statusCode === 412 ||
+            providerErrorName(err) === 'NotFound' ||
+            providerErrorName(err) === 'NoSuchKey' ||
+            providerErrorName(err) === 'ConditionalRequestConflict' ||
+            providerErrorName(err) === 'PreconditionFailed'
+        ) {
+            throw err
+        }
+
+        mapR2OperationError({ err, operation, key })
+        throw err
+    }
 }
 
 const normalizePrefix = (prefix?: string): string => {
@@ -306,11 +432,14 @@ const objectExists = async ({
     key: string
 }): Promise<boolean> => {
     try {
-        await client.send(
+        await sendR2Command(
+            client,
             new HeadObjectCommand({
                 Bucket: bucket,
                 Key: key,
-            })
+            }),
+            'head_object',
+            key
         )
         return true
     } catch (err) {
@@ -467,12 +596,23 @@ const listObjects = async ({
           ? `${keyPrefix}/`
           : ''
     const client = createR2Client()
-    const { Contents, IsTruncated } = await client.send(
+    const { Contents, IsTruncated } = await sendR2Command<{
+        Contents?: Array<{
+            Key?: string
+            Size?: number
+            LastModified?: Date
+            ETag?: string
+        }>
+        IsTruncated?: boolean
+    }>(
+        client,
         new ListObjectsV2Command({
             Bucket: config.bucket,
             Prefix: normalizedPrefix || undefined,
             MaxKeys: 1000,
-        })
+        }),
+        'list_objects',
+        normalizedPrefix
     )
 
     if (IsTruncated) {
@@ -623,7 +763,8 @@ const moveCatalogItemObject = async ({
     })
 
     try {
-        await client.send(
+        await sendR2Command(
+            client,
             new CopyObjectCommand({
                 Bucket: config.bucket,
                 Key: scopedDestinationKey,
@@ -631,7 +772,9 @@ const moveCatalogItemObject = async ({
                     item.key
                 ).replace(/%2F/g, '/')}`,
                 IfNoneMatch: '*',
-            })
+            }),
+            'copy_object',
+            scopedDestinationKey
         )
     } catch (err) {
         if (isConditionalWriteFailure(err)) {
@@ -657,11 +800,14 @@ const moveCatalogItemObject = async ({
         })
     } catch (err) {
         try {
-            await client.send(
+            await sendR2Command(
+                client,
                 new DeleteObjectCommand({
                     Bucket: config.bucket,
                     Key: scopedDestinationKey,
-                })
+                }),
+                'delete_object',
+                scopedDestinationKey
             )
         } catch (cleanupErr) {
             console.error(
@@ -675,11 +821,14 @@ const moveCatalogItemObject = async ({
 
     let sourceDeleted = true
     try {
-        await client.send(
+        await sendR2Command(
+            client,
             new DeleteObjectCommand({
                 Bucket: config.bucket,
                 Key: item.key,
-            })
+            }),
+            'delete_object',
+            item.key
         )
     } catch (err) {
         sourceDeleted = false

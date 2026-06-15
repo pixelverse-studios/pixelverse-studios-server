@@ -40,6 +40,14 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         affectedPaths: ['/'],
     },
     {
+        key: 'home.strip.3',
+        pageLabel: 'Home',
+        sectionLabel: 'Image Strip 3',
+        description: 'Third supporting image in the homepage image strip.',
+        expectedAspectRatios: ['portrait', 'landscape'],
+        affectedPaths: ['/'],
+    },
+    {
         key: 'home.meet_jenn',
         pageLabel: 'Home',
         sectionLabel: 'Meet Jenn',
@@ -195,11 +203,28 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         affectedPaths: ['/investment'],
     },
     {
+        key: 'inquire.what_happens_next',
+        pageLabel: 'Inquire',
+        sectionLabel: 'What Happens Next',
+        description:
+            'Image used beside the What Happens Next steps on the inquire page.',
+        expectedAspectRatios: ['landscape', 'portrait'],
+        affectedPaths: ['/inquire'],
+    },
+    {
         key: 'faq.hero',
         pageLabel: 'FAQ',
         sectionLabel: 'Hero',
         description: 'Primary FAQ page hero image.',
         expectedAspectRatios: ['landscape', 'portrait'],
+        affectedPaths: ['/faq'],
+    },
+    {
+        key: 'faq.cta',
+        pageLabel: 'FAQ',
+        sectionLabel: 'Still Have Questions',
+        description: 'Image paired with the FAQ page bottom CTA.',
+        expectedAspectRatios: ['portrait', 'landscape'],
         affectedPaths: ['/faq'],
     },
 ] as const satisfies readonly MediaPlacementSlot[]

@@ -24,6 +24,7 @@ describe('media placement slot registry', () => {
             'home.hero',
             'home.strip.1',
             'home.strip.2',
+            'home.strip.3',
             'home.meet_jenn',
             'home.quote_image',
             'about.hero',
@@ -43,7 +44,9 @@ describe('media placement slot registry', () => {
             'portfolio.hero',
             'investment.hero',
             'investment.detail',
+            'inquire.what_happens_next',
             'faq.hero',
+            'faq.cta',
         ])
     })
 
@@ -104,7 +107,63 @@ describe('media placement slot registry', () => {
         ).toBe(true)
         expect(
             getMediaPlacementSlotsForWebsite(IFFERS_PICTURES_WEBSITE_SLUG)
-        ).toHaveLength(23)
+        ).toHaveLength(26)
+    })
+
+    it('returns metadata for all homepage image strip slots', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'home.strip.3',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'home.strip.3',
+                pageLabel: 'Home',
+                sectionLabel: 'Image Strip 3',
+                description:
+                    'Third supporting image in the homepage image strip.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/'],
+            })
+        )
+    })
+
+    it('returns metadata for the Inquire page image slot', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'inquire.what_happens_next',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'inquire.what_happens_next',
+                pageLabel: 'Inquire',
+                sectionLabel: 'What Happens Next',
+                description:
+                    'Image used beside the What Happens Next steps on the inquire page.',
+                expectedAspectRatios: ['landscape', 'portrait'],
+                affectedPaths: ['/inquire'],
+            })
+        )
+    })
+
+    it('returns metadata for the FAQ bottom CTA image slot', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'faq.cta',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'faq.cta',
+                pageLabel: 'FAQ',
+                sectionLabel: 'Still Have Questions',
+                description: 'Image paired with the FAQ page bottom CTA.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/faq'],
+            })
+        )
     })
 
     it('rejects unknown placement slots with a structured media error', () => {
