@@ -40,6 +40,14 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         affectedPaths: ['/'],
     },
     {
+        key: 'home.strip.3',
+        pageLabel: 'Home',
+        sectionLabel: 'Image Strip 3',
+        description: 'Third supporting image in the homepage image strip.',
+        expectedAspectRatios: ['portrait', 'landscape'],
+        affectedPaths: ['/'],
+    },
+    {
         key: 'home.meet_jenn',
         pageLabel: 'Home',
         sectionLabel: 'Meet Jenn',
