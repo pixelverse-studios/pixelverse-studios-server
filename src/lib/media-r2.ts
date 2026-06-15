@@ -9,7 +9,7 @@ export const ALLOWED_UPLOAD_CONTENT_TYPES = [
 export type AllowedUploadContentType =
     (typeof ALLOWED_UPLOAD_CONTENT_TYPES)[number]
 
-export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+export const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 export const DEFAULT_PRESIGN_EXPIRES_SECONDS = 15 * 60
 export const DEFAULT_R2_CONNECTION_TIMEOUT_MS = 2_000
 export const DEFAULT_R2_REQUEST_TIMEOUT_MS = 8_000
