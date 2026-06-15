@@ -46,6 +46,7 @@ describe('media placement slot registry', () => {
             'investment.detail',
             'inquire.what_happens_next',
             'faq.hero',
+            'faq.cta',
         ])
     })
 
@@ -106,7 +107,7 @@ describe('media placement slot registry', () => {
         ).toBe(true)
         expect(
             getMediaPlacementSlotsForWebsite(IFFERS_PICTURES_WEBSITE_SLUG)
-        ).toHaveLength(25)
+        ).toHaveLength(26)
     })
 
     it('returns metadata for all homepage image strip slots', () => {
@@ -143,6 +144,24 @@ describe('media placement slot registry', () => {
                     'Image used beside the What Happens Next steps on the inquire page.',
                 expectedAspectRatios: ['landscape', 'portrait'],
                 affectedPaths: ['/inquire'],
+            })
+        )
+    })
+
+    it('returns metadata for the FAQ bottom CTA image slot', () => {
+        expect(
+            getMediaPlacementSlot({
+                websiteSlug: IFFERS_PICTURES_WEBSITE_SLUG,
+                slotKey: 'faq.cta',
+            })
+        ).toEqual(
+            expect.objectContaining({
+                key: 'faq.cta',
+                pageLabel: 'FAQ',
+                sectionLabel: 'Still Have Questions',
+                description: 'Image paired with the FAQ page bottom CTA.',
+                expectedAspectRatios: ['portrait', 'landscape'],
+                affectedPaths: ['/faq'],
             })
         )
     })

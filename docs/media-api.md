@@ -247,6 +247,21 @@ The registry also includes the Inquire page image slot:
 }
 ```
 
+The FAQ page exposes both the hero and bottom CTA image slots. The bottom CTA
+slot appears unassigned until Jen chooses a published image:
+
+```json
+{
+  "slotKey": "faq.cta",
+  "pageLabel": "FAQ",
+  "sectionLabel": "Still Have Questions",
+  "description": "Image paired with the FAQ page bottom CTA.",
+  "expectedAspectRatios": ["portrait", "landscape"],
+  "affectedPaths": ["/faq"],
+  "assignment": null
+}
+```
+
 `assignment` is `null` until a published media item is assigned through the
 same placement mutation endpoint used by homepage slots.
 
