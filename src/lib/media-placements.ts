@@ -202,6 +202,14 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         expectedAspectRatios: ['landscape', 'portrait'],
         affectedPaths: ['/faq'],
     },
+    {
+        key: 'inquire.what_happens_next',
+        pageLabel: 'Inquire',
+        sectionLabel: 'What Happens Next',
+        description: 'Image used beside the Inquire page next steps section.',
+        expectedAspectRatios: ['portrait', 'landscape'],
+        affectedPaths: ['/contact'],
+    },
 ] as const satisfies readonly MediaPlacementSlot[]
 
 export type IffersMediaPlacementSlotKey =
