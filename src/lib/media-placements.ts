@@ -219,6 +219,14 @@ export const IFFERS_MEDIA_PLACEMENT_SLOTS = [
         expectedAspectRatios: ['landscape', 'portrait'],
         affectedPaths: ['/faq'],
     },
+    {
+        key: 'faq.cta',
+        pageLabel: 'FAQ',
+        sectionLabel: 'Still Have Questions',
+        description: 'Image paired with the FAQ page bottom CTA.',
+        expectedAspectRatios: ['portrait', 'landscape'],
+        affectedPaths: ['/faq'],
+    },
 ] as const satisfies readonly MediaPlacementSlot[]
 
 export type IffersMediaPlacementSlotKey =
