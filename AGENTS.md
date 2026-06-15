@@ -132,6 +132,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `R2_REQUEST_TIMEOUT_MS` | Optional R2 S3 request timeout; defaults to 8000ms. |
 | `MEDIA_MAX_UPLOAD_BYTES` | Optional maximum media upload size; defaults to 10MB. |
 | `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | Optional maximum batch draft-completion item count; defaults to 10. |
+| `MEDIA_DB_LATENCY_WARN_MS` | Optional Supabase media mutation DB latency warning threshold; defaults to 1000ms. |
 | `MEDIA_ADMIN_EMAILS` | Comma-separated approved media manager admin email addresses. |
 | `MEDIA_ADMIN_APP_BASE_URL` | Frontend base URL used when generating media admin magic links. |
 | `MEDIA_ADMIN_MAGIC_LINK_TTL_MINUTES` | Optional magic-link expiry window; defaults to 15 minutes. |

@@ -764,6 +764,7 @@ Configure the API server:
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | Next.js route handler URL that revalidates public pages. |
 | `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent as `Authorization: Bearer ...`. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional webhook timeout. Defaults to `5000`. |
+| `MEDIA_DB_LATENCY_WARN_MS` | Optional Supabase media mutation DB latency warning threshold. Defaults to `1000`. |
 
 The webhook receives:
 
@@ -813,6 +814,7 @@ Server runtime:
 | `R2_REQUEST_TIMEOUT_MS` | no | R2 S3 request timeout. Defaults to `8000`. |
 | `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 10 MB. |
 | `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | no | Max batch draft-completion items. Defaults to `10`. |
+| `MEDIA_DB_LATENCY_WARN_MS` | no | Supabase media mutation DB latency warning threshold. Defaults to `1000`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | no | Frontend revalidation webhook. |
 | `MEDIA_REVALIDATION_SECRET` | no | Optional webhook bearer token. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | no | Webhook timeout. Defaults to `5000`. |

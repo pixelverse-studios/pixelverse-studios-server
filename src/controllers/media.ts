@@ -135,6 +135,23 @@ const logMediaEvent = (
     console[level](`Media upload ${event}`, fields)
 }
 
+const logMediaMutationEvent = (
+    level: 'info' | 'warn' | 'error',
+    event: string,
+    fields: Record<string, unknown>
+): void => {
+    console[level](`Media catalog mutation ${event}`, fields)
+}
+
+const mutationOperationForStatus = (status?: string): string =>
+    status === 'published'
+        ? 'publish'
+        : status === 'archived'
+          ? 'archive'
+          : status
+            ? 'restore'
+            : 'metadata_update'
+
 const knownMediaError = (
     err: unknown,
     fallbackCodes: {
@@ -840,45 +857,150 @@ const updateCatalogItem = async (
     req: Request,
     res: Response
 ): Promise<Response> => {
+    const startedAt = Date.now()
+    const requestId = requestIdFor(req)
+    res.set('X-Request-Id', requestId)
+    res.set('Cache-Control', 'no-store')
+
     try {
         const parsed = updateCatalogItemSchema.parse(req.body)
         const itemId = Number(req.params.id)
-        const item = await mediaCatalogService.updateItem({
+        const requestedStatus = parsed.status
+        const operation = mutationOperationForStatus(requestedStatus)
+
+        logMediaMutationEvent('info', 'received', {
+            requestId,
             websiteSlug: req.params.websiteSlug,
-            id: itemId,
-            key: parsed.key,
-            filename: parsed.filename,
-            src: parsed.src,
-            alt: parsed.alt,
-            library: parsed.library,
-            siteCategory: parsed.siteCategory,
-            service: parsed.service,
-            subCategory: parsed.subCategory,
-            aspectRatio: parsed.aspectRatio,
-            sortOrder: parsed.sortOrder,
-            status: parsed.status,
+            mediaId: itemId,
             actor: req.mediaAdmin?.email,
+            adminId: req.mediaAdmin?.sessionId,
+            requestedStatus,
+            operation,
         })
 
-        return res.status(200).json(item)
+        const result = await mediaCatalogService.updateItemWithResult(
+            {
+                websiteSlug: req.params.websiteSlug,
+                id: itemId,
+                key: parsed.key,
+                filename: parsed.filename,
+                src: parsed.src,
+                alt: parsed.alt,
+                library: parsed.library,
+                siteCategory: parsed.siteCategory,
+                service: parsed.service,
+                subCategory: parsed.subCategory,
+                aspectRatio: parsed.aspectRatio,
+                sortOrder: parsed.sortOrder,
+                status: parsed.status,
+                actor: req.mediaAdmin?.email,
+            },
+            {
+                observeDb: observation => {
+                    logMediaMutationEvent(
+                        observation.ok && !observation.latencyExceeded
+                            ? 'info'
+                            : 'warn',
+                        'db_operation_completed',
+                        {
+                            requestId,
+                            websiteSlug: req.params.websiteSlug,
+                            mediaId: itemId,
+                            actor: req.mediaAdmin?.email,
+                            adminId: req.mediaAdmin?.sessionId,
+                            requestedStatus,
+                            operation,
+                            dbOperation: observation.operation,
+                            dbDurationMs: observation.durationMs,
+                            dbOk: observation.ok,
+                            dbLatencyExceeded: observation.latencyExceeded,
+                            errorCode: observation.errorCode,
+                        }
+                    )
+                },
+            }
+        )
+
+        logMediaMutationEvent('info', 'completed', {
+            requestId,
+            websiteSlug: req.params.websiteSlug,
+            mediaId: itemId,
+            actor: req.mediaAdmin?.email,
+            adminId: req.mediaAdmin?.sessionId,
+            oldStatus: result.previousStatus,
+            requestedStatus: result.requestedStatus,
+            finalStatus: result.item.status,
+            statusCode: 200,
+            operation,
+            revalidationQueued: Boolean(result.revalidationReason),
+            durationMs: Date.now() - startedAt,
+        })
+
+        if (!requestedStatus) {
+            return res.status(200).json(result.item)
+        }
+
+        return res.status(200).json({
+            ...result.item,
+            ok: true,
+            operation,
+            requestedStatus: result.requestedStatus,
+            previousStatus: result.previousStatus,
+            finalStatus: result.item.status,
+            committed: true,
+            committedAt: result.item.updatedAt || new Date().toISOString(),
+            revalidationQueued: Boolean(result.revalidationReason),
+            item: result.item,
+            request_id: requestId,
+        })
     } catch (err) {
         if (err instanceof ZodError) {
+            logMediaMutationEvent('warn', 'failed', {
+                requestId,
+                websiteSlug: req.params.websiteSlug,
+                mediaId: Number(req.params.id),
+                actor: req.mediaAdmin?.email,
+                adminId: req.mediaAdmin?.sessionId,
+                requestedStatus:
+                    typeof (req.body as { status?: unknown })?.status === 'string'
+                        ? (req.body as { status: string }).status
+                        : undefined,
+                statusCode: 400,
+                errorCode: 'media.invalid_payload',
+                durationMs: Date.now() - startedAt,
+            })
             return sendMediaError(
                 res,
                 400,
                 'media.invalid_payload',
                 'Invalid media catalog item payload.',
-                err.flatten()
+                err.flatten(),
+                { requestId, retryable: false }
             )
         }
 
         if (err instanceof MediaValidationError) {
+            logMediaMutationEvent('warn', 'failed', {
+                requestId,
+                websiteSlug: req.params.websiteSlug,
+                mediaId: Number(req.params.id),
+                actor: req.mediaAdmin?.email,
+                adminId: req.mediaAdmin?.sessionId,
+                requestedStatus:
+                    typeof (req.body as { status?: unknown })?.status === 'string'
+                        ? (req.body as { status: string }).status
+                        : undefined,
+                statusCode: err.status,
+                errorCode: err.code,
+                durationMs: Date.now() - startedAt,
+            })
             return sendMediaError(
                 res,
                 err.status,
                 err.code,
                 err.message,
-                err.details
+                err.details,
+                { requestId, retryable: false }
             )
         }
 
@@ -891,9 +1013,44 @@ const updateCatalogItem = async (
                     ? 'media.not_found'
                     : 'media.r2_not_configured'
 
-            return sendMediaError(res, status, code, message)
+            logMediaMutationEvent(status >= 500 ? 'error' : 'warn', 'failed', {
+                requestId,
+                websiteSlug: req.params.websiteSlug,
+                mediaId: Number(req.params.id),
+                actor: req.mediaAdmin?.email,
+                adminId: req.mediaAdmin?.sessionId,
+                requestedStatus:
+                    typeof (req.body as { status?: unknown })?.status === 'string'
+                        ? (req.body as { status: string }).status
+                        : undefined,
+                statusCode: status,
+                errorCode: code,
+                durationMs: Date.now() - startedAt,
+            })
+
+            return sendMediaError(res, status, code, message, undefined, {
+                requestId,
+                retryable: status >= 500,
+            })
         }
 
+        logMediaMutationEvent('error', 'failed', {
+            requestId,
+            websiteSlug: req.params.websiteSlug,
+            mediaId: Number(req.params.id),
+            actor: req.mediaAdmin?.email,
+            adminId: req.mediaAdmin?.sessionId,
+            requestedStatus:
+                typeof (req.body as { status?: unknown })?.status === 'string'
+                    ? (req.body as { status: string }).status
+                    : undefined,
+            statusCode: 500,
+            errorCode:
+                typeof (err as { code?: unknown })?.code === 'string'
+                    ? (err as { code: string }).code
+                    : 'media.update_failed',
+            durationMs: Date.now() - startedAt,
+        })
         return handleGenericError(err, res)
     }
 }
