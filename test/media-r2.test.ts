@@ -24,6 +24,7 @@ vi.mock('../src/services/media-catalog', () => ({
         listCatalog: vi.fn(),
         createItem: vi.fn(),
         updateItem: vi.fn(),
+        updateItemWithResult: vi.fn(),
     },
 }))
 
@@ -427,6 +428,127 @@ describe('media catalog upload completion controller', () => {
             }),
         })
         expect(mediaCatalogService.createItem).not.toHaveBeenCalled()
+    })
+})
+
+describe('media catalog update controller', () => {
+    const updatedItem = {
+        id: 1,
+        key: 'events/baby-shower/one.jpg',
+        filename: 'one.jpg',
+        src: 'https://pub.example.test/events/baby-shower/one.jpg',
+        alt: 'Baby shower detail',
+        library: 'portfolio' as const,
+        siteCategory: null,
+        service: 'Events' as const,
+        subCategory: 'Baby Shower',
+        aspectRatio: 'portrait' as const,
+        status: 'published' as const,
+        sortOrder: 0,
+        createdAt: '2026-05-27T12:00:00.000Z',
+        updatedAt: '2026-05-27T12:30:00.000Z',
+        archivedAt: null,
+        archivedBy: null,
+        archivedFromStatus: null,
+    }
+
+    beforeEach(() => {
+        vi.mocked(mediaCatalogService.updateItemWithResult).mockReset()
+    })
+
+    it('returns explicit status mutation metadata and no-store headers', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+        vi.mocked(mediaCatalogService.updateItemWithResult).mockImplementation(
+            async (_input, options) => {
+                options?.observeDb?.({
+                    operation: 'update_item',
+                    durationMs: 1250,
+                    ok: true,
+                    latencyExceeded: true,
+                })
+
+                return {
+                    item: updatedItem,
+                    previousStatus: 'draft',
+                    requestedStatus: 'published',
+                    revalidationReason: 'published',
+                }
+            }
+        )
+        const req = createRequest({
+            params: { websiteSlug: 'iffers-pictures', id: '1' },
+            headers: { 'x-request-id': 'req-publish-1' },
+            body: { status: 'published' },
+        })
+        req.mediaAdmin = {
+            email: 'admin@example.test',
+            sessionId: 'session-1',
+            expiresAt: '2026-05-27T13:00:00.000Z',
+        }
+        const res = createResponse()
+
+        await mediaController.updateCatalogItem(req, res)
+
+        expect(res.set).toHaveBeenCalledWith('X-Request-Id', 'req-publish-1')
+        expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store')
+        expect(mediaCatalogService.updateItemWithResult).toHaveBeenCalledWith(
+            expect.objectContaining({
+                websiteSlug: 'iffers-pictures',
+                id: 1,
+                status: 'published',
+                actor: 'admin@example.test',
+            }),
+            expect.objectContaining({
+                observeDb: expect.any(Function),
+            })
+        )
+        expect(console.warn).toHaveBeenCalledWith(
+            'Media catalog mutation db_operation_completed',
+            expect.objectContaining({
+                requestId: 'req-publish-1',
+                dbOperation: 'update_item',
+                dbLatencyExceeded: true,
+                requestedStatus: 'published',
+            })
+        )
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 1,
+                ok: true,
+                operation: 'publish',
+                previousStatus: 'draft',
+                requestedStatus: 'published',
+                finalStatus: 'published',
+                committed: true,
+                committedAt: '2026-05-27T12:30:00.000Z',
+                revalidationQueued: true,
+                request_id: 'req-publish-1',
+                item: updatedItem,
+            })
+        )
+    })
+
+    it('keeps metadata-only update responses backward-compatible', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => undefined)
+        vi.mocked(mediaCatalogService.updateItemWithResult).mockResolvedValue({
+            item: updatedItem,
+            previousStatus: 'published',
+            requestedStatus: null,
+            revalidationReason: 'metadata_edited',
+        })
+        const req = createRequest({
+            params: { websiteSlug: 'iffers-pictures', id: '1' },
+            body: { alt: 'Updated alt text' },
+        })
+        const res = createResponse()
+
+        await mediaController.updateCatalogItem(req, res)
+
+        expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store')
+        expect(res.status).toHaveBeenCalledWith(200)
+        expect(res.json).toHaveBeenCalledWith(updatedItem)
     })
 })
 
