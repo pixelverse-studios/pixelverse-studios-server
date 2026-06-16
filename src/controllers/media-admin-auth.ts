@@ -52,18 +52,46 @@ const waitForMinimumResponseTime = async (startedAt: number): Promise<void> => {
 const createAndSendMagicLink = async (
     email: string,
     requestedIp?: string,
-    userAgent?: string
+    userAgent?: string,
+    requestId?: string
 ): Promise<void> => {
-    const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
-    await authService.createMagicLink({
-        email,
-        tokenHash: hashToken(token),
-        expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
-        requestedIp,
-        userAgent,
-    })
+    try {
+        const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
+        await authService.createMagicLink({
+            email,
+            tokenHash: hashToken(token),
+            expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
+            requestedIp,
+            userAgent,
+        })
 
-    await sendMediaAdminMagicLink(email, buildMagicLinkUrl(token))
+        await sendMediaAdminMagicLink(email, buildMagicLinkUrl(token))
+        console.log('Media admin magic-link job completed:', {
+            requestId,
+            email,
+        })
+    } catch (err) {
+        console.error('Media admin magic-link job failed:', {
+            requestId,
+            email,
+            error: err,
+        })
+    }
+}
+
+const queueMagicLinkJob = (
+    email: string,
+    requestedIp?: string,
+    userAgent?: string,
+    requestId?: string
+): Promise<void> | void => {
+    if (process.env.NODE_ENV === 'test') {
+        return createAndSendMagicLink(email, requestedIp, userAgent, requestId)
+    }
+
+    setImmediate(() => {
+        void createAndSendMagicLink(email, requestedIp, userAgent, requestId)
+    })
 }
 
 const requestMagicLink = async (
@@ -76,13 +104,15 @@ const requestMagicLink = async (
         const email = normalizeAdminEmail(parsed.email)
 
         if (isApprovedAdminEmail(email)) {
-            void createAndSendMagicLink(
+            const magicLinkJob = queueMagicLinkJob(
                 email,
                 req.ip,
-                req.get('user-agent')
-            ).catch(err => {
-                console.error('Media admin magic-link request failed:', err)
-            })
+                req.get('user-agent'),
+                req.requestId
+            )
+            if (magicLinkJob) {
+                await magicLinkJob
+            }
         }
 
         await waitForMinimumResponseTime(startedAt)
@@ -95,7 +125,10 @@ const requestMagicLink = async (
                 details: err.flatten(),
             })
         }
-        console.error('Media admin magic-link request failed:', err)
+        console.error('Media admin magic-link request failed:', {
+            requestId: req.requestId,
+            error: err,
+        })
         await waitForMinimumResponseTime(startedAt)
         return res.status(200).json(genericResponse)
     }

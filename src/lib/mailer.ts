@@ -32,6 +32,9 @@ const createGmailTransporter = () => {
         transporter: nodemailer.createTransport({
             service: 'gmail',
             auth: credentials,
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 20_000,
         }),
     }
 }

@@ -3,6 +3,7 @@ import 'dotenv/config'
 import express, { Application } from 'express'
 import bodyParser from 'body-parser'
 import cors from 'cors'
+import crypto from 'crypto'
 
 import clientsRouter from './routes/clients'
 import newsletterRouter from './routes/newsletter'
@@ -23,14 +24,57 @@ import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
 
+process.on('uncaughtException', err => {
+    console.error('Uncaught exception:', {
+        message: err.message,
+        stack: err.stack,
+    })
+    process.exit(1)
+})
+
+process.on('unhandledRejection', reason => {
+    console.error('Unhandled rejection:', reason)
+    process.exit(1)
+})
+
 // Supabase URL and Key from environment variables
 const app: Application = express()
 const PORT = process.env.PORT || 3000
 
 // Middleware
-app.use(bodyParser.json())
 app.use(cors())
+app.use((req, res, next) => {
+    const requestId =
+        req.get('x-request-id') ||
+        req.get('x-correlation-id') ||
+        crypto.randomUUID()
+    const startedAt = process.hrtime.bigint()
+
+    req.requestId = requestId
+    res.setHeader('x-request-id', requestId)
+
+    res.on('finish', () => {
+        const durationMs =
+            Number(process.hrtime.bigint() - startedAt) / 1_000_000
+
+        console.log('HTTP request completed:', {
+            requestId,
+            method: req.method,
+            path: req.path,
+            status: res.statusCode,
+            durationMs: Math.round(durationMs),
+        })
+    })
+
+    next()
+})
+app.use(bodyParser.json())
+
 // Routes
+app.get('/healthz', (_req, res) => {
+    res.status(200).json({ ok: true })
+})
+
 app.use(clientsRouter)
 app.use(newsletterRouter)
 app.use(cmsRouter)
@@ -58,6 +102,13 @@ app.use(
         res: express.Response,
         next: express.NextFunction
     ) => {
+        console.error('Unhandled request error:', {
+            requestId: req.requestId,
+            method: req.method,
+            path: req.path,
+            message: err?.message,
+            stack: err?.stack,
+        })
         res.status(500).json({ message: err.message })
     }
 )
