@@ -8,6 +8,9 @@ export const SESSION_TOKEN_BYTES = 32
 export const DEFAULT_MAGIC_LINK_TTL_MINUTES = 15
 export const DEFAULT_SESSION_TTL_HOURS = 12
 export const DEFAULT_REQUEST_MIN_RESPONSE_MS = 350
+export const DEFAULT_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS = 60
+export const DEFAULT_MAGIC_LINK_RATE_LIMIT_SECONDS = 0
+export const DEFAULT_MAGIC_LINK_CLOCK_SKEW_SECONDS = 120
 
 export const normalizeAdminEmail = (email: string): string =>
     email.trim().toLowerCase()
@@ -40,6 +43,25 @@ export const requestMinResponseMs = (): number =>
     Number(process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS) >= 0
         ? Number(process.env.MEDIA_ADMIN_REQUEST_MIN_RESPONSE_MS)
         : DEFAULT_REQUEST_MIN_RESPONSE_MS
+
+export const magicLinkRequestCooldownSeconds = (): number =>
+    Number.isFinite(
+        Number(process.env.MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS)
+    ) && Number(process.env.MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS) >= 0
+        ? Number(process.env.MEDIA_ADMIN_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS)
+        : DEFAULT_MAGIC_LINK_REQUEST_COOLDOWN_SECONDS
+
+export const magicLinkRateLimitSeconds = (): number =>
+    Number.isFinite(Number(process.env.MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS)) &&
+    Number(process.env.MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS) >= 0
+        ? Number(process.env.MEDIA_ADMIN_MAGIC_LINK_RATE_LIMIT_SECONDS)
+        : DEFAULT_MAGIC_LINK_RATE_LIMIT_SECONDS
+
+export const magicLinkClockSkewSeconds = (): number =>
+    Number.isFinite(Number(process.env.MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS)) &&
+    Number(process.env.MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS) >= 0
+        ? Number(process.env.MEDIA_ADMIN_MAGIC_LINK_CLOCK_SKEW_SECONDS)
+        : DEFAULT_MAGIC_LINK_CLOCK_SKEW_SECONDS
 
 export const isProductionEnvironment = (): boolean =>
     process.env.NODE_ENV === 'production' ||

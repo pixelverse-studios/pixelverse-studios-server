@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { parse, serialize } from 'cookie'
+import crypto from 'crypto'
 import { z, ZodError } from 'zod'
 
 import authService from '../services/media-admin-auth'
@@ -12,6 +13,9 @@ import {
     isProductionEnvironment,
     isApprovedAdminEmail,
     MAGIC_LINK_TOKEN_BYTES,
+    magicLinkClockSkewSeconds,
+    magicLinkRateLimitSeconds,
+    magicLinkRequestCooldownSeconds,
     magicLinkTtlMinutes,
     MEDIA_ADMIN_SESSION_COOKIE,
     normalizeAdminEmail,
@@ -31,16 +35,68 @@ const callbackSchema = z.object({
 })
 
 const genericResponse = {
+    ok: true,
+    status: 'sent',
     message: 'If that email is approved, a sign-in link has been sent.',
+}
+
+const cookieSameSite = (): 'lax' | 'strict' | 'none' => {
+    const configured = process.env.MEDIA_ADMIN_COOKIE_SAME_SITE?.trim().toLowerCase()
+    if (configured === 'strict' || configured === 'none') return configured
+    return 'lax'
 }
 
 const cookieOptions = (maxAgeSeconds: number) => ({
     httpOnly: true,
-    secure: isProductionEnvironment(),
-    sameSite: 'lax' as const,
+    secure: isProductionEnvironment() || cookieSameSite() === 'none',
+    sameSite: cookieSameSite(),
     path: '/',
     maxAge: maxAgeSeconds,
+    ...(process.env.MEDIA_ADMIN_COOKIE_DOMAIN?.trim() && {
+        domain: process.env.MEDIA_ADMIN_COOKIE_DOMAIN.trim(),
+    }),
 })
+
+const requestIdFor = (req: Request): string => {
+    const header = req.headers['x-request-id']
+    return typeof header === 'string' && header.trim()
+        ? header.trim()
+        : crypto.randomUUID()
+}
+
+const logAuthEvent = (
+    level: 'info' | 'warn' | 'error',
+    event: string,
+    fields: Record<string, unknown>
+): void => {
+    console[level](`Media admin auth ${event}`, fields)
+}
+
+const sendAuthError = (
+    res: Response,
+    status: number,
+    code: string,
+    message: string,
+    requestId: string,
+    details?: Record<string, unknown>
+): Response =>
+    res.status(status).json({
+        ok: false,
+        error: {
+            code,
+            message,
+            requestId,
+            ...(details && { details }),
+        },
+    })
+
+const sendGenericMagicLinkResponse = async (
+    res: Response,
+    startedAt: number
+): Promise<Response> => {
+    await waitForMinimumResponseTime(startedAt)
+    return res.status(200).json(genericResponse)
+}
 
 const waitForMinimumResponseTime = async (startedAt: number): Promise<void> => {
     const remaining = requestMinResponseMs() - (Date.now() - startedAt)
@@ -49,48 +105,133 @@ const waitForMinimumResponseTime = async (startedAt: number): Promise<void> => {
     }
 }
 
+class MagicLinkProviderError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'MagicLinkProviderError'
+    }
+}
+
 const createAndSendMagicLink = async (
     email: string,
     requestedIp?: string,
     userAgent?: string,
-    requestId?: string
-): Promise<void> => {
-    try {
-        const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
-        await authService.createMagicLink({
-            email,
-            tokenHash: hashToken(token),
-            expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
-            requestedIp,
-            userAgent,
-        })
+): Promise<{ magicLinkId: string; expiresAt: string }> => {
+    const token = generateToken(MAGIC_LINK_TOKEN_BYTES)
+    const magicLink = await authService.createMagicLink({
+        email,
+        tokenHash: hashToken(token),
+        expiresAt: expiresInMinutes(magicLinkTtlMinutes()),
+        requestedIp,
+        userAgent,
+    })
 
+    try {
         await sendMediaAdminMagicLink(email, buildMagicLinkUrl(token))
-        console.log('Media admin magic-link job completed:', {
+    } catch (err) {
+        await authService.deleteMagicLink(magicLink.id).catch(cleanupErr => {
+            logAuthEvent('error', 'magic_link_cleanup_failed', {
+                magicLinkId: magicLink.id,
+                error:
+                    cleanupErr instanceof Error
+                        ? cleanupErr.message
+                        : 'Unknown cleanup error',
+            })
+        })
+        throw new MagicLinkProviderError(
+            err instanceof Error ? err.message : 'Unknown provider error'
+        )
+    }
+
+    return {
+        magicLinkId: magicLink.id,
+        expiresAt: magicLink.expires_at,
+    }
+}
+
+const processMagicLinkJob = async (
+    email: string,
+    requestedIp: string | undefined,
+    userAgent: string | undefined,
+    requestId: string
+): Promise<void> => {
+    const startedAt = Date.now()
+    try {
+        const pending = await authService.findPendingMagicLinkByEmail(email)
+        if (pending) {
+            const ageMs = Date.now() - new Date(pending.created_at).getTime()
+            const cooldownMs = magicLinkRequestCooldownSeconds() * 1000
+            if (ageMs <= cooldownMs) {
+                logAuthEvent('info', 'magic_link_already_pending', {
+                    requestId,
+                    email,
+                    magicLinkId: pending.id,
+                    expiresAt: pending.expires_at,
+                    durationMs: Date.now() - startedAt,
+                })
+                return
+            }
+
+            await authService.revokePendingMagicLinksForEmail(email)
+        }
+
+        const rateLimitSeconds = magicLinkRateLimitSeconds()
+        if (rateLimitSeconds > 0) {
+            const latest = await authService.findLatestMagicLinkByEmail(email)
+            const latestAgeMs = latest
+                ? Date.now() - new Date(latest.created_at).getTime()
+                : Number.POSITIVE_INFINITY
+
+            if (latest && latestAgeMs <= rateLimitSeconds * 1000) {
+                const retryAfterSeconds = Math.max(
+                    1,
+                    Math.ceil((rateLimitSeconds * 1000 - latestAgeMs) / 1000)
+                )
+                logAuthEvent('warn', 'magic_link_rate_limited', {
+                    requestId,
+                    email,
+                    magicLinkId: latest.id,
+                    retryAfterSeconds,
+                    durationMs: Date.now() - startedAt,
+                })
+                return
+            }
+        }
+
+        const result = await createAndSendMagicLink(
+            email,
+            requestedIp,
+            userAgent
+        )
+        logAuthEvent('info', 'magic_link_sent', {
             requestId,
             email,
+            magicLinkId: result.magicLinkId,
+            expiresAt: result.expiresAt,
+            durationMs: Date.now() - startedAt,
         })
     } catch (err) {
-        console.error('Media admin magic-link job failed:', {
+        logAuthEvent('error', 'magic_link_job_failed', {
             requestId,
             email,
-            error: err,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            durationMs: Date.now() - startedAt,
         })
     }
 }
 
 const queueMagicLinkJob = (
     email: string,
-    requestedIp?: string,
-    userAgent?: string,
-    requestId?: string
+    requestedIp: string | undefined,
+    userAgent: string | undefined,
+    requestId: string
 ): Promise<void> | void => {
     if (process.env.NODE_ENV === 'test') {
-        return createAndSendMagicLink(email, requestedIp, userAgent, requestId)
+        return processMagicLinkJob(email, requestedIp, userAgent, requestId)
     }
 
     setImmediate(() => {
-        void createAndSendMagicLink(email, requestedIp, userAgent, requestId)
+        void processMagicLinkJob(email, requestedIp, userAgent, requestId)
     })
 }
 
@@ -99,42 +240,55 @@ const requestMagicLink = async (
     res: Response
 ): Promise<Response> => {
     const startedAt = Date.now()
+    const requestId = requestIdFor(req)
     try {
         const parsed = requestMagicLinkSchema.parse(req.body)
         const email = normalizeAdminEmail(parsed.email)
+        const approved = isApprovedAdminEmail(email)
 
-        if (isApprovedAdminEmail(email)) {
-            const magicLinkJob = queueMagicLinkJob(
+        if (!approved) {
+            logAuthEvent('info', 'magic_link_unapproved_request', {
+                requestId,
                 email,
-                req.ip,
-                req.get('user-agent'),
-                req.requestId
-            )
-            if (magicLinkJob) {
-                await magicLinkJob
-            }
+                durationMs: Date.now() - startedAt,
+            })
+            return sendGenericMagicLinkResponse(res, startedAt)
         }
 
-        await waitForMinimumResponseTime(startedAt)
+        const magicLinkJob = queueMagicLinkJob(
+            email,
+            req.ip,
+            req.get('user-agent'),
+            requestId
+        )
+        if (magicLinkJob) {
+            await magicLinkJob
+        }
 
-        return res.status(200).json(genericResponse)
+        return sendGenericMagicLinkResponse(res, startedAt)
     } catch (err) {
         if (err instanceof ZodError) {
-            return res.status(400).json({
-                error: 'Invalid payload',
-                details: err.flatten(),
-            })
+            return sendAuthError(
+                res,
+                400,
+                'media_admin_auth.invalid_payload',
+                'Invalid auth payload.',
+                requestId,
+                err.flatten()
+            )
         }
-        console.error('Media admin magic-link request failed:', {
-            requestId: req.requestId,
-            error: err,
+        logAuthEvent('error', 'magic_link_request_failed', {
+            requestId,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            durationMs: Date.now() - startedAt,
         })
-        await waitForMinimumResponseTime(startedAt)
-        return res.status(200).json(genericResponse)
+        return sendGenericMagicLinkResponse(res, startedAt)
     }
 }
 
 const callback = async (req: Request, res: Response): Promise<Response> => {
+    const startedAt = Date.now()
+    const requestId = requestIdFor(req)
     try {
         const parsed = callbackSchema.parse(req.body)
         const magicLink = await authService.findMagicLinkByHash(
@@ -142,32 +296,124 @@ const callback = async (req: Request, res: Response): Promise<Response> => {
         )
 
         if (!magicLink) {
-            return res.status(401).json({ error: 'Invalid sign-in link' })
+            logAuthEvent('warn', 'callback_invalid_token', {
+                requestId,
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                401,
+                'media_admin_auth.invalid_token',
+                'Invalid sign-in link.',
+                requestId
+            )
         }
         if (magicLink.used_at) {
-            return res.status(410).json({ error: 'Sign-in link already used' })
+            logAuthEvent('warn', 'callback_reused_token', {
+                requestId,
+                email: magicLink.email,
+                magicLinkId: magicLink.id,
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                410,
+                'media_admin_auth.reused_token',
+                'Sign-in link already used.',
+                requestId
+            )
         }
-        if (new Date(magicLink.expires_at).getTime() <= Date.now()) {
-            return res.status(410).json({ error: 'Sign-in link expired' })
+        const expiresAtMs = new Date(magicLink.expires_at).getTime()
+        const expiresWithSkewMs = expiresAtMs + magicLinkClockSkewSeconds() * 1000
+        if (expiresWithSkewMs <= Date.now()) {
+            logAuthEvent('warn', 'callback_expired_token', {
+                requestId,
+                email: magicLink.email,
+                magicLinkId: magicLink.id,
+                expiresAt: magicLink.expires_at,
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                410,
+                'media_admin_auth.expired_token',
+                'Sign-in link expired.',
+                requestId,
+                { expiresAt: magicLink.expires_at }
+            )
         }
         if (!isApprovedAdminEmail(magicLink.email)) {
-            return res.status(403).json({ error: 'Unauthorized' })
+            logAuthEvent('warn', 'callback_unapproved_email', {
+                requestId,
+                email: magicLink.email,
+                magicLinkId: magicLink.id,
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                403,
+                'media_admin_auth.unapproved_email',
+                'Unauthorized.',
+                requestId
+            )
         }
 
         const claimedMagicLink = await authService.markMagicLinkUsed(
             magicLink.id
         )
         if (!claimedMagicLink) {
-            return res.status(410).json({ error: 'Sign-in link already used' })
+            logAuthEvent('warn', 'callback_token_claim_lost', {
+                requestId,
+                email: magicLink.email,
+                magicLinkId: magicLink.id,
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                410,
+                'media_admin_auth.reused_token',
+                'Sign-in link already used.',
+                requestId
+            )
         }
 
         const sessionToken = generateToken(SESSION_TOKEN_BYTES)
         const sessionExpiresAt = expiresInHours(sessionTtlHours())
-        await authService.createSession({
-            email: magicLink.email,
-            sessionHash: hashToken(sessionToken),
-            expiresAt: sessionExpiresAt,
-        })
+        let session
+        try {
+            session = await authService.createSession({
+                email: magicLink.email,
+                sessionHash: hashToken(sessionToken),
+                expiresAt: sessionExpiresAt,
+            })
+        } catch (err) {
+            await authService.clearMagicLinkUsed(magicLink.id).catch(rollbackErr => {
+                logAuthEvent('error', 'callback_token_claim_rollback_failed', {
+                    requestId,
+                    email: magicLink.email,
+                    magicLinkId: magicLink.id,
+                    error:
+                        rollbackErr instanceof Error
+                            ? rollbackErr.message
+                            : 'Unknown rollback error',
+                    durationMs: Date.now() - startedAt,
+                })
+            })
+            logAuthEvent('error', 'callback_session_creation_failed', {
+                requestId,
+                email: magicLink.email,
+                magicLinkId: magicLink.id,
+                error: err instanceof Error ? err.message : 'Unknown error',
+                durationMs: Date.now() - startedAt,
+            })
+            return sendAuthError(
+                res,
+                503,
+                'media_admin_auth.session_creation_failed',
+                'Unable to create an authenticated session. Request a new sign-in link.',
+                requestId
+            )
+        }
 
         res.setHeader(
             'Set-Cookie',
@@ -178,17 +424,37 @@ const callback = async (req: Request, res: Response): Promise<Response> => {
             )
         )
 
+        logAuthEvent('info', 'callback_authenticated', {
+            requestId,
+            email: magicLink.email,
+            magicLinkId: magicLink.id,
+            sessionId: session.id,
+            expiresAt: sessionExpiresAt.toISOString(),
+            durationMs: Date.now() - startedAt,
+        })
+
         return res.status(200).json({
+            ok: true,
+            status: 'authenticated',
             email: magicLink.email,
             expiresAt: sessionExpiresAt.toISOString(),
         })
     } catch (err) {
         if (err instanceof ZodError) {
-            return res.status(400).json({
-                error: 'Invalid payload',
-                details: err.flatten(),
-            })
+            return sendAuthError(
+                res,
+                400,
+                'media_admin_auth.invalid_payload',
+                'Invalid auth payload.',
+                requestId,
+                err.flatten()
+            )
         }
+        logAuthEvent('error', 'callback_failed', {
+            requestId,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            durationMs: Date.now() - startedAt,
+        })
         return handleGenericError(err, res)
     }
 }
@@ -200,6 +466,8 @@ const getSession = async (req: Request, res: Response): Promise<Response> => {
     }
 
     return res.status(200).json({
+        ok: true,
+        status: 'authenticated',
         email: admin.email,
         expiresAt: admin.expiresAt,
     })

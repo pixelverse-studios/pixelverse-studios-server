@@ -9,8 +9,11 @@ export const ALLOWED_UPLOAD_CONTENT_TYPES = [
 export type AllowedUploadContentType =
     (typeof ALLOWED_UPLOAD_CONTENT_TYPES)[number]
 
-export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+export const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 export const DEFAULT_PRESIGN_EXPIRES_SECONDS = 15 * 60
+export const DEFAULT_R2_CONNECTION_TIMEOUT_MS = 2_000
+export const DEFAULT_R2_REQUEST_TIMEOUT_MS = 8_000
+export const DEFAULT_MEDIA_UPLOAD_BATCH_MAX_ITEMS = 10
 
 const CONTENT_TYPE_EXTENSIONS: Record<AllowedUploadContentType, string> = {
     'image/jpeg': 'jpg',
@@ -36,6 +39,33 @@ export class MediaValidationError extends Error {
     }
 }
 
+export class MediaOperationError extends Error {
+    status: number
+    code: string
+    retryable: boolean
+    details?: Record<string, unknown>
+
+    constructor({
+        status,
+        code,
+        message,
+        retryable,
+        details,
+    }: {
+        status: number
+        code: string
+        message: string
+        retryable: boolean
+        details?: Record<string, unknown>
+    }) {
+        super(message)
+        this.status = status
+        this.code = code
+        this.retryable = retryable
+        this.details = details
+    }
+}
+
 export const maxUploadBytes = (): number => {
     const parsed = Number(process.env.MEDIA_MAX_UPLOAD_BYTES)
     return Number.isFinite(parsed) && parsed > 0
@@ -43,11 +73,32 @@ export const maxUploadBytes = (): number => {
         : DEFAULT_MAX_UPLOAD_BYTES
 }
 
+export const mediaUploadBatchMaxItems = (): number => {
+    const parsed = Number(process.env.MEDIA_UPLOAD_BATCH_MAX_ITEMS)
+    return Number.isFinite(parsed) && parsed > 0
+        ? Math.floor(parsed)
+        : DEFAULT_MEDIA_UPLOAD_BATCH_MAX_ITEMS
+}
+
 export const presignExpiresSeconds = (): number => {
     const parsed = Number(process.env.R2_PRESIGN_EXPIRES_SECONDS)
     return Number.isFinite(parsed) && parsed > 0
         ? parsed
         : DEFAULT_PRESIGN_EXPIRES_SECONDS
+}
+
+export const r2ConnectionTimeoutMs = (): number => {
+    const parsed = Number(process.env.R2_CONNECTION_TIMEOUT_MS)
+    return Number.isFinite(parsed) && parsed > 0
+        ? parsed
+        : DEFAULT_R2_CONNECTION_TIMEOUT_MS
+}
+
+export const r2RequestTimeoutMs = (): number => {
+    const parsed = Number(process.env.R2_REQUEST_TIMEOUT_MS)
+    return Number.isFinite(parsed) && parsed > 0
+        ? parsed
+        : DEFAULT_R2_REQUEST_TIMEOUT_MS
 }
 
 export const isAllowedUploadContentType = (

@@ -160,6 +160,19 @@ export interface BatchUpdateMediaItemsResponse {
     }
 }
 
+export interface MediaCatalogDbObservation {
+    operation: 'read_current_item' | 'update_item'
+    durationMs: number
+    ok: boolean
+    latencyExceeded: boolean
+    errorCode?: string
+}
+
+interface UpdateMediaItemOptions {
+    triggerRevalidation?: boolean
+    observeDb?: (observation: MediaCatalogDbObservation) => void
+}
+
 const getWebsiteBySlug = async (
     websiteSlug: string
 ): Promise<WebsiteRecord | null> => {
@@ -517,6 +530,16 @@ const changedValuesForFields = ({
 const hasChangedValues = (values: Record<string, unknown>): boolean =>
     Object.keys(values).length > 0
 
+const mediaDbLatencyWarnMs = (): number => {
+    const parsed = Number(process.env.MEDIA_DB_LATENCY_WARN_MS)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000
+}
+
+const supabaseErrorCode = (error: unknown): string | undefined => {
+    const code = (error as { code?: unknown })?.code
+    return typeof code === 'string' ? code : undefined
+}
+
 const buildAuditChange = ({
     action,
     oldValues,
@@ -716,16 +739,28 @@ const createItem = async (
 const getItemForWebsite = async ({
     websiteId,
     id,
+    observeDb,
 }: {
     websiteId: string
     id: number
+    observeDb?: UpdateMediaItemOptions['observeDb']
 }): Promise<MediaCatalogRecord | null> => {
+    const startedAt = Date.now()
     const { data, error } = await db
         .from(Tables.MEDIA_CATALOG_ITEMS)
         .select('*')
         .eq('website_id', websiteId)
         .eq('id', id)
         .maybeSingle()
+    const durationMs = Date.now() - startedAt
+
+    observeDb?.({
+        operation: 'read_current_item',
+        durationMs,
+        ok: !error,
+        latencyExceeded: durationMs >= mediaDbLatencyWarnMs(),
+        errorCode: supabaseErrorCode(error),
+    })
 
     if (error) throw error
     return data as MediaCatalogRecord | null
@@ -748,19 +783,25 @@ const getItemsForWebsite = async ({
     return (data || []) as MediaCatalogRecord[]
 }
 
-interface UpdateMediaItemResult {
+export interface UpdateMediaItemResult {
     item: CatalogItemResponse
+    previousStatus: MediaStatus
+    requestedStatus: MediaStatus | null
     revalidationReason: MediaRevalidationReason | null
 }
 
 const updateItemWithResult = async (
     input: UpdateMediaItemInput,
-    options: { triggerRevalidation?: boolean } = {}
+    options: UpdateMediaItemOptions = {}
 ): Promise<UpdateMediaItemResult> => {
     const shouldTriggerRevalidation = options.triggerRevalidation ?? true
     const website = await getWebsiteOrThrow(input.websiteSlug)
     const config = await resolveR2Config(website)
-    const current = await getItemForWebsite({ websiteId: website.id, id: input.id })
+    const current = await getItemForWebsite({
+        websiteId: website.id,
+        id: input.id,
+        observeDb: options.observeDb,
+    })
 
     if (!current) {
         const err = new Error('Media catalog item not found') as Error & {
@@ -927,6 +968,7 @@ const updateItemWithResult = async (
         patch.archived_from_status = null
     }
 
+    const updateStartedAt = Date.now()
     const { data, error } = await db
         .from(Tables.MEDIA_CATALOG_ITEMS)
         .update(patch)
@@ -934,6 +976,15 @@ const updateItemWithResult = async (
         .eq('id', input.id)
         .select('*')
         .single()
+    const updateDurationMs = Date.now() - updateStartedAt
+
+    options.observeDb?.({
+        operation: 'update_item',
+        durationMs: updateDurationMs,
+        ok: !error,
+        latencyExceeded: updateDurationMs >= mediaDbLatencyWarnMs(),
+        errorCode: supabaseErrorCode(error),
+    })
 
     if (error) {
         if (isUniqueViolation(error)) throwDuplicateKeyError(nextKey)
@@ -980,6 +1031,8 @@ const updateItemWithResult = async (
 
     return {
         item: toCatalogItemResponse(updated, true),
+        previousStatus: current.status,
+        requestedStatus: requestedStatus || null,
         revalidationReason:
             revalidationReason &&
             shouldRevalidatePublicCatalog({ current, updated })
@@ -1219,5 +1272,6 @@ export default {
     listCatalog,
     createItem,
     updateItem,
+    updateItemWithResult,
     batchUpdateItems,
 }

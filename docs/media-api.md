@@ -31,8 +31,6 @@ Catalog responses use the frontend-compatible media catalog shape:
       "service": "Events",
       "subCategory": "Baby Shower",
       "aspectRatio": "portrait",
-      "aspect_ratio": "portrait",
-      "cropPosition": "center center",
       "status": "published",
       "sortOrder": 0
     }
@@ -60,9 +58,7 @@ Allowed values:
 | `library` | `portfolio`, `site` |
 | `siteCategory` | `Home`, `About`, `Brand`, `Misc` |
 | `aspectRatio` | `portrait`, `landscape`, `square`, `video` |
-| `aspect_ratio` | Alias for `aspectRatio`; accepted in create/update requests and returned in media responses. |
 | `service` | `Events`, `Family`, `Maternity`, `Couples`, `Portrait` |
-| `cropPosition` | `center center`, `center top`, `center bottom`, `left center`, `right center`, or safe percentage pairs such as `50% 30%` |
 
 Allowed sub-categories:
 
@@ -180,8 +176,6 @@ Response:
         "service": "Events",
         "subCategory": "Baby Shower",
         "aspectRatio": "portrait",
-        "aspect_ratio": "portrait",
-        "cropPosition": "center center",
         "status": "published"
       }
     }
@@ -224,6 +218,53 @@ assignment state when a slot has an assigned media item.
 
 Response headers include `Cache-Control: no-store`.
 
+The Iffer's Pictures registry includes homepage image strip slots, including
+the third below-hero strip image:
+
+```json
+{
+  "slotKey": "home.strip.3",
+  "pageLabel": "Home",
+  "sectionLabel": "Image Strip 3",
+  "description": "Third supporting image in the homepage image strip.",
+  "expectedAspectRatios": ["portrait", "landscape"],
+  "affectedPaths": ["/"],
+  "assignment": null
+}
+```
+
+The registry also includes the Inquire page image slot:
+
+```json
+{
+  "slotKey": "inquire.what_happens_next",
+  "pageLabel": "Inquire",
+  "sectionLabel": "What Happens Next",
+  "description": "Image used beside the What Happens Next steps on the inquire page.",
+  "expectedAspectRatios": ["landscape", "portrait"],
+  "affectedPaths": ["/inquire"],
+  "assignment": null
+}
+```
+
+The FAQ page exposes both the hero and bottom CTA image slots. The bottom CTA
+slot appears unassigned until Jen chooses a published image:
+
+```json
+{
+  "slotKey": "faq.cta",
+  "pageLabel": "FAQ",
+  "sectionLabel": "Still Have Questions",
+  "description": "Image paired with the FAQ page bottom CTA.",
+  "expectedAspectRatios": ["portrait", "landscape"],
+  "affectedPaths": ["/faq"],
+  "assignment": null
+}
+```
+
+`assignment` is `null` until a published media item is assigned through the
+same placement mutation endpoint used by homepage slots.
+
 ```json
 {
   "version": 1,
@@ -252,8 +293,6 @@ Response headers include `Cache-Control: no-store`.
           "service": "Events",
           "subCategory": "Baby Shower",
           "aspectRatio": "portrait",
-          "aspect_ratio": "portrait",
-          "cropPosition": "center center",
           "status": "published"
         }
       }
@@ -297,7 +336,8 @@ Response:
 `POST /api/media/:websiteSlug/admin/uploads/presign`
 
 Protected. Creates a short-lived direct-upload URL for R2. Uploads default to
-draft only after the frontend creates the catalog item.
+draft only after the frontend creates the catalog item. The default maximum file
+size is 25 MB and can be overridden with `MEDIA_MAX_UPLOAD_BYTES`.
 
 Request:
 
@@ -323,7 +363,8 @@ Response:
   "presigned_url": "https://...",
   "public_url": "https://pub.example.r2.dev/events/baby-shower/1712345678-baby-shower-15.jpg",
   "r2_key": "events/baby-shower/1712345678-baby-shower-15.jpg",
-  "expires_at": "2026-05-31T12:15:00.000Z"
+  "expires_at": "2026-05-31T12:15:00.000Z",
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c"
 }
 ```
 
@@ -349,19 +390,13 @@ Request:
   "service": null,
   "subCategory": null,
   "aspectRatio": null,
-  "aspect_ratio": null,
-  "cropPosition": "center center",
   "sortOrder": 0
 }
 ```
 
 Only `key` is required. The server derives `filename` from `key`, `src` from the
 configured public base URL, stores `status: "draft"` when omitted, and defaults
-missing `library` to `"portfolio"` and missing `cropPosition` to
-`"center center"`. Create and update requests accept either `cropPosition` or
-`crop_position`; responses return `cropPosition`. Create and update requests
-also accept either `aspectRatio` or `aspect_ratio`; responses return both for
-compatibility.
+missing `library` to `"portfolio"`.
 
 Site image draft example:
 
@@ -371,18 +406,104 @@ Site image draft example:
   "library": "site",
   "siteCategory": "About",
   "alt": "",
-  "aspectRatio": null,
-  "aspect_ratio": null
+  "aspectRatio": null
 }
 ```
 
 Site images use the same bucket and public base URL. Recommended folders are
 `site/home/`, `site/about/`, `site/brand/`, and `site/misc/`.
 
-The backend does not currently receive image dimensions on the catalog-item
-create request, so it does not infer `aspectRatio` server-side. Draft items may
-store `null` when omitted; publishing remains blocked until an allowed value is
-set.
+## Complete Uploaded Drafts In Batch
+
+`POST /api/media/:websiteSlug/admin/items/batch`
+
+Protected. Call this after one or more direct R2 PUTs succeed when the frontend
+wants one response that preserves per-file partial success and failure state.
+The endpoint creates catalog draft records sequentially and does not roll back
+successful files when a later file fails.
+
+Request:
+
+```json
+{
+  "items": [
+    {
+      "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+      "filename": "baby-shower-15.jpg",
+      "src": "https://pub.example.r2.dev/events/baby-shower/1712345678-baby-shower-15.jpg",
+      "alt": "",
+      "library": "portfolio",
+      "service": null,
+      "subCategory": null,
+      "aspectRatio": null,
+      "sortOrder": 0
+    }
+  ]
+}
+```
+
+Response when every draft is created:
+
+```json
+{
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c",
+  "status": "completed",
+  "items": [
+    {
+      "index": 0,
+      "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+      "ok": true,
+      "item": {
+        "id": 123,
+        "key": "events/baby-shower/1712345678-baby-shower-15.jpg",
+        "status": "draft"
+      }
+    }
+  ],
+  "summary": {
+    "requested": 1,
+    "succeeded": 1,
+    "failed": 0
+  }
+}
+```
+
+Response when some files fail uses HTTP `207` and preserves created drafts:
+
+```json
+{
+  "request_id": "1d462f43-2d43-4a5a-94c5-3be6b1279d1c",
+  "status": "partial_success",
+  "items": [
+    {
+      "index": 0,
+      "key": "events/baby-shower/one.jpg",
+      "ok": true,
+      "item": {
+        "id": 123,
+        "key": "events/baby-shower/one.jpg",
+        "status": "draft"
+      }
+    },
+    {
+      "index": 1,
+      "key": "events/baby-shower/two.jpg",
+      "ok": false,
+      "error": {
+        "status": 503,
+        "code": "media.upload_temporary_unavailable",
+        "message": "Media storage is temporarily busy. Retry this upload shortly.",
+        "retryable": true
+      }
+    }
+  ],
+  "summary": {
+    "requested": 2,
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
 
 ## Update Metadata, Publish, Archive, Restore, Reorder
 
@@ -398,8 +519,6 @@ Protected. Accepts any subset of:
   "service": "Events",
   "subCategory": "Baby Shower",
   "aspectRatio": "portrait",
-  "aspect_ratio": "portrait",
-  "cropPosition": "center top",
   "sortOrder": 12,
   "status": "published"
 }
@@ -411,8 +530,6 @@ Portfolio publish requirements:
 - `service` is required.
 - `subCategory` is required and must match `service`.
 - `aspectRatio` is required.
-- `cropPosition` is optional and defaults to `center center`; unsafe arbitrary CSS
-  values are rejected.
 
 Site publish requirements:
 
@@ -532,8 +649,6 @@ Response:
     "service": null,
     "subCategory": null,
     "aspectRatio": null,
-    "aspect_ratio": null,
-    "cropPosition": "center center",
     "status": "draft",
     "sortOrder": 0,
     "createdAt": "2026-05-31T12:00:00.000Z",
@@ -665,6 +780,7 @@ Configure the API server:
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | Next.js route handler URL that revalidates public pages. |
 | `MEDIA_REVALIDATION_SECRET` | Optional bearer token sent as `Authorization: Bearer ...`. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional webhook timeout. Defaults to `5000`. |
+| `MEDIA_DB_LATENCY_WARN_MS` | Optional Supabase media mutation DB latency warning threshold. Defaults to `1000`. |
 
 The webhook receives:
 
@@ -710,7 +826,11 @@ Server runtime:
 | `R2_BUCKET_NAME` | fallback | Fallback bucket when no per-client config exists. |
 | `R2_PUBLIC_BASE_URL` | fallback | Fallback public object base URL. |
 | `R2_PRESIGN_EXPIRES_SECONDS` | no | Presign expiry. Defaults to `900`. |
-| `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 10 MB. |
+| `R2_CONNECTION_TIMEOUT_MS` | no | R2 S3 connection timeout. Defaults to `2000`. |
+| `R2_REQUEST_TIMEOUT_MS` | no | R2 S3 request timeout. Defaults to `8000`. |
+| `MEDIA_MAX_UPLOAD_BYTES` | no | Max upload size. Defaults to 25 MB. |
+| `MEDIA_UPLOAD_BATCH_MAX_ITEMS` | no | Max batch draft-completion items. Defaults to `10`. |
+| `MEDIA_DB_LATENCY_WARN_MS` | no | Supabase media mutation DB latency warning threshold. Defaults to `1000`. |
 | `MEDIA_REVALIDATION_WEBHOOK_URL` | no | Frontend revalidation webhook. |
 | `MEDIA_REVALIDATION_SECRET` | no | Optional webhook bearer token. |
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | no | Webhook timeout. Defaults to `5000`. |
@@ -734,9 +854,19 @@ Upload:
 
 1. Request a presigned URL.
 2. PUT the file directly to R2 with the returned URL.
-3. Create a draft catalog item with `key: r2_key` and `src: public_url`.
+3. Create a draft catalog item with `key: r2_key` and `src: public_url`, or call
+   batch draft completion after several direct PUTs succeed.
 4. Let Jenn fill alt/category/aspect metadata.
 5. Publish with `status: "published"` after required metadata is present.
+
+Upload-related retryable server error codes:
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `media.upload_timeout` | `504` | R2/provider operation timed out. Retry the affected file. |
+| `media.upload_temporary_unavailable` | `503` | R2/provider reported temporary pressure or rate limiting. Retry after a short delay. |
+| `media.upload_provider_error` | `502` | R2/provider failed without a more specific timeout/busy signal. Retryable. |
+| `media.upload_catalog_create_failed` | `500` | The object may be in R2, but the draft catalog row failed. Refresh catalog and retry draft completion for that file. |
 
 Rename or move draft media:
 

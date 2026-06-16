@@ -220,6 +220,60 @@ describe('media R2 object operations', () => {
         })
     })
 
+    it('maps R2 timeout failures to retryable upload timeout errors', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+        ]
+        mockState.send.mockRejectedValueOnce(
+            Object.assign(new Error('socket timed out'), {
+                name: 'TimeoutError',
+                code: 'ETIMEDOUT',
+            })
+        )
+
+        await expect(
+            mediaR2Service.listObjects({
+                websiteSlug: 'iffers-pictures',
+            })
+        ).rejects.toMatchObject({
+            status: 504,
+            code: 'media.upload_timeout',
+            retryable: true,
+        })
+    })
+
+    it('maps R2 busy failures to retryable temporary unavailable errors', async () => {
+        mockState.queryResults = [
+            { data: websiteRecord, error: null },
+            { data: r2ConfigRecord, error: null },
+            { data: null, error: null },
+        ]
+        mockState.send.mockRejectedValueOnce(
+            Object.assign(new Error('slow down'), {
+                name: 'SlowDown',
+                $metadata: {
+                    httpStatusCode: 503,
+                    httpHeaders: { 'retry-after': '3' },
+                },
+            })
+        )
+
+        await expect(
+            mediaR2Service.checkDestination({
+                websiteSlug: 'iffers-pictures',
+                destinationKey: 'events/baby-shower/new.jpg',
+            })
+        ).rejects.toMatchObject({
+            status: 503,
+            code: 'media.upload_temporary_unavailable',
+            retryable: true,
+            details: expect.objectContaining({
+                retry_after: '3',
+            }),
+        })
+    })
+
     it('checks site image destination paths across catalog and R2', async () => {
         mockState.queryResults = [
             { data: websiteRecord, error: null },
@@ -617,7 +671,13 @@ describe('media R2 object operations', () => {
             })
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 'Failed to delete source R2 object after catalog move: events/baby-shower/source.jpg',
-                deleteError
+                expect.objectContaining({
+                    code: 'media.upload_provider_error',
+                    details: expect.objectContaining({
+                        operation: 'delete_object',
+                        key: 'events/baby-shower/source.jpg',
+                    }),
+                })
             )
         } finally {
             consoleErrorSpy.mockRestore()
