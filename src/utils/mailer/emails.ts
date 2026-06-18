@@ -129,6 +129,125 @@ export const generateAuditRequestEmail = ({
     </div>`
 }
 
+interface AuditRequestConfirmationEmailProps {
+    name: string
+    websiteUrl: string
+}
+
+interface LeadSubmissionConfirmationEmailProps {
+    name: string
+    companyName: string
+    budget?: string | null
+    timeline?: string | null
+    interestedIn?: string[] | null
+    currentWebsite?: string | null
+    improvements?: string[] | null
+}
+
+const websiteHref = (websiteUrl: string): string =>
+    /^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`
+
+const PIXELVERSE_LOGO_URL =
+    'https://pub-7ecb5a034cc7488baec10683beff6531.r2.dev/logo-black.png'
+
+const generatePixelVerseTransactionalEmail = (bodyHtml: string): string => `
+    <div style="margin:0;padding:0;background:#f5f5f4;font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#18181b;">
+        <div style="max-width:640px;margin:18px auto;background:#ffffff;border:1px solid #e7e5e4;border-radius:10px;overflow:hidden;">
+            <div style="background:#ffffff;padding:22px 24px;color:#18181b;text-align:center;border-bottom:1px solid #ecebea;">
+                <img src="${PIXELVERSE_LOGO_URL}" alt="PixelVerse Studios" width="142" style="display:block;width:142px;max-width:100%;height:auto;margin:0 auto;" />
+            </div>
+
+            <div style="padding:28px 30px 30px;">
+                ${bodyHtml}
+            </div>
+
+            <div style="background:#fafaf9;border-top:1px solid #ecebea;padding:20px 28px;text-align:center;">
+                <a href="https://pixelversestudios.io" style="color:#78716c;font-size:13px;letter-spacing:0.01em;text-decoration:none;">pixelversestudios.io</a>
+            </div>
+        </div>
+    </div>`
+
+export const generateAuditRequestConfirmationEmail = ({
+    name,
+    websiteUrl
+}: AuditRequestConfirmationEmailProps): string => {
+    const safeName = escapeHtml(name)
+    const safeWebsiteUrl = escapeHtml(websiteUrl)
+    const safeWebsiteHref = escapeHtml(websiteHref(websiteUrl))
+
+    return generatePixelVerseTransactionalEmail(`
+                <p style="margin:0 0 20px;font-size:16px;line-height:1.7;color:#27272a;">Hi ${safeName},</p>
+
+                <p style="margin:0 0 28px;font-size:16px;line-height:1.7;color:#27272a;">Thanks for requesting a website audit from PixelVerse Studios.</p>
+
+                <div style="border-top:1px solid #e7e5e4;border-bottom:1px solid #e7e5e4;padding:16px 0;margin:0 0 28px;">
+                    <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#78716c;font-weight:700;margin-bottom:7px;">Website submitted</div>
+                    <a href="${safeWebsiteHref}" style="color:#18181b;font-size:17px;line-height:1.5;text-decoration:none;word-break:break-word;font-weight:600;">${safeWebsiteUrl}</a>
+                </div>
+
+                <p style="margin:0 0 22px;font-size:16px;line-height:1.7;color:#27272a;">We will review your site and follow up within 2-3 business days with our audit report.</p>
+
+                <p style="margin:30px 0 0;font-size:16px;line-height:1.7;color:#27272a;">Talk soon,</p>
+                <p style="margin:3px 0 0;font-size:16px;line-height:1.7;color:#18181b;font-weight:600;">PixelVerse Studios</p>
+    `)
+}
+
+export const generateLeadSubmissionConfirmationEmail = ({
+    name,
+    companyName,
+    budget,
+    timeline,
+    interestedIn,
+    currentWebsite,
+    improvements
+}: LeadSubmissionConfirmationEmailProps): string => {
+    const safeName = escapeHtml(name)
+    const safeCompanyName = escapeHtml(companyName)
+
+    const detailRows = [
+        budget ? { label: 'Budget', value: escapeHtml(budget) } : null,
+        timeline ? { label: 'Timeline', value: escapeHtml(timeline) } : null,
+        interestedIn?.length
+            ? { label: 'Services', value: escapeHtml(interestedIn.join(', ')) }
+            : null,
+        currentWebsite
+            ? {
+                  label: 'Website',
+                  value: `<a href="${escapeHtml(websiteHref(currentWebsite))}" style="color:#18181b;text-decoration:underline;text-decoration-color:#d6d3d1;text-underline-offset:3px;font-weight:600;word-break:break-word;">${escapeHtml(currentWebsite)}</a>`
+              }
+            : null,
+        improvements?.length
+            ? { label: 'Priorities', value: escapeHtml(improvements.join(', ')) }
+            : null,
+    ]
+        .filter((row): row is { label: string; value: string } => Boolean(row))
+        .map(
+            ({ label, value }) => `
+                    <tr>
+                        <td style="padding:8px 18px 8px 0;color:#78716c;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;vertical-align:top;white-space:nowrap;">${label}</td>
+                        <td style="padding:8px 0;color:#18181b;font-size:15px;line-height:1.5;font-weight:600;vertical-align:top;">${value}</td>
+                    </tr>`
+        )
+        .join('')
+
+    return generatePixelVerseTransactionalEmail(`
+                <p style="margin:0 0 20px;font-size:16px;line-height:1.7;color:#27272a;">Hi ${safeName},</p>
+
+                <p style="margin:0 0 22px;font-size:16px;line-height:1.7;color:#27272a;">Thanks for reaching out to PixelVerse Studios. We received the project details for <span style="color:#18181b;font-weight:600;">${safeCompanyName}</span>.</p>
+
+                <div style="border-top:1px solid #e7e5e4;border-bottom:1px solid #e7e5e4;padding:12px 0;margin:0 0 24px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;">
+                        ${detailRows}
+                    </table>
+                </div>
+
+                <p style="margin:0 0 22px;font-size:16px;line-height:1.7;color:#27272a;">We will review everything you shared and follow up shortly.</p>
+
+                <p style="margin:30px 0 0;font-size:16px;line-height:1.7;color:#27272a;">Talk soon,</p>
+                <p style="margin:3px 0 0;font-size:16px;line-height:1.7;color:#18181b;font-weight:600;">PixelVerse Studios</p>
+    `)
+}
+
 interface DeploymentEmailParams {
     websiteTitle: string
     changedUrls: string[]

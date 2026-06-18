@@ -5,6 +5,10 @@ import leadsController from '../src/controllers/leads'
 import auditController from '../src/controllers/audit'
 import calendlyWebhookController from '../src/controllers/calendly-webhook'
 import { sendSlackNotification } from '../src/lib/slack-notifier'
+import {
+    sendAuditRequestConfirmationEmail,
+    sendLeadSubmissionConfirmationEmail,
+} from '../src/lib/mailer'
 import { upsertProspect } from '../src/services/prospects'
 import leadSubmissionsService from '../src/services/lead-submissions'
 import auditRequestsService from '../src/services/audit-requests'
@@ -12,6 +16,11 @@ import calendlyBookingsService from '../src/services/calendly-bookings'
 
 vi.mock('../src/lib/slack-notifier', () => ({
     sendSlackNotification: vi.fn(),
+}))
+
+vi.mock('../src/lib/mailer', () => ({
+    sendAuditRequestConfirmationEmail: vi.fn(),
+    sendLeadSubmissionConfirmationEmail: vi.fn(),
 }))
 
 vi.mock('../src/services/prospects', () => ({
@@ -104,6 +113,8 @@ describe('controller Slack notifications', () => {
         process.env.CALENDLY_API_TOKEN = 'calendly-test-token'
         vi.mocked(upsertProspect).mockResolvedValue(prospectId)
         vi.mocked(sendSlackNotification).mockResolvedValue(undefined)
+        vi.mocked(sendAuditRequestConfirmationEmail).mockResolvedValue(undefined)
+        vi.mocked(sendLeadSubmissionConfirmationEmail).mockResolvedValue(undefined)
         vi.spyOn(console, 'log').mockImplementation(() => undefined)
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
     })
@@ -171,6 +182,18 @@ describe('controller Slack notifications', () => {
             ],
         })
         expectNoInternalData(latestSlackPayload())
+        expect(sendLeadSubmissionConfirmationEmail).toHaveBeenCalledWith({
+            to: 'ada@example.com',
+            payload: {
+                name: 'Ada Lovelace',
+                companyName: 'PVS Test Co',
+                budget: '3-6k',
+                timeline: 'ASAP',
+                interestedIn: ['web-design', 'seo'],
+                currentWebsite: 'https://example.com',
+                improvements: ['Speed', 'SEO'],
+            },
+        })
     })
 
     it('keeps lead responses successful when Slack notification rejects', async () => {
@@ -202,6 +225,43 @@ describe('controller Slack notifications', () => {
         )
     })
 
+    it('keeps lead responses successful when confirmation email rejects', async () => {
+        vi.mocked(leadSubmissionsService.createLeadSubmission).mockResolvedValue(
+            {} as any
+        )
+        vi.mocked(sendLeadSubmissionConfirmationEmail).mockRejectedValue(
+            new Error('Email down')
+        )
+        const res = createResponse()
+
+        await leadsController.createLead(
+            createRequest({
+                name: 'Ada Lovelace',
+                email: 'ada@example.com',
+                companyName: 'PVS Test Co',
+                budget: '1-3k',
+                timeline: 'ASAP',
+                improvements: ['SEO'],
+                attribution,
+            }),
+            res
+        )
+
+        expectSuccessfulResponse(res, 201, { message: 'Message received.' })
+        expect(sendLeadSubmissionConfirmationEmail).toHaveBeenCalledWith({
+            to: 'ada@example.com',
+            payload: {
+                name: 'Ada Lovelace',
+                companyName: 'PVS Test Co',
+                budget: '1-3k',
+                timeline: 'ASAP',
+                interestedIn: undefined,
+                currentWebsite: null,
+                improvements: ['SEO'],
+            },
+        })
+    })
+
     it('does not persist or notify Slack for lead honeypot submissions', async () => {
         const res = createResponse()
 
@@ -222,6 +282,7 @@ describe('controller Slack notifications', () => {
         expect(upsertProspect).not.toHaveBeenCalled()
         expect(leadSubmissionsService.createLeadSubmission).not.toHaveBeenCalled()
         expect(sendSlackNotification).not.toHaveBeenCalled()
+        expect(sendLeadSubmissionConfirmationEmail).not.toHaveBeenCalled()
     })
 
     it('sends a customer-facing Slack alert after audit persistence succeeds', async () => {
@@ -280,6 +341,13 @@ describe('controller Slack notifications', () => {
             ],
         })
         expectNoInternalData(latestSlackPayload())
+        expect(sendAuditRequestConfirmationEmail).toHaveBeenCalledWith({
+            to: 'grace@example.com',
+            payload: {
+                name: 'Grace Hopper',
+                websiteUrl: 'https://example.com',
+            },
+        })
     })
 
     it('omits absent audit optional fields and skips audit honeypot notifications', async () => {
@@ -335,6 +403,7 @@ describe('controller Slack notifications', () => {
         expect(upsertProspect).not.toHaveBeenCalled()
         expect(auditRequestsService.createAuditRequest).not.toHaveBeenCalled()
         expect(sendSlackNotification).not.toHaveBeenCalled()
+        expect(sendAuditRequestConfirmationEmail).not.toHaveBeenCalled()
     })
 
     it('keeps audit responses successful when Slack notification rejects', async () => {
@@ -367,6 +436,40 @@ describe('controller Slack notifications', () => {
 
         expectSuccessfulResponse(res, 201, { message: 'Audit request received.' })
         expect(sendSlackNotification).toHaveBeenCalledOnce()
+    })
+
+    it('keeps audit responses successful when confirmation email rejects', async () => {
+        vi.mocked(auditRequestsService.createAuditRequest).mockResolvedValue({
+            id: 'record-internal-audit',
+            name: 'Grace Hopper',
+            email: 'grace@example.com',
+            website_url: 'https://example.com',
+            phone_number: null,
+            specifics: null,
+            other_detail: null,
+            status: 'pending',
+            prospect_id: prospectId,
+            promo_code: null,
+            attribution: null,
+            created_at: '2026-05-19T18:15:00.000Z',
+            updated_at: '2026-05-19T18:15:00.000Z',
+        })
+        vi.mocked(sendAuditRequestConfirmationEmail).mockRejectedValue(
+            new Error('Email down')
+        )
+        const res = createResponse()
+
+        await auditController.createAuditRequest(
+            createRequest({
+                name: 'Grace Hopper',
+                email: 'grace@example.com',
+                websiteUrl: 'https://example.com',
+            }),
+            res
+        )
+
+        expectSuccessfulResponse(res, 201, { message: 'Audit request received.' })
+        expect(sendAuditRequestConfirmationEmail).toHaveBeenCalledOnce()
     })
 
     it('sends a customer-facing Slack alert after Calendly booking persistence succeeds', async () => {

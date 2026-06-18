@@ -5,6 +5,7 @@ import { handleGenericError } from '../utils/http'
 import { upsertProspect } from '../services/prospects'
 import auditRequestsService, { AuditRequestRecord } from '../services/audit-requests'
 import { sendSlackNotification } from '../lib/slack-notifier'
+import { sendAuditRequestConfirmationEmail } from '../lib/mailer'
 
 const auditSchema = z.object({
     name: z.string().min(1).max(200),
@@ -96,6 +97,16 @@ const createAuditRequest = async (
 
         sendAuditAlertToSlack(record).catch((err) =>
             console.error('Slack notification failed (audit saved):', err)
+        )
+
+        sendAuditRequestConfirmationEmail({
+            to: record.email,
+            payload: {
+                name: record.name,
+                websiteUrl: record.website_url,
+            },
+        }).catch((err) =>
+            console.error('Audit confirmation email failed (audit saved):', err)
         )
 
         return res.status(201).json({ message: 'Audit request received.' })

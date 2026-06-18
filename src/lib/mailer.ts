@@ -2,8 +2,10 @@ import nodemailer from 'nodemailer'
 import { convert } from 'html-to-text'
 
 import {
+    generateAuditRequestConfirmationEmail,
     generateAuditRequestEmail,
-    generateContactFormSubmissionEmail
+    generateContactFormSubmissionEmail,
+    generateLeadSubmissionConfirmationEmail
 } from '../utils/mailer/emails'
 
 interface GmailSmtpCredentials {
@@ -89,6 +91,9 @@ interface AuditSubmissionEmailParams {
 }
 
 const DEFAULT_AUDIT_SUBJECT = 'New Free Website Audit Request'
+const DEFAULT_AUDIT_CONFIRMATION_SUBJECT =
+    'We received your website audit request'
+const DEFAULT_LEAD_CONFIRMATION_SUBJECT = 'We received your project details'
 
 export async function sendAuditRequestEmail({
     to,
@@ -105,6 +110,72 @@ export async function sendAuditRequestEmail({
     })
 
     await sendMail({
+        to,
+        subject,
+        html
+    })
+}
+
+interface AuditRequestConfirmationEmailPayload {
+    name: string
+    websiteUrl: string
+}
+
+interface AuditRequestConfirmationEmailParams {
+    to: string | string[]
+    subject?: string
+    payload: AuditRequestConfirmationEmailPayload
+}
+
+export async function sendAuditRequestConfirmationEmail({
+    to,
+    subject = DEFAULT_AUDIT_CONFIRMATION_SUBJECT,
+    payload
+}: AuditRequestConfirmationEmailParams): Promise<void> {
+    const html = generateAuditRequestConfirmationEmail({
+        name: payload.name,
+        websiteUrl: payload.websiteUrl
+    })
+
+    await sendEmail({
+        to,
+        subject,
+        html
+    })
+}
+
+interface LeadSubmissionConfirmationEmailPayload {
+    name: string
+    companyName: string
+    budget?: string | null
+    timeline?: string | null
+    interestedIn?: string[] | null
+    currentWebsite?: string | null
+    improvements?: string[] | null
+}
+
+interface LeadSubmissionConfirmationEmailParams {
+    to: string | string[]
+    subject?: string
+    payload: LeadSubmissionConfirmationEmailPayload
+}
+
+export async function sendLeadSubmissionConfirmationEmail({
+    to,
+    subject = DEFAULT_LEAD_CONFIRMATION_SUBJECT,
+    payload
+}: LeadSubmissionConfirmationEmailParams): Promise<void> {
+    const html = generateLeadSubmissionConfirmationEmail({
+        name: payload.name,
+        companyName: payload.companyName,
+        budget: payload.budget,
+        timeline: payload.timeline,
+        interestedIn: payload.interestedIn,
+        currentWebsite: payload.currentWebsite,
+        improvements: payload.improvements
+    })
+
+    await sendEmail({
         to,
         subject,
         html

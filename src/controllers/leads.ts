@@ -5,6 +5,7 @@ import { handleGenericError } from '../utils/http'
 import { upsertProspect } from '../services/prospects'
 import leadSubmissionsService from '../services/lead-submissions'
 import { sendSlackNotification } from '../lib/slack-notifier'
+import { sendLeadSubmissionConfirmationEmail } from '../lib/mailer'
 
 const leadsSchema = z.object({
     name: z.string().min(2).max(100),
@@ -108,6 +109,21 @@ const createLead = async (req: Request, res: Response): Promise<Response> => {
 
         sendLeadAlertToSlack(parsed).catch((err) =>
             console.error('Slack notification failed (lead saved):', err)
+        )
+
+        sendLeadSubmissionConfirmationEmail({
+            to: email,
+            payload: {
+                name,
+                companyName,
+                budget,
+                timeline,
+                interestedIn,
+                currentWebsite: currentWebsite || null,
+                improvements,
+            },
+        }).catch((err) =>
+            console.error('Lead confirmation email failed (lead saved):', err)
         )
 
         console.log('Lead submission created', { email })
