@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import mediaController from '../src/controllers/media'
 import {
     buildR2ObjectKey,
+    cacheControlForMediaObjectKey,
     DEFAULT_MAX_UPLOAD_BYTES,
+    MUTABLE_MEDIA_CACHE_CONTROL,
+    VERSIONED_MEDIA_CACHE_CONTROL,
     joinPublicUrl,
     MediaOperationError,
     validateUploadInput,
@@ -16,6 +19,7 @@ import mediaRevalidationService from '../src/services/media-revalidation'
 vi.mock('../src/services/media-r2', () => ({
     default: {
         createPresignedUpload: vi.fn(),
+        applyObjectCacheControl: vi.fn(),
         checkDestination: vi.fn(),
     },
 }))
@@ -155,6 +159,17 @@ describe('media R2 key and upload validation helpers', () => {
     it('joins public URLs without duplicate slashes', () => {
         expect(joinPublicUrl('https://pub.example.test/', 'events/test.jpg')).toBe(
             'https://pub.example.test/events/test.jpg'
+        )
+    })
+
+    it('uses immutable caching only for generated versioned object keys', () => {
+        expect(
+            cacheControlForMediaObjectKey(
+                'events/1712345678000-a1b2c3d4e5f6-session.jpg'
+            )
+        ).toBe(VERSIONED_MEDIA_CACHE_CONTROL)
+        expect(cacheControlForMediaObjectKey('maternity/maternity-08.jpg')).toBe(
+            MUTABLE_MEDIA_CACHE_CONTROL
         )
     })
 })
@@ -301,6 +316,10 @@ describe('media presigned upload controller', () => {
 
 describe('media catalog upload completion controller', () => {
     beforeEach(() => {
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockReset()
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockResolvedValue(
+            'public, max-age=86400, stale-while-revalidate=604800'
+        )
         vi.mocked(mediaCatalogService.createItem).mockReset()
         vi.mocked(mediaCatalogService.createItem).mockResolvedValue({
             id: 1,
@@ -343,6 +362,10 @@ describe('media catalog upload completion controller', () => {
                 filename: 'one.jpg',
             })
         )
+        expect(mediaR2Service.applyObjectCacheControl).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            key: 'events/baby-shower/one.jpg',
+        })
         expect(res.status).toHaveBeenCalledWith(201)
         expect(res.json).toHaveBeenCalledWith({
             request_id: 'req-batch-success',
@@ -617,6 +640,10 @@ describe('media revalidation controller', () => {
 
 describe('media catalog item controller', () => {
     beforeEach(() => {
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockReset()
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockResolvedValue(
+            'public, max-age=86400, stale-while-revalidate=604800'
+        )
         vi.mocked(mediaCatalogService.createItem).mockReset()
         vi.mocked(mediaCatalogService.updateItem).mockReset()
         vi.mocked(mediaCatalogService.createItem).mockResolvedValue({

@@ -24,6 +24,7 @@ import {
     validateUploadInput,
     MediaOperationError,
     MediaValidationError,
+    cacheControlForMediaObjectKey,
 } from '../lib/media-r2'
 import mediaCatalogService, {
     CatalogItemResponse,
@@ -43,6 +44,11 @@ export interface PresignUploadResult {
     public_url: string
     r2_key: string
     expires_at: string
+}
+
+export interface ApplyObjectCacheControlInput {
+    websiteSlug: string
+    key: string
 }
 
 export interface R2ObjectSummary {
@@ -577,6 +583,68 @@ const createPresignedUpload = async ({
     }
 }
 
+const applyObjectCacheControl = async ({
+    websiteSlug,
+    key,
+}: ApplyObjectCacheControlInput): Promise<string> => {
+    const website = await getWebsiteBySlug(websiteSlug)
+    if (!website) {
+        const err = new Error('Website not found') as Error & { status?: number }
+        err.status = 404
+        throw err
+    }
+
+    assertSafeMediaKey(key)
+    const config = await resolveR2Config(website)
+    assertKeyInConfiguredPrefix({ key, config })
+    const client = createR2Client()
+    const cacheControl = cacheControlForMediaObjectKey(key)
+    const current = await sendR2Command<{
+        CacheControl?: string
+        ContentDisposition?: string
+        ContentEncoding?: string
+        ContentLanguage?: string
+        ContentType?: string
+        ETag?: string
+        Expires?: Date
+        Metadata?: Record<string, string>
+        WebsiteRedirectLocation?: string
+    }>(
+        client,
+        new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
+        'head_object',
+        key
+    )
+
+    if (current.CacheControl === cacheControl) return cacheControl
+
+    await sendR2Command(
+        client,
+        new CopyObjectCommand({
+            Bucket: config.bucket,
+            Key: key,
+            CopySource: `${config.bucket}/${encodeURIComponent(key).replace(
+                /%2F/g,
+                '/'
+            )}`,
+            CopySourceIfMatch: current.ETag,
+            MetadataDirective: 'REPLACE',
+            CacheControl: cacheControl,
+            ContentDisposition: current.ContentDisposition,
+            ContentEncoding: current.ContentEncoding,
+            ContentLanguage: current.ContentLanguage,
+            ContentType: current.ContentType,
+            Expires: current.Expires,
+            Metadata: current.Metadata,
+            WebsiteRedirectLocation: current.WebsiteRedirectLocation,
+        }),
+        'apply_cache_control',
+        key
+    )
+
+    return cacheControl
+}
+
 const listObjects = async ({
     websiteSlug,
     prefix,
@@ -848,6 +916,7 @@ const moveCatalogItemObject = async ({
 
 export default {
     createPresignedUpload,
+    applyObjectCacheControl,
     listObjects,
     checkDestination,
     moveCatalogItemObject,

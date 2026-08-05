@@ -713,6 +713,10 @@ const createCatalogItem = async (
 
     try {
         const parsed = createCatalogItemSchema.parse(req.body)
+        await mediaR2Service.applyObjectCacheControl({
+            websiteSlug: req.params.websiteSlug,
+            key: parsed.key,
+        })
         const item = await mediaCatalogService.createItem({
             websiteSlug: req.params.websiteSlug,
             key: parsed.key,
@@ -790,6 +794,10 @@ const batchCreateCatalogItems = async (
         for (const [index, rawItem] of parsed.items.entries()) {
             try {
                 const itemInput = createCatalogItemSchema.parse(rawItem)
+                await mediaR2Service.applyObjectCacheControl({
+                    websiteSlug: req.params.websiteSlug,
+                    key: itemInput.key,
+                })
                 const item = await mediaCatalogService.createItem({
                     websiteSlug: req.params.websiteSlug,
                     key: itemInput.key,

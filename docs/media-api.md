@@ -371,6 +371,15 @@ Response:
 Upload the file directly to `presigned_url` with the exact `Content-Type` and
 `Content-Length` used for presign.
 
+When the uploaded object is registered as a draft, the server applies source
+cache metadata without requiring an additional browser upload header:
+
+- Generated timestamp-and-suffix keys: `public, max-age=31536000, immutable`.
+- Replaceable legacy keys: `public, max-age=86400, stale-while-revalidate=604800`.
+
+This keeps versioned media highly cacheable while allowing existing stable paths
+to refresh after an intentional object replacement.
+
 ## Create Draft Catalog Item
 
 `POST /api/media/:websiteSlug/admin/items`
