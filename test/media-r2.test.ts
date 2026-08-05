@@ -10,6 +10,7 @@ import {
     VERSIONED_MEDIA_CACHE_CONTROL,
     joinPublicUrl,
     MediaOperationError,
+    MediaValidationError,
     validateUploadInput,
 } from '../src/lib/media-r2'
 import mediaCatalogService from '../src/services/media-catalog'
@@ -454,6 +455,65 @@ describe('media catalog upload completion controller', () => {
         })
     })
 
+    it('returns retryable cache update conflicts per file', async () => {
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockRejectedValueOnce(
+            new MediaOperationError({
+                status: 409,
+                code: 'media.cache_update_conflict',
+                message:
+                    'Media changed while cache metadata was being applied. Retry.',
+                retryable: true,
+                details: {
+                    provider: 'r2',
+                    operation: 'apply_cache_control',
+                    key: 'events/baby-shower/one.jpg',
+                },
+            })
+        )
+        const res = createResponse()
+
+        await mediaController.batchCreateCatalogItems(
+            createRequest({
+                headers: { 'x-request-id': 'req-cache-conflict' },
+                body: {
+                    items: [{ key: 'events/baby-shower/one.jpg' }],
+                },
+            }),
+            res
+        )
+
+        expect(mediaCatalogService.createItem).not.toHaveBeenCalled()
+        expect(res.status).toHaveBeenCalledWith(207)
+        expect(res.json).toHaveBeenCalledWith({
+            request_id: 'req-cache-conflict',
+            status: 'failed',
+            items: [
+                {
+                    index: 0,
+                    key: 'events/baby-shower/one.jpg',
+                    ok: false,
+                    error: {
+                        code: 'media.cache_update_conflict',
+                        message:
+                            'Media changed while cache metadata was being applied. Retry.',
+                        status: 409,
+                        retryable: true,
+                        details: {
+                            provider: 'r2',
+                            operation: 'apply_cache_control',
+                            key: 'events/baby-shower/one.jpg',
+                        },
+                    },
+                },
+            ],
+            summary: {
+                requested: 1,
+                succeeded: 0,
+                failed: 1,
+            },
+        })
+    })
+
     it('returns the stable media envelope for malformed batch payloads', async () => {
         const res = createResponse()
 
@@ -701,6 +761,39 @@ describe('media catalog item controller', () => {
             })
         )
         expect(res.status).toHaveBeenCalledWith(201)
+    })
+
+    it('returns source-not-found when the cache metadata target is missing', async () => {
+        vi.mocked(mediaR2Service.applyObjectCacheControl).mockRejectedValueOnce(
+            new MediaValidationError(
+                404,
+                'media.source_not_found',
+                'The media object does not exist.',
+                { key: 'portrait/missing.jpg' }
+            )
+        )
+        const res = createResponse()
+
+        await mediaController.createCatalogItem(
+            createRequest({
+                headers: { 'x-request-id': 'req-cache-missing' },
+                body: {
+                    key: 'portrait/missing.jpg',
+                    aspect_ratio: 'portrait',
+                },
+            }),
+            res
+        )
+
+        expect(mediaCatalogService.createItem).not.toHaveBeenCalled()
+        expect(res.status).toHaveBeenCalledWith(404)
+        expect(res.json).toHaveBeenCalledWith({
+            error: expect.objectContaining({
+                code: 'media.source_not_found',
+                request_id: 'req-cache-missing',
+                retryable: false,
+            }),
+        })
     })
 
     it('maps snake_case aspect_ratio on metadata update', async () => {

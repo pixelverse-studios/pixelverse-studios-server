@@ -472,7 +472,12 @@ describe('media R2 object operations', () => {
             { data: null, error: null },
         ]
         mockState.send
-            .mockResolvedValueOnce({})
+            .mockResolvedValueOnce({
+                CacheControl: 'public, max-age=31536000, immutable',
+                ContentType: 'image/jpeg',
+                ETag: '"source-etag"',
+                Metadata: { photographer: 'iffers-pictures' },
+            })
             .mockRejectedValueOnce(notFoundError)
             .mockResolvedValueOnce({})
             .mockResolvedValueOnce({})
@@ -504,6 +509,16 @@ describe('media R2 object operations', () => {
                 Key: 'events/baby-shower/new-name.jpg',
                 CopySource: 'iffers-pictures/events/baby-shower/source.jpg',
                 IfNoneMatch: '*',
+                MetadataDirective: 'REPLACE',
+                CacheControl:
+                    'public, max-age=86400, stale-while-revalidate=604800',
+                ContentDisposition: undefined,
+                ContentEncoding: undefined,
+                ContentLanguage: undefined,
+                ContentType: 'image/jpeg',
+                Expires: undefined,
+                Metadata: { photographer: 'iffers-pictures' },
+                WebsiteRedirectLocation: undefined,
             },
         })
         expect(mockState.updateItem).toHaveBeenCalledWith({

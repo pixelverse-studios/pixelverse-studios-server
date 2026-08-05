@@ -118,6 +118,18 @@ interface CatalogKeyRecord {
     id: number
 }
 
+interface R2ObjectMetadata {
+    CacheControl?: string
+    ContentDisposition?: string
+    ContentEncoding?: string
+    ContentLanguage?: string
+    ContentType?: string
+    ETag?: string
+    Expires?: Date
+    Metadata?: Record<string, string>
+    WebsiteRedirectLocation?: string
+}
+
 const getWebsiteBySlug = async (
     websiteSlug: string
 ): Promise<WebsiteRecord | null> => {
@@ -583,6 +595,67 @@ const createPresignedUpload = async ({
     }
 }
 
+const copySourceFor = (bucket: string, key: string): string =>
+    `${bucket}/${encodeURIComponent(key).replace(/%2F/g, '/')}`
+
+const replacementMetadataFor = (
+    current: R2ObjectMetadata,
+    cacheControl: string
+) => ({
+    MetadataDirective: 'REPLACE' as const,
+    CacheControl: cacheControl,
+    ContentDisposition: current.ContentDisposition,
+    ContentEncoding: current.ContentEncoding,
+    ContentLanguage: current.ContentLanguage,
+    ContentType: current.ContentType,
+    Expires: current.Expires,
+    Metadata: current.Metadata,
+    WebsiteRedirectLocation: current.WebsiteRedirectLocation,
+})
+
+const getRequiredObjectMetadata = async ({
+    client,
+    bucket,
+    key,
+}: {
+    client: S3Client
+    bucket: string
+    key: string
+}): Promise<R2ObjectMetadata> => {
+    try {
+        return await sendR2Command<R2ObjectMetadata>(
+            client,
+            new HeadObjectCommand({ Bucket: bucket, Key: key }),
+            'head_object',
+            key
+        )
+    } catch (err) {
+        if (
+            providerStatusCode(err) === 404 ||
+            providerErrorName(err) === 'NotFound' ||
+            providerErrorName(err) === 'NoSuchKey'
+        ) {
+            throw new MediaValidationError(
+                404,
+                'media.source_not_found',
+                'The media object does not exist.',
+                { key }
+            )
+        }
+
+        throw err
+    }
+}
+
+const cacheUpdateConflict = (key: string): MediaOperationError =>
+    new MediaOperationError({
+        status: 409,
+        code: 'media.cache_update_conflict',
+        message: 'Media changed while cache metadata was being applied. Retry.',
+        retryable: true,
+        details: { provider: 'r2', operation: 'apply_cache_control', key },
+    })
+
 const applyObjectCacheControl = async ({
     websiteSlug,
     key,
@@ -599,48 +672,31 @@ const applyObjectCacheControl = async ({
     assertKeyInConfiguredPrefix({ key, config })
     const client = createR2Client()
     const cacheControl = cacheControlForMediaObjectKey(key)
-    const current = await sendR2Command<{
-        CacheControl?: string
-        ContentDisposition?: string
-        ContentEncoding?: string
-        ContentLanguage?: string
-        ContentType?: string
-        ETag?: string
-        Expires?: Date
-        Metadata?: Record<string, string>
-        WebsiteRedirectLocation?: string
-    }>(
+    const current = await getRequiredObjectMetadata({
         client,
-        new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
-        'head_object',
-        key
-    )
+        bucket: config.bucket,
+        key,
+    })
 
     if (current.CacheControl === cacheControl) return cacheControl
 
-    await sendR2Command(
-        client,
-        new CopyObjectCommand({
-            Bucket: config.bucket,
-            Key: key,
-            CopySource: `${config.bucket}/${encodeURIComponent(key).replace(
-                /%2F/g,
-                '/'
-            )}`,
-            CopySourceIfMatch: current.ETag,
-            MetadataDirective: 'REPLACE',
-            CacheControl: cacheControl,
-            ContentDisposition: current.ContentDisposition,
-            ContentEncoding: current.ContentEncoding,
-            ContentLanguage: current.ContentLanguage,
-            ContentType: current.ContentType,
-            Expires: current.Expires,
-            Metadata: current.Metadata,
-            WebsiteRedirectLocation: current.WebsiteRedirectLocation,
-        }),
-        'apply_cache_control',
-        key
-    )
+    try {
+        await sendR2Command(
+            client,
+            new CopyObjectCommand({
+                Bucket: config.bucket,
+                Key: key,
+                CopySource: copySourceFor(config.bucket, key),
+                CopySourceIfMatch: current.ETag,
+                ...replacementMetadataFor(current, cacheControl),
+            }),
+            'apply_cache_control',
+            key
+        )
+    } catch (err) {
+        if (isConditionalWriteFailure(err)) throw cacheUpdateConflict(key)
+        throw err
+    }
 
     return cacheControl
 }
@@ -807,20 +863,11 @@ const moveCatalogItemObject = async ({
     }
 
     const client = createR2Client()
-    const sourceExists = await objectExists({
+    const sourceMetadata = await getRequiredObjectMetadata({
         client,
         bucket: config.bucket,
         key: item.key,
     })
-
-    if (!sourceExists) {
-        throw new MediaValidationError(
-            404,
-            'media.source_not_found',
-            'The source R2 object does not exist.',
-            { key: item.key }
-        )
-    }
 
     await assertDestinationAvailable({
         websiteId: website.id,
@@ -836,10 +883,12 @@ const moveCatalogItemObject = async ({
             new CopyObjectCommand({
                 Bucket: config.bucket,
                 Key: scopedDestinationKey,
-                CopySource: `${config.bucket}/${encodeURIComponent(
-                    item.key
-                ).replace(/%2F/g, '/')}`,
+                CopySource: copySourceFor(config.bucket, item.key),
                 IfNoneMatch: '*',
+                ...replacementMetadataFor(
+                    sourceMetadata,
+                    cacheControlForMediaObjectKey(scopedDestinationKey)
+                ),
             }),
             'copy_object',
             scopedDestinationKey
