@@ -61,8 +61,8 @@ CREATE TABLE public.dashboard_user_roles (
     user_id     uuid                  PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     role        public.dashboard_role NOT NULL,
     is_active   boolean               NOT NULL DEFAULT true,
-    created_at  timestamptz           NOT NULL DEFAULT timezone('utc', now()),
-    updated_at  timestamptz           NOT NULL DEFAULT timezone('utc', now()),
+    created_at  timestamptz           NOT NULL DEFAULT now(),
+    updated_at  timestamptz           NOT NULL DEFAULT now(),
     created_by  uuid                  REFERENCES auth.users(id),
     updated_by  uuid                  REFERENCES auth.users(id)
 );
@@ -108,8 +108,8 @@ CREATE TABLE public.releases (
     created_by        uuid                            NOT NULL REFERENCES auth.users(id),
     updated_by        uuid                            NOT NULL REFERENCES auth.users(id),
     row_version       bigint                          NOT NULL DEFAULT 1,
-    created_at        timestamptz                     NOT NULL DEFAULT timezone('utc', now()),
-    updated_at        timestamptz                     NOT NULL DEFAULT timezone('utc', now()),
+    created_at        timestamptz                     NOT NULL DEFAULT now(),
+    updated_at        timestamptz                     NOT NULL DEFAULT now(),
     archived_at       timestamptz,
     archived_by       uuid                            REFERENCES auth.users(id),
     CONSTRAINT releases_version_format_check CHECK (
@@ -228,8 +228,8 @@ CREATE TABLE public.release_prds (
     created_by                uuid                             NOT NULL REFERENCES auth.users(id),
     updated_by                uuid                             NOT NULL REFERENCES auth.users(id),
     row_version               bigint                           NOT NULL DEFAULT 1,
-    created_at                timestamptz                      NOT NULL DEFAULT timezone('utc', now()),
-    updated_at                timestamptz                      NOT NULL DEFAULT timezone('utc', now()),
+    created_at                timestamptz                      NOT NULL DEFAULT now(),
+    updated_at                timestamptz                      NOT NULL DEFAULT now(),
     CONSTRAINT release_prds_id_release_unique UNIQUE (id, release_id),
     CONSTRAINT release_prds_id_release_hash_unique UNIQUE (
         id,
@@ -324,7 +324,7 @@ CREATE TABLE public.release_conversion_runs (
     error_message          text,
     superseded_by_run_id   uuid,
     created_by             uuid        NOT NULL REFERENCES auth.users(id),
-    started_at             timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    started_at             timestamptz NOT NULL DEFAULT now(),
     completed_at           timestamptz,
     CONSTRAINT release_conversion_runs_id_source_release_unique UNIQUE (
         id,
@@ -427,8 +427,8 @@ CREATE TABLE public.release_notes (
     created_by                uuid                     NOT NULL REFERENCES auth.users(id),
     updated_by                uuid                     NOT NULL REFERENCES auth.users(id),
     row_version               bigint                   NOT NULL DEFAULT 1,
-    created_at                timestamptz              NOT NULL DEFAULT timezone('utc', now()),
-    updated_at                timestamptz              NOT NULL DEFAULT timezone('utc', now()),
+    created_at                timestamptz              NOT NULL DEFAULT now(),
+    updated_at                timestamptz              NOT NULL DEFAULT now(),
     archived_at               timestamptz,
     archived_by               uuid                     REFERENCES auth.users(id),
     CONSTRAINT release_notes_title_check CHECK (
@@ -517,7 +517,7 @@ CREATE TABLE public.release_audit_events (
     before_data    jsonb,
     after_data     jsonb,
     metadata       jsonb                 NOT NULL DEFAULT '{}'::jsonb,
-    created_at     timestamptz           NOT NULL DEFAULT timezone('utc', now()),
+    created_at     timestamptz           NOT NULL DEFAULT now(),
     CONSTRAINT release_audit_events_actor_email_check CHECK (
         actor_email = lower(btrim(actor_email))
         AND char_length(actor_email) BETWEEN 3 AND 320
@@ -574,10 +574,10 @@ CREATE TABLE public.release_cache_invalidation_jobs (
     targets          text[]      NOT NULL,
     status           text        NOT NULL DEFAULT 'pending',
     attempt_count    integer     NOT NULL DEFAULT 0,
-    next_attempt_at  timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    next_attempt_at  timestamptz NOT NULL DEFAULT now(),
     last_error       text,
-    created_at       timestamptz NOT NULL DEFAULT timezone('utc', now()),
-    updated_at       timestamptz NOT NULL DEFAULT timezone('utc', now()),
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now(),
     delivered_at     timestamptz,
     CONSTRAINT release_cache_jobs_event_key_check CHECK (
         event_key = btrim(event_key)

@@ -133,6 +133,8 @@ INSERT INTO auth.users (id) VALUES
 INSERT INTO public.dashboard_user_roles (user_id, role)
 VALUES ('10000000-0000-4000-8000-000000000001', 'admin');
 
+SET LOCAL TIME ZONE 'America/New_York';
+
 INSERT INTO public.releases (
     id,
     version,
@@ -168,6 +170,18 @@ SELECT pg_temp.assert_true(
     ),
     'canonical version components and private draft defaults must be generated'
 );
+
+SELECT pg_temp.assert_true(
+    (
+        SELECT abs(extract(epoch FROM (created_at - now()))) < 1
+           AND abs(extract(epoch FROM (updated_at - now()))) < 1
+        FROM public.releases
+        WHERE id = '20000000-0000-4000-8000-000000000001'
+    ),
+    'timestamptz defaults must preserve the current instant outside UTC sessions'
+);
+
+SET LOCAL TIME ZONE 'UTC';
 
 INSERT INTO public.releases (
     id,
@@ -278,6 +292,30 @@ INSERT INTO public.release_prds (
     '10000000-0000-4000-8000-000000000001'
 );
 
+INSERT INTO public.release_prds (
+    id,
+    release_id,
+    raw_markdown,
+    original_filename,
+    source_type,
+    source_reference,
+    source_content_sha256,
+    intended_surface,
+    created_by,
+    updated_by
+) VALUES (
+    '30000000-0000-4000-8000-000000000002',
+    '20000000-0000-4000-8000-000000000002',
+    '# Domani 1.12.0',
+    'domani-1.12.0.md',
+    'linear_epic',
+    'DEV-1004',
+    repeat('b', 64),
+    'both',
+    '10000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001'
+);
+
 DO $$
 BEGIN
     BEGIN
@@ -314,6 +352,52 @@ BEGIN
 END;
 $$;
 
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO public.release_conversion_runs (
+            release_id,
+            prd_id,
+            source_content_sha256,
+            converter_version,
+            status,
+            created_by
+        ) VALUES (
+            '20000000-0000-4000-8000-000000000001',
+            '30000000-0000-4000-8000-000000000001',
+            repeat('c', 64),
+            'domani-markdown-v1',
+            'running',
+            '10000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'expected conversion source-hash mismatch rejection';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO public.release_conversion_runs (
+            release_id,
+            prd_id,
+            source_content_sha256,
+            converter_version,
+            status,
+            created_by
+        ) VALUES (
+            '20000000-0000-4000-8000-000000000002',
+            '30000000-0000-4000-8000-000000000001',
+            repeat('a', 64),
+            'domani-markdown-v1',
+            'running',
+            '10000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'expected cross-release conversion source rejection';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+END;
+$$;
+
 INSERT INTO public.release_conversion_runs (
     id,
     release_id,
@@ -332,9 +416,44 @@ INSERT INTO public.release_conversion_runs (
     '10000000-0000-4000-8000-000000000001'
 );
 
+INSERT INTO public.release_conversion_runs (
+    id,
+    release_id,
+    prd_id,
+    source_content_sha256,
+    converter_version,
+    status,
+    created_by
+) VALUES (
+    '40000000-0000-4000-8000-000000000002',
+    '20000000-0000-4000-8000-000000000002',
+    '30000000-0000-4000-8000-000000000002',
+    repeat('b', 64),
+    'domani-markdown-v1',
+    'running',
+    '10000000-0000-4000-8000-000000000001'
+);
+
 UPDATE public.release_prds
 SET latest_conversion_run_id = '40000000-0000-4000-8000-000000000001'
 WHERE id = '30000000-0000-4000-8000-000000000001';
+
+DO $$
+BEGIN
+    BEGIN
+        UPDATE public.release_prds
+        SET latest_conversion_run_id = '40000000-0000-4000-8000-000000000002'
+        WHERE id = '30000000-0000-4000-8000-000000000001';
+
+        SET CONSTRAINTS release_prds_latest_conversion_fk IMMEDIATE;
+        RAISE EXCEPTION 'expected latest conversion run source mismatch rejection';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+
+    SET CONSTRAINTS release_prds_latest_conversion_fk DEFERRED;
+END;
+$$;
 
 INSERT INTO public.release_notes (
     id,
@@ -363,6 +482,39 @@ INSERT INTO public.release_notes (
     '10000000-0000-4000-8000-000000000001',
     '10000000-0000-4000-8000-000000000001'
 );
+
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO public.release_notes (
+            release_id,
+            note_type,
+            public_title,
+            public_body,
+            platforms,
+            sort_order,
+            source_prd_id,
+            source_conversion_run_id,
+            created_by,
+            updated_by
+        ) VALUES (
+            '20000000-0000-4000-8000-000000000002',
+            'feature',
+            'Cross-release generated note',
+            'This generated note must be rejected.',
+            ARRAY['ios']::public.release_platform[],
+            0,
+            '30000000-0000-4000-8000-000000000001',
+            '40000000-0000-4000-8000-000000000001',
+            '10000000-0000-4000-8000-000000000001',
+            '10000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'expected cross-release generated-note source rejection';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+END;
+$$;
 
 DO $$
 BEGIN
