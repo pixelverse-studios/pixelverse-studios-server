@@ -14,6 +14,10 @@ export const DEFAULT_PRESIGN_EXPIRES_SECONDS = 15 * 60
 export const DEFAULT_R2_CONNECTION_TIMEOUT_MS = 2_000
 export const DEFAULT_R2_REQUEST_TIMEOUT_MS = 8_000
 export const DEFAULT_MEDIA_UPLOAD_BATCH_MAX_ITEMS = 10
+export const VERSIONED_MEDIA_CACHE_CONTROL =
+    'public, max-age=31536000, immutable'
+export const MUTABLE_MEDIA_CACHE_CONTROL =
+    'public, max-age=86400, stale-while-revalidate=604800'
 
 const CONTENT_TYPE_EXTENSIONS: Record<AllowedUploadContentType, string> = {
     'image/jpeg': 'jpg',
@@ -173,6 +177,16 @@ export const buildR2ObjectKey = ({
         .filter(Boolean)
         .join('/')
 }
+
+export const isVersionedMediaObjectKey = (key: string): boolean => {
+    const filename = key.split('/').pop() || ''
+    return /^\d{13}-[a-f0-9]{12}-/.test(filename)
+}
+
+export const cacheControlForMediaObjectKey = (key: string): string =>
+    isVersionedMediaObjectKey(key)
+        ? VERSIONED_MEDIA_CACHE_CONTROL
+        : MUTABLE_MEDIA_CACHE_CONTROL
 
 export const joinPublicUrl = (publicBaseUrl: string, key: string): string =>
     `${publicBaseUrl.replace(/\/+$/g, '')}/${key}`

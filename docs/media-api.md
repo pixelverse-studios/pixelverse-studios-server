@@ -371,6 +371,15 @@ Response:
 Upload the file directly to `presigned_url` with the exact `Content-Type` and
 `Content-Length` used for presign.
 
+When the uploaded object is registered as a draft, the server applies source
+cache metadata without requiring an additional browser upload header:
+
+- Generated timestamp-and-suffix keys: `public, max-age=31536000, immutable`.
+- Replaceable legacy keys: `public, max-age=86400, stale-while-revalidate=604800`.
+
+This keeps versioned media highly cacheable while allowing existing stable paths
+to refresh after an intentional object replacement.
+
 ## Create Draft Catalog Item
 
 `POST /api/media/:websiteSlug/admin/items`
@@ -867,6 +876,8 @@ Upload-related retryable server error codes:
 | `media.upload_temporary_unavailable` | `503` | R2/provider reported temporary pressure or rate limiting. Retry after a short delay. |
 | `media.upload_provider_error` | `502` | R2/provider failed without a more specific timeout/busy signal. Retryable. |
 | `media.upload_catalog_create_failed` | `500` | The object may be in R2, but the draft catalog row failed. Refresh catalog and retry draft completion for that file. |
+| `media.source_not_found` | `404` | The referenced R2 object no longer exists. Refresh the catalog before retrying. |
+| `media.cache_update_conflict` | `409` | The object changed while cache metadata was being applied. Retry the affected file. |
 
 Rename or move draft media:
 

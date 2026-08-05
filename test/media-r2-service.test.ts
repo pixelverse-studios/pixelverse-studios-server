@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { S3Client } from '@aws-sdk/client-s3'
 
 const mockState = vi.hoisted(() => ({
     from: vi.fn(),
@@ -139,5 +140,89 @@ describe('media R2 presigned upload service', () => {
             'https://env-public.example.test/portrait/'
         )
         expect(result.r2_key).toContain('portrait/')
+    })
+
+    it('maps a missing cache metadata target to a stable 404 error', async () => {
+        mockState.queryResults = [
+            {
+                data: { id: 'website-1', client_id: 'client-1' },
+                error: null,
+            },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://persisted.example.test',
+                    key_prefix: null,
+                },
+                error: null,
+            },
+        ]
+        const sendSpy = vi
+            .spyOn(S3Client.prototype, 'send')
+            .mockRejectedValueOnce(
+                Object.assign(new Error('missing'), {
+                    name: 'NotFound',
+                    $metadata: { httpStatusCode: 404 },
+                })
+            )
+
+        try {
+            await expect(
+                mediaR2Service.applyObjectCacheControl({
+                    websiteSlug: 'iffers-pictures',
+                    key: 'portrait/missing.jpg',
+                })
+            ).rejects.toMatchObject({
+                status: 404,
+                code: 'media.source_not_found',
+            })
+        } finally {
+            sendSpy.mockRestore()
+        }
+    })
+
+    it('maps conditional cache metadata writes to a retryable conflict', async () => {
+        mockState.queryResults = [
+            {
+                data: { id: 'website-1', client_id: 'client-1' },
+                error: null,
+            },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://persisted.example.test',
+                    key_prefix: null,
+                },
+                error: null,
+            },
+        ]
+        const sendSpy = vi
+            .spyOn(S3Client.prototype, 'send')
+            .mockResolvedValueOnce({
+                CacheControl: undefined,
+                ContentType: 'image/jpeg',
+                ETag: '"etag"',
+            } as never)
+            .mockRejectedValueOnce(
+                Object.assign(new Error('changed'), {
+                    name: 'PreconditionFailed',
+                    $metadata: { httpStatusCode: 412 },
+                })
+            )
+
+        try {
+            await expect(
+                mediaR2Service.applyObjectCacheControl({
+                    websiteSlug: 'iffers-pictures',
+                    key: 'portrait/1712345678000-abc123-photo.jpg',
+                })
+            ).rejects.toMatchObject({
+                status: 409,
+                code: 'media.cache_update_conflict',
+                retryable: true,
+            })
+        } finally {
+            sendSpy.mockRestore()
+        }
     })
 })
