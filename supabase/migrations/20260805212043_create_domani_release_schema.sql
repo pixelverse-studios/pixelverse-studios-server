@@ -650,6 +650,21 @@ CREATE TRIGGER release_audit_events_prevent_change
 BEFORE UPDATE OR DELETE ON public.release_audit_events
 FOR EACH ROW EXECUTE FUNCTION public.prevent_release_audit_change();
 
+-- Keep timestamptz values tied to the current instant in every session time
+-- zone. The earlier shared definition converted now() to a timestamp without
+-- time zone before assigning it back to timestamptz, which shifted the instant
+-- whenever the session was not UTC.
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
 CREATE TRIGGER dashboard_user_roles_set_updated_at
 BEFORE UPDATE ON public.dashboard_user_roles
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

@@ -181,6 +181,19 @@ SELECT pg_temp.assert_true(
     'timestamptz defaults must preserve the current instant outside UTC sessions'
 );
 
+UPDATE public.releases
+SET title = 'Calmer evenings updated'
+WHERE id = '20000000-0000-4000-8000-000000000001';
+
+SELECT pg_temp.assert_true(
+    (
+        SELECT abs(extract(epoch FROM (updated_at - now()))) < 1
+        FROM public.releases
+        WHERE id = '20000000-0000-4000-8000-000000000001'
+    ),
+    'updated_at triggers must preserve the current instant outside UTC sessions'
+);
+
 SET LOCAL TIME ZONE 'UTC';
 
 INSERT INTO public.releases (
