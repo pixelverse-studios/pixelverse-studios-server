@@ -37,6 +37,8 @@ export const Tables = {
     MEDIA_AUDIT_LOGS: 'media_audit_logs',
     MEDIA_ADMIN_MAGIC_LINKS: 'media_admin_magic_links',
     MEDIA_ADMIN_SESSIONS: 'media_admin_sessions',
+    RELEASES: 'releases',
+    RELEASE_NOTES: 'release_notes',
 }
 
 // Valid project status values for websites and apps
