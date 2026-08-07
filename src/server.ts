@@ -24,6 +24,7 @@ import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
 import publicReleasesRouter from './routes/public-releases'
+import adminReleaseImportRouter from './routes/admin-release-import'
 
 process.on('uncaughtException', err => {
     console.error('Uncaught exception:', {
@@ -43,7 +44,6 @@ const app: Application = express()
 const PORT = process.env.PORT || 3000
 
 // Middleware
-app.use(cors())
 app.use((req, res, next) => {
     const requestId =
         req.get('x-request-id') ||
@@ -69,6 +69,10 @@ app.use((req, res, next) => {
 
     next()
 })
+// This route owns its JSON/multipart parsers so the decoded Markdown limit can
+// be enforced without increasing the body limit for unrelated endpoints.
+app.use(adminReleaseImportRouter)
+app.use(cors())
 app.use(bodyParser.json())
 
 // Routes
