@@ -23,6 +23,7 @@ import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
+import publicReleasesRouter from './routes/public-releases'
 
 process.on('uncaughtException', err => {
     console.error('Uncaught exception:', {
@@ -86,6 +87,7 @@ app.use(websitesRouter)
 app.use(appsRouter)
 app.use(projectsRouter)
 app.use(agendaRouter)
+app.use(publicReleasesRouter)
 app.use(domaniRouter)
 app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)

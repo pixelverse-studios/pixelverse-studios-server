@@ -53,6 +53,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/v1/contact-forms` | GET | Retrieve all submissions. | `controllers/contact-forms.getAll` |
 | `/api/v1/contact-forms/:website_slug` | POST | Create submission and trigger email. | `controllers/contact-forms.addRecord` |
 | `/api/audit` | POST | Capture Free Website Audit submissions, persist to Supabase, and notify ops. | `controllers/audit.createAuditRequest` |
+| `/api/domani/releases/coming-soon` | GET | List public-preview Domani releases with public notes. | `controllers/public-releases.getPublicReleases` |
+| `/api/domani/releases/changelog` | GET | List published Domani changelog releases with public notes. | `controllers/public-releases.getPublicReleases` |
 | `/api/media-admin/auth/magic-link` | POST | Request a media admin magic link for approved emails without revealing approval status. | `controllers/media-admin-auth.requestMagicLink` |
 | `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
 | `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
@@ -73,7 +75,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `releases`, `release_notes`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -111,6 +113,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `SUPABASE_URL` | Supabase project REST URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Preferred service-role key for Supabase access (falls back to `SUPABASE_SERVICE_ROLE_KEY`). |
 | `SUPABASE_SERVICE_ROLE_KEY` | Legacy Supabase anon key fallback. |
+| `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
 | `GMAIL_USER` | Gmail address used as sender. |
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
 | `GMAIL_CLIENT_SECRET` | Google OAuth client secret. |
