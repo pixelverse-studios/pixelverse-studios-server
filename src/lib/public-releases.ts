@@ -12,30 +12,6 @@ export type PublicReleaseLifecycle = 'planned' | 'in_progress' | 'released'
 export type ReleaseNoteType = 'feature' | 'improvement' | 'fix' | 'breaking'
 export type FieldErrors = Record<string, string[]>
 
-export const PUBLIC_RELEASE_SELECT = [
-    'id',
-    'version',
-    'slug',
-    'title',
-    'release_type',
-    'lifecycle_status',
-    'public_summary',
-    'target_month',
-    'target_date',
-    'confirmed_date',
-    'released_at',
-].join(',')
-
-export const PUBLIC_RELEASE_NOTE_SELECT = [
-    'id',
-    'release_id',
-    'note_type',
-    'public_title',
-    'public_body',
-    'platforms',
-    'sort_order',
-].join(',')
-
 export interface RawPublicRelease {
     id: string
     version: string
@@ -48,16 +24,21 @@ export interface RawPublicRelease {
     target_date: string | null
     confirmed_date: string | null
     released_at: string | null
+    sort_primary?: string | null
 }
 
 export interface RawPublicReleaseNote {
     id: string
-    release_id: string
     note_type: string
     public_title: string
     public_body: string
     platforms: string[]
     sort_order: number
+}
+
+export interface RawPublicReleaseFeedRow extends RawPublicRelease {
+    sort_primary: string | null
+    notes: RawPublicReleaseNote[]
 }
 
 export interface PublicReleaseNote {
@@ -127,9 +108,12 @@ const cursorSecret = (): string => {
     return secret
 }
 
-const signCursorPayload = (encodedPayload: string): string =>
+const signCursorPayload = (
+    encodedPayload: string,
+    secret = cursorSecret()
+): string =>
     crypto
-        .createHmac('sha256', cursorSecret())
+        .createHmac('sha256', secret)
         .update(encodedPayload)
         .digest('base64url')
 
@@ -167,13 +151,24 @@ export const decodeReleaseCursor = (
     collection: ReleaseCollection,
     platform: ReleasePlatform | null
 ): CursorSortKey => {
+    const secret = cursorSecret()
     try {
         const parts = cursor.split('.')
         if (parts.length !== 2 || !parts[0] || !parts[1]) throw new Error()
 
         const [encodedPayload, signature] = parts
+        const isCanonicalPayload =
+            /^[A-Za-z0-9_-]+$/.test(encodedPayload) &&
+            Buffer.from(encodedPayload, 'base64url').toString('base64url') ===
+                encodedPayload
+        const isCanonicalSignature =
+            /^[A-Za-z0-9_-]{43}$/.test(signature) &&
+            Buffer.from(signature, 'base64url').toString('base64url') ===
+                signature
+        if (!isCanonicalPayload || !isCanonicalSignature) throw new Error()
+
         const expected = Buffer.from(
-            signCursorPayload(encodedPayload),
+            signCursorPayload(encodedPayload, secret),
             'base64url'
         )
         const received = Buffer.from(signature, 'base64url')
@@ -205,15 +200,17 @@ export const decodeReleaseCursor = (
     }
 }
 
-const versionParts = (version: string): number[] => {
+export const releaseVersionParts = (
+    version: string
+): [number, number, number] => {
     const match = version.match(/^(\d+)\.(\d+)(?:\.(\d+))?$/)
     if (!match) return [0, 0, 0]
     return [Number(match[1]), Number(match[2]), Number(match[3] || 0)]
 }
 
 export const compareVersions = (left: string, right: string): number => {
-    const leftParts = versionParts(left)
-    const rightParts = versionParts(right)
+    const leftParts = releaseVersionParts(left)
+    const rightParts = releaseVersionParts(right)
     for (let index = 0; index < 3; index += 1) {
         if (leftParts[index] !== rightParts[index]) {
             return leftParts[index] - rightParts[index]
@@ -227,7 +224,9 @@ export const releaseSortKey = (
     collection: ReleaseCollection
 ): CursorSortKey => ({
     primary:
-        collection === 'changelog'
+        release.sort_primary !== undefined
+            ? release.sort_primary
+            : collection === 'changelog'
             ? release.released_at
             : release.confirmed_date ||
               release.target_date ||
