@@ -205,7 +205,7 @@ export const releaseVersionParts = (
 ): [number, number, number] => {
     const match = version.match(/^(\d+)\.(\d+)(?:\.(\d+))?$/)
     if (!match) return [0, 0, 0]
-    return [Number(match[1]), Number(match[2]), Number(match[3] || 0)]
+    return [Number(match[1]), Number(match[2]), Number(match[3] ?? -1)]
 }
 
 export const compareVersions = (left: string, right: string): number => {

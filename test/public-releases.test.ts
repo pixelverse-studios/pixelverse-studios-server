@@ -12,6 +12,7 @@ import {
     compareVersions,
     decodeReleaseCursor,
     encodeReleaseCursor,
+    releaseVersionParts,
 } from '../src/lib/public-releases'
 import { listPublicReleases } from '../src/services/public-releases'
 
@@ -53,6 +54,8 @@ describe('public release service', () => {
     it('orders two- and three-part versions semantically', () => {
         expect(compareVersions('1.10', '1.2')).toBeGreaterThan(0)
         expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0)
+        expect(compareVersions('1.2.0', '1.2')).toBeGreaterThan(0)
+        expect(releaseVersionParts('1.12')).toEqual([1, 12, -1])
     })
 
     it('requests a limit-plus-one keyset page and maps only public fields', async () => {
@@ -104,7 +107,7 @@ describe('public release service', () => {
     it('validates and binds a cursor before issuing the RPC', async () => {
         const cursor = encodeReleaseCursor('changelog', 'ios', {
             primary: '2026-08-01 00:00:00+00',
-            version: '1.12.3',
+            version: '1.12',
             id: '20000000-0000-4000-8000-000000000002',
         })
         mockState.rpc.mockResolvedValue({ data: [], error: null })
@@ -122,7 +125,7 @@ describe('public release service', () => {
                 p_cursor_primary: '2026-08-01 00:00:00+00',
                 p_cursor_version_major: 1,
                 p_cursor_version_minor: 12,
-                p_cursor_version_patch: 3,
+                p_cursor_version_patch: -1,
                 p_cursor_id: '20000000-0000-4000-8000-000000000002',
             })
         )

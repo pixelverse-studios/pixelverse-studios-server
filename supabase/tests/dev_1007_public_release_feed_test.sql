@@ -127,6 +127,21 @@ INSERT INTO public.releases (
         '2026-08-02T12:00:00Z',
         '71000000-0000-4000-8000-000000000001',
         '71000000-0000-4000-8000-000000000001'
+    ),
+    (
+        '72000000-0000-4000-8000-000000000006',
+        '900000001.4',
+        'feed-two-part-release',
+        'Two-part release',
+        'minor',
+        'released',
+        'published',
+        'Two-part release summary.',
+        NULL,
+        NULL,
+        '2026-08-02T12:00:00Z',
+        '71000000-0000-4000-8000-000000000001',
+        '71000000-0000-4000-8000-000000000001'
     );
 
 INSERT INTO public.release_notes (
@@ -200,27 +215,39 @@ INSERT INTO public.release_notes (
         0,
         '71000000-0000-4000-8000-000000000001',
         '71000000-0000-4000-8000-000000000001'
+    ),
+    (
+        '73000000-0000-4000-8000-000000000006',
+        '72000000-0000-4000-8000-000000000006',
+        'feature',
+        'Two-part release note',
+        'Two-part release body.',
+        ARRAY['ios', 'android']::public.release_platform[],
+        true,
+        0,
+        '71000000-0000-4000-8000-000000000001',
+        '71000000-0000-4000-8000-000000000001'
     );
 
 SET LOCAL ROLE service_role;
 
 SELECT pg_temp.assert_true(
     (
-        SELECT array_agg(feed.id ORDER BY feed.sort_primary NULLS LAST, feed.version)
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
             = ARRAY[
                 '72000000-0000-4000-8000-000000000001'::uuid,
                 '72000000-0000-4000-8000-000000000002'::uuid
             ]
         FROM public.list_public_domani_releases(
             'coming-soon', NULL, 1, NULL, NULL, NULL, NULL, NULL
-        ) AS feed
+        ) WITH ORDINALITY AS feed
     ),
     'coming-soon returns the ordered row plus one lookahead row'
 );
 
 SELECT pg_temp.assert_true(
     (
-        SELECT array_agg(feed.id ORDER BY feed.sort_primary NULLS LAST, feed.version)
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
             = ARRAY[
                 '72000000-0000-4000-8000-000000000002'::uuid,
                 '72000000-0000-4000-8000-000000000003'::uuid
@@ -234,42 +261,43 @@ SELECT pg_temp.assert_true(
             1,
             -1,
             '72000000-0000-4000-8000-000000000001'
-        ) AS feed
+        ) WITH ORDINALITY AS feed
     ),
     'coming-soon keyset resumes after a timed cursor and keeps untimed rows last'
 );
 
 SELECT pg_temp.assert_true(
     (
-        SELECT array_agg(feed.id ORDER BY feed.sort_primary NULLS LAST, feed.version)
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
             = ARRAY[
                 '72000000-0000-4000-8000-000000000002'::uuid,
                 '72000000-0000-4000-8000-000000000003'::uuid
             ]
         FROM public.list_public_domani_releases(
             'coming-soon', 'android', 20, NULL, NULL, NULL, NULL, NULL
-        ) AS feed
+        ) WITH ORDINALITY AS feed
     ),
     'platform filtering omits releases without matching public notes'
 );
 
 SELECT pg_temp.assert_true(
     (
-        SELECT array_agg(feed.id ORDER BY feed.released_at DESC)
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
             = ARRAY[
+                '72000000-0000-4000-8000-000000000006'::uuid,
                 '72000000-0000-4000-8000-000000000005'::uuid,
                 '72000000-0000-4000-8000-000000000004'::uuid
             ]
         FROM public.list_public_domani_releases(
             'changelog', NULL, 20, NULL, NULL, NULL, NULL, NULL
-        ) AS feed
+        ) WITH ORDINALITY AS feed
     ),
     'changelog orders released entries newest first'
 );
 
 SELECT pg_temp.assert_true(
     (
-        SELECT array_agg(feed.id ORDER BY feed.released_at DESC)
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
             = ARRAY['72000000-0000-4000-8000-000000000004'::uuid]
         FROM public.list_public_domani_releases(
             'changelog',
@@ -280,9 +308,30 @@ SELECT pg_temp.assert_true(
             3,
             2,
             '72000000-0000-4000-8000-000000000005'
-        ) AS feed
+        ) WITH ORDINALITY AS feed
     ),
     'changelog keyset resumes after the newest released entry'
+);
+
+SELECT pg_temp.assert_true(
+    (
+        SELECT array_agg(feed.id ORDER BY feed.ordinality)
+            = ARRAY[
+                '72000000-0000-4000-8000-000000000005'::uuid,
+                '72000000-0000-4000-8000-000000000004'::uuid
+            ]
+        FROM public.list_public_domani_releases(
+            'changelog',
+            NULL,
+            20,
+            '2026-08-02 12:00:00+00',
+            900000001,
+            4,
+            -1,
+            '72000000-0000-4000-8000-000000000006'
+        ) WITH ORDINALITY AS feed
+    ),
+    'two-part changelog cursor advances without repeating its release'
 );
 
 RESET ROLE;
