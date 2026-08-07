@@ -1,4 +1,6 @@
-import { NextFunction, Request, Response } from 'express'
+import express, { NextFunction, Request, Response } from 'express'
+import { request as httpRequest } from 'http'
+import { AddressInfo } from 'net'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
@@ -34,7 +36,9 @@ import {
     requireDashboardActor,
     requireDashboardRole,
 } from '../src/middleware/admin-release-auth'
-import { parseImportBody } from '../src/routes/admin-release-import'
+import adminReleaseImportRouter, {
+    parseImportBody,
+} from '../src/routes/admin-release-import'
 
 const actorId = '71000000-0000-4000-8000-000000000001'
 const releaseId = '72000000-0000-4000-8000-000000000001'
@@ -227,6 +231,91 @@ describe('DEV-1008 admin release authentication', () => {
 })
 
 describe('DEV-1008 Markdown input validation', () => {
+    it('accepts a real authenticated multipart request through Express and Multer', async () => {
+        const app = express()
+        app.use((req, _res, next) => {
+            req.requestId = 'request-1008-http'
+            next()
+        })
+        app.use(adminReleaseImportRouter)
+
+        const server = app.listen(0, '127.0.0.1')
+        await new Promise<void>((resolve, reject) => {
+            server.once('listening', resolve)
+            server.once('error', reject)
+        })
+
+        try {
+            const address = server.address() as AddressInfo
+            const boundary = 'dev-1008-boundary'
+            const field = (name: string, value: string) =>
+                `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+            const multipartBody = Buffer.from(
+                `--${boundary}\r\n` +
+                'Content-Disposition: form-data; name="file"; filename="domani.md"\r\n' +
+                'Content-Type: text/plain\r\n\r\n' +
+                '# Domani multipart\r\n' +
+                field('releaseVersion', '1.2') +
+                field('releaseTitle', 'Domani 1.2') +
+                field('releaseSlug', 'domani-1-2') +
+                field('releaseType', 'minor') +
+                field('sourceType', 'linear_epic') +
+                field('sourceReference', 'DEV-1004') +
+                `--${boundary}--\r\n`
+            )
+            const httpResponse = await new Promise<{
+                status: number
+                body: string
+            }>((resolve, reject) => {
+                const outgoing = httpRequest(
+                    {
+                        host: '127.0.0.1',
+                        port: address.port,
+                        path: '/api/admin/releases/import-markdown',
+                        method: 'POST',
+                        headers: {
+                            Authorization: 'Bearer valid-token',
+                            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                            'Content-Length': multipartBody.length,
+                        },
+                    },
+                    incoming => {
+                        const chunks: Buffer[] = []
+                        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)))
+                        incoming.on('end', () =>
+                            resolve({
+                                status: incoming.statusCode || 0,
+                                body: Buffer.concat(chunks).toString('utf8'),
+                            })
+                        )
+                    }
+                )
+                outgoing.on('error', reject)
+                outgoing.end(multipartBody)
+            })
+            const payload = JSON.parse(httpResponse.body) as {
+                data: { duplicate: boolean }
+            }
+
+            expect(httpResponse.status).toBe(201)
+            expect(payload.data.duplicate).toBe(false)
+            expect(mockState.getUser).toHaveBeenCalledWith('valid-token')
+            expect(mockState.rpc).toHaveBeenCalledWith(
+                'import_domani_release_markdown',
+                expect.objectContaining({
+                    p_raw_markdown: '# Domani multipart',
+                    p_original_filename: 'domani.md',
+                    p_source_type: 'linear_epic',
+                    p_source_reference: 'DEV-1004',
+                })
+            )
+        } finally {
+            await new Promise<void>((resolve, reject) => {
+                server.close(error => (error ? reject(error) : resolve()))
+            })
+        }
+    })
+
     it('normalizes JSON create fields, defaults conversion settings, and parses If-Match', () => {
         const normalized = normalizeImportMarkdownRequest(
             request({

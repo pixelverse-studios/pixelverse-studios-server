@@ -296,6 +296,133 @@ BEGIN
 END;
 $$;
 
+UPDATE public.releases
+SET lifecycle_status = 'planned',
+    visibility = 'public_preview',
+    public_summary = 'Preview import authorization test'
+WHERE version = '800000001.1';
+
+TRUNCATE import_results;
+
+INSERT INTO import_results (payload)
+SELECT public.import_domani_release_markdown(
+    release.id,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    'manual',
+    'preview-test',
+    '# Public preview source',
+    'preview.md',
+    encode(digest('# Public preview source', 'sha256'), 'hex'),
+    'coming_soon',
+    2,
+    '81000000-0000-4000-8000-000000000001',
+    'editor@example.com',
+    'editor',
+    'dev-1008-preview-editor'
+)
+FROM public.releases AS release
+WHERE release.version = '800000001.1';
+
+SELECT pg_temp.assert_true(
+    (SELECT payload->>'duplicate' = 'false' FROM import_results LIMIT 1)
+    AND (
+        SELECT row_version = 3 AND visibility = 'public_preview'
+        FROM public.releases
+        WHERE version = '800000001.1'
+    ),
+    'editor can import into a public-preview release'
+);
+
+UPDATE public.releases
+SET lifecycle_status = 'released',
+    visibility = 'published',
+    released_at = now()
+WHERE version = '800000001.1';
+
+DO $$
+DECLARE
+    v_release_id uuid;
+BEGIN
+    SELECT id INTO v_release_id
+    FROM public.releases
+    WHERE version = '800000001.1';
+
+    BEGIN
+        PERFORM public.import_domani_release_markdown(
+            v_release_id,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            'manual',
+            'published-editor-test',
+            '# Published editor source',
+            'published-editor.md',
+            encode(digest('# Published editor source', 'sha256'), 'hex'),
+            'changelog',
+            3,
+            '81000000-0000-4000-8000-000000000001',
+            'editor@example.com',
+            'editor',
+            'dev-1008-published-editor'
+        );
+        RAISE EXCEPTION 'expected published-content authorization failure';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM <> 'DEV1008_PUBLISHED_ADMIN_REQUIRED' THEN
+            RAISE;
+        END IF;
+    END;
+END;
+$$;
+
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
+        SELECT 1
+        FROM public.release_prds AS source
+        JOIN public.releases AS release ON release.id = source.release_id
+        WHERE release.version = '800000001.1'
+          AND source.source_reference = 'published-editor-test'
+    ),
+    'editor cannot import into a published release'
+);
+
+TRUNCATE import_results;
+
+INSERT INTO import_results (payload)
+SELECT public.import_domani_release_markdown(
+    release.id,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    'manual',
+    'published-admin-test',
+    '# Published admin source',
+    'published-admin.md',
+    encode(digest('# Published admin source', 'sha256'), 'hex'),
+    'changelog',
+    3,
+    '81000000-0000-4000-8000-000000000002',
+    'admin@example.com',
+    'admin',
+    'dev-1008-published-admin'
+)
+FROM public.releases AS release
+WHERE release.version = '800000001.1';
+
+SELECT pg_temp.assert_true(
+    (SELECT payload->>'duplicate' = 'false' FROM import_results LIMIT 1)
+    AND (
+        SELECT row_version = 4 AND visibility = 'published'
+        FROM public.releases
+        WHERE version = '800000001.1'
+    ),
+    'admin can import into a published release'
+);
+
 SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
