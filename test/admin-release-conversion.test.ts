@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process'
 import { Request, Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +23,10 @@ vi.mock('../src/lib/db', () => {
 
 import { convertMarkdown } from '../src/controllers/admin-release-conversion'
 import { normalizeConvertMarkdownRequest } from '../src/lib/admin-releases'
-import { convertReleaseMarkdown } from '../src/lib/release-markdown-converter'
+import {
+    convertReleaseMarkdown,
+    isSafeReleaseNoteMarkdown,
+} from '../src/lib/release-markdown-converter'
 
 const releaseId = '91000000-0000-4000-8000-000000000001'
 const prdId = '91000000-0000-4000-8000-000000000002'
@@ -105,6 +109,15 @@ beforeEach(() => {
 })
 
 describe('DEV-1009 deterministic Markdown conversion', () => {
+    it('loads its Markdown parser from the project CommonJS runtime', () => {
+        expect(() =>
+            execFileSync(process.execPath, ['-e', "require('marked')"], {
+                cwd: process.cwd(),
+                stdio: 'pipe',
+            })
+        ).not.toThrow()
+    })
+
     it('parses ATX and Setext headings, maps types, and removes unsafe constructs', () => {
         const notes = convertReleaseMarkdown([
             '# Release',
@@ -147,6 +160,18 @@ describe('DEV-1009 deterministic Markdown conversion', () => {
         expect(() => convertReleaseMarkdown(excessive)).toThrowError(
             expect.objectContaining({ code: 'TOO_MANY_CONVERSION_CANDIDATES' })
         )
+    })
+
+    it('preserves the safe-Markdown invariant when limiting long generated bodies', () => {
+        const unsafeTag = '<img src=x onerror=alert(1)>'
+        const prefix = 'a'.repeat(4000 - 1 - unsafeTag.length)
+        const markdown = `## Long body\n\n${prefix}\`${unsafeTag}\``
+        const [note] = convertReleaseMarkdown(markdown)
+
+        expect(Array.from(note.publicBody)).toHaveLength(4000)
+        expect(isSafeReleaseNoteMarkdown(note.publicBody)).toBe(true)
+        expect(note.publicBody).not.toContain('<img')
+        expect(note.publicBody).toContain('&lt;img')
     })
 })
 

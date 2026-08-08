@@ -38,6 +38,8 @@ export class ConversionContentError extends Error {
 const codepointLimit = (value: string, maximum: number): string =>
     Array.from(value).slice(0, maximum).join('').trim()
 
+const codepointLength = (value: string): number => Array.from(value).length
+
 const plainText = (value: string): string =>
     sanitizeHtml(marked.parseInline(value, { gfm: false }) as string, {
         allowedTags: [],
@@ -51,6 +53,19 @@ const inlineText = (value: string): string =>
 
 const escapeMarkdown = (value: string): string =>
     value.replace(/([\\`*_{}\[\]<>])/g, '\\$1')
+
+const escapeMarkdownToLimit = (value: string, maximum: number): string => {
+    let result = ''
+    let length = 0
+    for (const codepoint of Array.from(value)) {
+        const escaped = escapeMarkdown(codepoint)
+        const escapedLength = codepointLength(escaped)
+        if (length + escapedLength > maximum) break
+        result += escaped
+        length += escapedLength
+    }
+    return result.trim()
+}
 
 const safeHref = (href: string | undefined): string | null => {
     if (!href) return null
@@ -100,6 +115,47 @@ const renderInline = (tokens: MarkdownToken[] = []): string =>
         .join('')
         .trim()
 
+const isSafeInline = (tokens: MarkdownToken[] = []): boolean =>
+    tokens.every(token => {
+        const children = token.tokens || []
+        switch (token.type) {
+            case 'text':
+            case 'escape':
+            case 'codespan':
+            case 'br':
+                return children.length === 0 || isSafeInline(children)
+            case 'strong':
+            case 'em':
+                return isSafeInline(children)
+            case 'link':
+                return safeHref(token.href) !== null && isSafeInline(children)
+            default:
+                return false
+        }
+    })
+
+const isSafeBlocks = (tokens: MarkdownToken[]): boolean =>
+    tokens.every(token => {
+        if (token.type === 'space') return true
+        if (token.type === 'paragraph' || token.type === 'text') {
+            return isSafeInline(token.tokens)
+        }
+        if (token.type === 'list') {
+            return (token.items || []).every(item => isSafeBlocks(item.tokens || []))
+        }
+        return false
+    })
+
+export const isSafeReleaseNoteMarkdown = (value: string): boolean => {
+    try {
+        return isSafeBlocks(
+            marked.lexer(value, { gfm: false }) as unknown as MarkdownToken[]
+        )
+    } catch {
+        return false
+    }
+}
+
 const renderBlock = (token: MarkdownToken): string => {
     if (token.type === 'paragraph' || token.type === 'text') {
         return renderInline(token.tokens) || escapeMarkdown(plainText(token.text || ''))
@@ -135,7 +191,15 @@ const titleForHeading = (heading: string): string => {
 
 const draftFor = (title: string, body: string, noteType: ReleaseNoteType): ReleaseNoteDraft => {
     const publicTitle = codepointLimit(plainText(title), 160)
-    const publicBody = codepointLimit(body || escapeMarkdown(publicTitle), 4000)
+    const candidateBody = (body || escapeMarkdown(publicTitle)).trim()
+    const publicBody =
+        codepointLength(candidateBody) <= 4000 && isSafeReleaseNoteMarkdown(candidateBody)
+            ? candidateBody
+            : escapeMarkdownToLimit(plainText(candidateBody), 4000)
+
+    if (!publicBody || !isSafeReleaseNoteMarkdown(publicBody)) {
+        throw new Error('Generated release-note Markdown failed safety validation')
+    }
     return {
         noteType,
         publicTitle,

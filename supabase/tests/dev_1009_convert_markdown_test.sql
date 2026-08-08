@@ -375,4 +375,107 @@ BEGIN
 END;
 $$;
 
+-- Approval changes the source and aggregate versions, not the generated note
+-- versions. A later rerun must therefore retain approved row-version-1 notes.
+RESET ROLE;
+INSERT INTO public.releases (
+    id, version, slug, title, release_type, lifecycle_status, visibility,
+    created_by, updated_by
+) VALUES (
+    '91000000-0000-4000-8000-000000000020',
+    '910000000.2',
+    'dev-1009-approved-rerun',
+    'DEV-1009 approved rerun',
+    'minor',
+    'draft',
+    'private',
+    '91000000-0000-4000-8000-000000000001',
+    '91000000-0000-4000-8000-000000000001'
+);
+INSERT INTO public.release_prds (
+    id, release_id, raw_markdown, original_filename, source_type,
+    source_reference, source_content_sha256, intended_surface,
+    created_by, updated_by
+) VALUES (
+    '91000000-0000-4000-8000-000000000021',
+    '91000000-0000-4000-8000-000000000020',
+    '## Feature: Approved draft',
+    'approved.md',
+    'manual',
+    'DEV-1009-approved',
+    repeat('c', 64),
+    'changelog',
+    '91000000-0000-4000-8000-000000000001',
+    '91000000-0000-4000-8000-000000000001'
+);
+
+SET LOCAL ROLE service_role;
+TRUNCATE conversion_results;
+INSERT INTO conversion_results (payload)
+SELECT public.convert_domani_release_markdown(
+    '91000000-0000-4000-8000-000000000020',
+    '91000000-0000-4000-8000-000000000021',
+    1,
+    1,
+    'domani-markdown-v1',
+    '[{"noteType":"feature","publicTitle":"Approved draft","publicBody":"Reviewed content.","technicalNotes":null,"platforms":["ios","android"]}]'::jsonb,
+    NULL,
+    NULL,
+    '91000000-0000-4000-8000-000000000001',
+    'editor@example.com',
+    'editor',
+    'dev-1009-approved-first-run'
+);
+
+RESET ROLE;
+UPDATE public.release_prds
+SET conversion_status = 'approved',
+    row_version = row_version + 1
+WHERE id = '91000000-0000-4000-8000-000000000021';
+UPDATE public.releases
+SET row_version = row_version + 1
+WHERE id = '91000000-0000-4000-8000-000000000020';
+
+SET LOCAL ROLE service_role;
+TRUNCATE conversion_results;
+INSERT INTO conversion_results (payload)
+SELECT public.convert_domani_release_markdown(
+    '91000000-0000-4000-8000-000000000020',
+    '91000000-0000-4000-8000-000000000021',
+    3,
+    3,
+    'domani-markdown-v1',
+    '[{"noteType":"improvement","publicTitle":"Fresh review draft","publicBody":"New content.","technicalNotes":null,"platforms":["ios","android"]}]'::jsonb,
+    NULL,
+    NULL,
+    '91000000-0000-4000-8000-000000000001',
+    'editor@example.com',
+    'editor',
+    'dev-1009-approved-rerun'
+);
+
+SELECT pg_temp.assert_true(
+    (
+        SELECT count(*) FILTER (
+                   WHERE public_title = 'Approved draft'
+                     AND archived_at IS NULL
+                     AND row_version = 1
+               ) = 1
+           AND count(*) FILTER (
+                   WHERE public_title = 'Fresh review draft'
+                     AND archived_at IS NULL
+                     AND sort_order = 1
+               ) = 1
+        FROM public.release_notes
+        WHERE release_id = '91000000-0000-4000-8000-000000000020'
+    )
+    AND (
+        SELECT count(*) FILTER (WHERE status = 'superseded') = 1
+           AND count(*) FILTER (WHERE status = 'succeeded') = 1
+        FROM public.release_conversion_runs
+        WHERE release_id = '91000000-0000-4000-8000-000000000020'
+    ),
+    'rerun retains approved generated notes while creating a fresh review set'
+);
+
 ROLLBACK;

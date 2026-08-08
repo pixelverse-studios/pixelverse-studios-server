@@ -209,7 +209,9 @@ BEGIN
           AND source_conversion_run_id = v_old_run.id
           AND archived_at IS NULL
           AND is_public = false
-          AND row_version = 1;
+          AND row_version = 1
+          AND v_source.conversion_status <> 'approved'
+          AND v_source.latest_conversion_run_id = v_old_run.id;
 
         UPDATE public.release_conversion_runs
         SET status = 'superseded',
