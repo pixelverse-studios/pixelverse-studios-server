@@ -73,7 +73,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `mini_session_campaigns`, `mini_session_booking_options`, `mini_session_campaign_audit_logs`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -91,6 +91,12 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
     - `v_prospects_all` exposes only lightweight latest-attribution scalar fields for list/reporting views: source, medium, campaign, and conversion type.
 -   **Legacy Nodemailer Utilities**
     -   Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
+-   **Mini Sessions Campaigns**
+    -   `src/services/mini-session-campaigns.ts` owns tenant resolution, campaign persistence, lifecycle rules, duplication, safe public/admin projections, and optimistic concurrency for seasonal campaigns.
+    -   `mini_session_campaigns` stores structured campaign presentation and lifecycle state; `mini_session_booking_options` stores ordered Cal.com links; `mini_session_campaign_audit_logs` stores non-blocking administrator audit events.
+    -   The browser never accesses these tables directly. RLS is enabled, `anon` and `authenticated` table privileges are revoked, and only the server-side service role receives table/function access.
+    -   Use `save_mini_session_campaign`, `duplicate_mini_session_campaign`, and `publish_mini_session_campaign` RPCs for their atomic write guarantees. Generic content saves cannot change lifecycle status.
+    -   Public projections must continue to omit tenant ids, actor fields, audit values, archived/draft content, and hidden booking options.
 
 ## Coding Guidelines for Agents
 
