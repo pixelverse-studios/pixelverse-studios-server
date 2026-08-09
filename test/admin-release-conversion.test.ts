@@ -173,6 +173,26 @@ describe('DEV-1009 deterministic Markdown conversion', () => {
         expect(note.publicBody).not.toContain('<img')
         expect(note.publicBody).toContain('&lt;img')
     })
+
+    it('preserves escaped block markers as literal paragraph content', () => {
+        const [heading] = convertReleaseMarkdown('## Feature\n\n\\# literal heading')
+        const [bullet] = convertReleaseMarkdown('## Feature\n\n\\- literal bullet')
+        const [ordered] = convertReleaseMarkdown('## Feature\n\n1\\. literal ordered item')
+
+        expect(heading.publicBody).toBe('\\# literal heading')
+        expect(bullet.publicBody).toBe('\\- literal bullet')
+        expect(ordered.publicBody).toBe('1\\. literal ordered item')
+        expect([heading, bullet, ordered].every(note =>
+            isSafeReleaseNoteMarkdown(note.publicBody)
+        )).toBe(true)
+    })
+
+    it('round-trips code spans that contain backticks', () => {
+        const [note] = convertReleaseMarkdown('## Feature\n\n``a`b``')
+
+        expect(note.publicBody).toBe('``a`b``')
+        expect(isSafeReleaseNoteMarkdown(note.publicBody)).toBe(true)
+    })
 })
 
 describe('DEV-1009 conversion request and controller', () => {

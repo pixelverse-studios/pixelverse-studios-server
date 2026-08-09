@@ -27,7 +27,10 @@ type MarkdownToken = {
 
 export class ConversionContentError extends Error {
     constructor(
-        public readonly code: 'NO_CONVERSION_CANDIDATES' | 'TOO_MANY_CONVERSION_CANDIDATES',
+        public readonly code:
+            | 'NO_CONVERSION_CANDIDATES'
+            | 'TOO_MANY_CONVERSION_CANDIDATES'
+            | 'UNSAFE_GENERATED_MARKDOWN',
         message: string
     ) {
         super(message)
@@ -54,6 +57,17 @@ const inlineText = (value: string): string =>
 const escapeMarkdown = (value: string): string =>
     value.replace(/([\\`*_{}\[\]<>])/g, '\\$1')
 
+const escapeLeadingBlockMarkers = (value: string): string =>
+    value
+        .split('\n')
+        .map(line => {
+            if (/^ {0,3}(?:#{1,6}|>|[-+*]|`{3,}|~{3,})(?:[ \t]|$)/.test(line)) {
+                return line.replace(/^( {0,3})/, '$1\\')
+            }
+            return line.replace(/^( {0,3}\d{1,9})([.)])(?=[ \t]|$)/, '$1\\$2')
+        })
+        .join('\n')
+
 const escapeMarkdownToLimit = (value: string, maximum: number): string => {
     let result = ''
     let length = 0
@@ -64,7 +78,21 @@ const escapeMarkdownToLimit = (value: string, maximum: number): string => {
         result += escaped
         length += escapedLength
     }
-    return result.trim()
+    return codepointLimit(escapeLeadingBlockMarkers(result), maximum)
+}
+
+const renderCodeSpan = (value: string): string => {
+    const longestBacktickRun = Math.max(
+        0,
+        ...Array.from(value.matchAll(/`+/g), match => match[0].length)
+    )
+    const delimiter = '`'.repeat(longestBacktickRun + 1)
+    const needsPadding =
+        value.startsWith('`') ||
+        value.endsWith('`') ||
+        (value.startsWith(' ') && value.endsWith(' ') && /\S/.test(value))
+    const content = needsPadding ? ` ${value} ` : value
+    return `${delimiter}${content}${delimiter}`
 }
 
 const safeHref = (href: string | undefined): string | null => {
@@ -86,16 +114,19 @@ const renderInline = (tokens: MarkdownToken[] = []): string =>
             const children = token.tokens || []
             switch (token.type) {
                 case 'text':
-                case 'escape':
                     return children.length > 0
                         ? renderInline(children)
+                        : escapeMarkdown(inlineText(token.text || token.raw || ''))
+                case 'escape':
+                    return token.raw?.startsWith('\\')
+                        ? token.raw
                         : escapeMarkdown(inlineText(token.text || token.raw || ''))
                 case 'strong':
                     return `**${renderInline(children)}**`
                 case 'em':
                     return `*${renderInline(children)}*`
                 case 'codespan':
-                    return `\`${(token.text || '').replace(/`/g, '\\`')}\``
+                    return renderCodeSpan(token.text || '')
                 case 'br':
                     return '  \n'
                 case 'link': {
@@ -158,7 +189,8 @@ export const isSafeReleaseNoteMarkdown = (value: string): boolean => {
 
 const renderBlock = (token: MarkdownToken): string => {
     if (token.type === 'paragraph' || token.type === 'text') {
-        return renderInline(token.tokens) || escapeMarkdown(plainText(token.text || ''))
+        const rendered = renderInline(token.tokens) || escapeMarkdown(plainText(token.text || ''))
+        return escapeLeadingBlockMarkers(rendered)
     }
     if (token.type === 'list') {
         return (token.items || [])
@@ -198,7 +230,10 @@ const draftFor = (title: string, body: string, noteType: ReleaseNoteType): Relea
             : escapeMarkdownToLimit(plainText(candidateBody), 4000)
 
     if (!publicBody || !isSafeReleaseNoteMarkdown(publicBody)) {
-        throw new Error('Generated release-note Markdown failed safety validation')
+        throw new ConversionContentError(
+            'UNSAFE_GENERATED_MARKDOWN',
+            'Generated release-note Markdown failed safety validation'
+        )
     }
     return {
         noteType,
