@@ -82,6 +82,49 @@ export interface ImportMarkdownResult {
     duplicate: boolean
 }
 
+export interface AdminReleaseNote {
+    id: string
+    releaseId: string
+    noteType: 'feature' | 'improvement' | 'fix' | 'breaking'
+    publicTitle: string
+    publicBody: string
+    technicalNotes: string | null
+    platforms: Array<'ios' | 'android'>
+    isPublic: boolean
+    sortOrder: number
+    sourcePrdId: string | null
+    sourceConversionRunId: string | null
+    rowVersion: number
+    createdAt: string
+    updatedAt: string
+    archivedAt: string | null
+}
+
+export interface ConvertMarkdownInput {
+    releaseId: string
+    prdId: string
+    rewriteMode: 'deterministic' | 'provider_assisted'
+    sourceIfMatch: number
+    releaseRowVersion: number
+}
+
+export interface ConvertMarkdownResult {
+    source: AdminReleaseSource
+    conversionRun: {
+        id: string
+        sourceContentSha256: string
+        converterVersion: string
+        provider: string | null
+        model: string | null
+        status: 'succeeded'
+        createdAt: string
+        completedAt: string
+        resultingNoteIds: string[]
+    }
+    notes: AdminReleaseNote[]
+    releaseRowVersion: number
+}
+
 export type FieldErrors = Record<string, string[]>
 
 export class AdminReleaseApiError extends Error {
@@ -321,3 +364,50 @@ export const normalizeImportMarkdownRequest = (
 
 export const markdownSha256 = (markdown: string): string =>
     crypto.createHash('sha256').update(Buffer.from(markdown, 'utf8')).digest('hex')
+
+const convertMarkdownSchema = z
+    .object({
+        rewriteMode: z
+            .enum(['deterministic', 'provider_assisted'])
+            .optional()
+            .default('deterministic'),
+        releaseRowVersion: z.number().int().positive(),
+    })
+    .strict()
+
+export const normalizeConvertMarkdownRequest = (req: Request): ConvertMarkdownInput => {
+    const releaseId = z.string().uuid().safeParse(req.params.releaseId)
+    const prdId = z.string().uuid().safeParse(req.params.prdId)
+    const body = convertMarkdownSchema.safeParse(req.body)
+    const fieldErrors: FieldErrors = {}
+
+    if (!releaseId.success) fieldErrors.releaseId = ['Release ID must be a UUID']
+    if (!prdId.success) fieldErrors.prdId = ['Source ID must be a UUID']
+    if (!body.success) Object.assign(fieldErrors, fieldErrorsFor(body.error))
+    if (Object.keys(fieldErrors).length > 0) {
+        throw new AdminReleaseApiError(
+            400,
+            'VALIDATION_ERROR',
+            'Invalid conversion request',
+            fieldErrors
+        )
+    }
+
+    const sourceIfMatch = parseIfMatch(req.get('if-match'))
+    if (sourceIfMatch === null) {
+        throw new AdminReleaseApiError(
+            428,
+            'PRECONDITION_REQUIRED',
+            'If-Match is required for the source record',
+            { ifMatch: ['Provide the current source row version'] }
+        )
+    }
+
+    return {
+        releaseId: releaseId.data as string,
+        prdId: prdId.data as string,
+        rewriteMode: body.data?.rewriteMode as 'deterministic' | 'provider_assisted',
+        sourceIfMatch,
+        releaseRowVersion: body.data?.releaseRowVersion as number,
+    }
+}

@@ -56,6 +56,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/domani/releases/coming-soon` | GET | List public-preview Domani releases with public notes. | `controllers/public-releases.getPublicReleases` |
 | `/api/domani/releases/changelog` | GET | List published Domani changelog releases with public notes. | `controllers/public-releases.getPublicReleases` |
 | `/api/admin/releases/import-markdown` | POST | Import private JSON or multipart Markdown into a release source record. | `controllers/admin-release-import.importMarkdown` |
+| `/api/admin/releases/:releaseId/prds/:prdId/convert` | POST | Convert an imported Markdown source into review-only private release-note drafts. | `controllers/admin-release-conversion.convertMarkdown` |
 | `/api/media-admin/auth/magic-link` | POST | Request a media admin magic link for approved emails without revealing approval status. | `controllers/media-admin-auth.requestMagicLink` |
 | `/api/media-admin/auth/callback` | POST | Exchange a one-time magic-link token for an HTTP-only media admin session cookie. | `controllers/media-admin-auth.callback` |
 | `/api/media-admin/auth/session` | GET | Return the current media admin session when the session cookie is valid. | `controllers/media-admin-auth.getSession` |
@@ -76,7 +77,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `dashboard_user_roles`, `releases`, `release_notes`, `release_prds`, `release_audit_events`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `dashboard_user_roles`, `releases`, `release_notes`, `release_prds`, `release_conversion_runs`, `release_audit_events`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**

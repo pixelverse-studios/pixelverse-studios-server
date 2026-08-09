@@ -3,6 +3,7 @@ import cors from 'cors'
 import multer from 'multer'
 
 import { importMarkdown } from '../controllers/admin-release-import'
+import { convertMarkdown } from '../controllers/admin-release-conversion'
 import {
     AdminReleaseApiError,
     MAX_MARKDOWN_BYTES,
@@ -24,10 +25,11 @@ const dashboardCors = cors({
     },
     methods: ['POST', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'If-Match', 'X-Request-Id'],
-    exposedHeaders: ['ETag', 'X-Request-Id'],
+    exposedHeaders: ['ETag', 'X-Release-ETag', 'X-Request-Id'],
     maxAge: 600,
 })
 const jsonParser = express.json({ limit: '7mb' })
+const conversionJsonParser = express.json({ limit: '32kb' })
 const multipartParser = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -92,6 +94,36 @@ export const parseImportBody = (
     )
 }
 
+export const parseConversionBody = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): void => {
+    if (!req.is('application/json')) {
+        adminReleaseErrorResponse(
+            req,
+            res,
+            415,
+            'VALIDATION_ERROR',
+            'Content-Type must be application/json'
+        )
+        return
+    }
+    conversionJsonParser(req, res, error => {
+        if (!error) return next()
+        const bodyError = error as { type?: string }
+        adminReleaseErrorResponse(
+            req,
+            res,
+            bodyError.type === 'entity.too.large' ? 413 : 400,
+            'VALIDATION_ERROR',
+            bodyError.type === 'entity.too.large'
+                ? 'Conversion request body is too large'
+                : 'Malformed request body'
+        )
+    })
+}
+
 router.use('/api/admin/releases', dashboardCors)
 
 router.post(
@@ -100,6 +132,14 @@ router.post(
     requireDashboardRole('editor'),
     parseImportBody,
     importMarkdown
+)
+
+router.post(
+    '/api/admin/releases/:releaseId/prds/:prdId/convert',
+    requireDashboardActor,
+    requireDashboardRole('editor'),
+    parseConversionBody,
+    convertMarkdown
 )
 
 export default router
