@@ -61,7 +61,7 @@ export const miniSessionBookingOptionInputSchema = z.object({
         }),
     status: z.enum(MINI_SESSION_BOOKING_OPTION_STATUSES).default('open'),
     sortOrder: z.number().int().min(0).max(5),
-})
+}).strict()
 
 export const miniSessionCampaignInputSchema = z
     .object({
@@ -95,6 +95,7 @@ export const miniSessionCampaignInputSchema = z
             .max(6)
             .default([]),
     })
+    .strict()
     .superRefine((value, context) => {
         if (value.depositCents > value.totalPriceCents) {
             context.addIssue({

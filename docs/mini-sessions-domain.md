@@ -50,8 +50,26 @@ domain error, and produces separate admin and public projections.
 
 The public projection returns only `live` or `sold_out` campaigns, filters
 hidden booking options, omits actor/internal/tenant data, and includes hero
-media only while it remains published. Express routing, authentication, cache
-headers, and revalidation are delivered separately by DEV-1098.
+media only while it remains published.
+
+## API and revalidation
+
+`GET /api/mini-session-campaigns/:websiteSlug/active` is public and returns one
+sanitized campaign or a true 404 with a maximum 60-second cache header. Every
+route below `/:websiteSlug/admin` uses the existing HTTP-only media-admin
+session middleware and returns `Cache-Control: no-store`.
+
+Admin writes wrap campaign data under `campaign`. Content saves also require an
+ISO `expectedUpdatedAt` token. Duplicate and lifecycle actions require the same
+token, and publish additionally requires `calComVerified: true`. Generic PATCH
+payloads are strict and cannot include lifecycle state.
+
+Lifecycle changes send a signed site-content revalidation payload for `/`,
+`/mini-sessions`, the root layout, and `/sitemap.xml`. Use
+`SITE_REVALIDATION_WEBHOOK_URL` and `SITE_REVALIDATION_SECRET`; the existing
+media webhook settings remain supported as fallbacks. Revalidation failures are
+reported separately in the successful mutation response and do not undo the
+database change.
 
 ## Migration verification
 
