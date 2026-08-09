@@ -16,6 +16,10 @@ export interface DashboardActor {
 }
 
 export type ReleaseType = 'major' | 'minor' | 'patch' | 'roadmap'
+export type ReleaseLifecycle = 'draft' | 'planned' | 'in_progress' | 'released' | 'canceled'
+export type ReleaseVisibility = 'private' | 'public_preview' | 'published'
+export type ReleaseNoteType = 'feature' | 'improvement' | 'fix' | 'breaking'
+export type ReleasePlatform = 'ios' | 'android'
 export type ReleaseSourceType =
     | 'linear_epic'
     | 'linear_ticket'
@@ -43,8 +47,8 @@ export interface AdminRelease {
     slug: string
     title: string
     releaseType: ReleaseType
-    lifecycleStatus: 'draft' | 'planned' | 'in_progress' | 'released' | 'canceled'
-    visibility: 'private' | 'public_preview' | 'published'
+    lifecycleStatus: ReleaseLifecycle
+    visibility: ReleaseVisibility
     publicSummary: string | null
     internalSummary: string | null
     targetMonth: string | null
@@ -85,11 +89,11 @@ export interface ImportMarkdownResult {
 export interface AdminReleaseNote {
     id: string
     releaseId: string
-    noteType: 'feature' | 'improvement' | 'fix' | 'breaking'
+    noteType: ReleaseNoteType
     publicTitle: string
     publicBody: string
     technicalNotes: string | null
-    platforms: Array<'ios' | 'android'>
+    platforms: ReleasePlatform[]
     isPublic: boolean
     sortOrder: number
     sourcePrdId: string | null
@@ -123,6 +127,54 @@ export interface ConvertMarkdownResult {
     }
     notes: AdminReleaseNote[]
     releaseRowVersion: number
+}
+
+export interface AdminReleaseDetail extends AdminRelease {
+    notes: AdminReleaseNote[]
+    sources: AdminReleaseSource[]
+    allowedActions: Array<'edit' | 'publish_preview' | 'return_to_private' | 'publish' | 'unpublish' | 'archive'>
+}
+
+export interface CacheInvalidationReceipt {
+    jobId: string
+    status: 'pending' | 'delivered'
+    targets: string[]
+}
+
+export const RELEASE_AUDIT_ACTIONS = [
+    'release.created', 'release.updated', 'release.archived',
+    'release.preview_published', 'release.preview_returned_private',
+    'release.published', 'release.unpublished', 'note.created',
+    'note.updated', 'note.archived', 'note.reordered', 'source.imported',
+    'source.superseded', 'source.approved', 'conversion.started',
+    'conversion.succeeded', 'conversion.failed', 'conversion.superseded',
+] as const
+export type ReleaseAuditAction = (typeof RELEASE_AUDIT_ACTIONS)[number]
+export const RELEASE_AUDIT_ENTITY_TYPES = ['release', 'note', 'source', 'conversion_run'] as const
+export type ReleaseAuditEntityType = (typeof RELEASE_AUDIT_ENTITY_TYPES)[number]
+
+export interface AdminReleaseAuditEvent {
+    id: string
+    releaseId: string
+    actor: DashboardActor
+    action: ReleaseAuditAction
+    entityType: ReleaseAuditEntityType
+    entityId: string
+    requestId: string
+    beforeData: Record<string, unknown> | null
+    afterData: Record<string, unknown> | null
+    metadata: Record<string, unknown>
+    createdAt: string
+}
+
+export interface AdminCollectionMeta {
+    nextCursor: string | null
+}
+
+export interface AdminMutationResult<T> {
+    value: T
+    releaseRowVersion: number
+    cacheInvalidation: CacheInvalidationReceipt | null
 }
 
 export type FieldErrors = Record<string, string[]>

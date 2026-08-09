@@ -25,6 +25,8 @@ import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
 import publicReleasesRouter from './routes/public-releases'
 import adminReleaseImportRouter from './routes/admin-release-import'
+import adminReleaseManagementRouter from './routes/admin-release-management'
+import { startReleaseCacheInvalidationDispatcher } from './services/release-cache-invalidation'
 
 process.on('uncaughtException', err => {
     console.error('Uncaught exception:', {
@@ -72,6 +74,7 @@ app.use((req, res, next) => {
 // This route owns its JSON/multipart parsers so the decoded Markdown limit can
 // be enforced without increasing the body limit for unrelated endpoints.
 app.use(adminReleaseImportRouter)
+app.use(adminReleaseManagementRouter)
 app.use(cors())
 app.use(bodyParser.json())
 
@@ -122,4 +125,5 @@ app.use(
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
+    startReleaseCacheInvalidationDispatcher()
 })

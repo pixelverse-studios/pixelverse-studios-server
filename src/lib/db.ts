@@ -42,6 +42,7 @@ export const Tables = {
     RELEASE_NOTES: 'release_notes',
     RELEASE_PRDS: 'release_prds',
     RELEASE_AUDIT_EVENTS: 'release_audit_events',
+    RELEASE_CACHE_INVALIDATION_JOBS: 'release_cache_invalidation_jobs',
 }
 
 // Valid project status values for websites and apps
