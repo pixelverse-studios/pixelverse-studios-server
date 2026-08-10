@@ -23,7 +23,10 @@ import {
     updateNoteSchema,
     updateReleaseSchema,
 } from '../lib/admin-release-management'
-import { isSafeReleaseNoteMarkdown } from '../lib/release-markdown-converter'
+import {
+    isSafeReleaseNoteMarkdown,
+    normalizeReleaseNoteMarkdown,
+} from '../lib/release-markdown-converter'
 import {
     getAdminRelease,
     listAdminReleaseAudit,
@@ -147,8 +150,9 @@ export const createNote = async (req: Request, res: Response): Promise<Response>
     try {
         const releaseId = parseUuid(req.params.releaseId, 'releaseId')
         const payload = parseBody(createNoteSchema, req.body)
-        if (!isSafeReleaseNoteMarkdown(payload.publicBody)) throw new AdminReleaseApiError(422, 'UNSAFE_PUBLIC_MARKDOWN', 'Public note Markdown contains unsupported or unsafe content', { publicBody: ['Use only the supported safe Markdown subset'] })
-        return sendMutation(res, requestId, await mutateAdminRelease('note.create', releaseId, requireIfMatch(req), payload, actor(req), requestId), 201)
+        const publicBody = normalizeReleaseNoteMarkdown(payload.publicBody)
+        if (!isSafeReleaseNoteMarkdown(publicBody)) throw new AdminReleaseApiError(422, 'UNSAFE_PUBLIC_MARKDOWN', 'Public note Markdown contains unsupported or unsafe content', { publicBody: ['Use only the supported safe Markdown subset'] })
+        return sendMutation(res, requestId, await mutateAdminRelease('note.create', releaseId, requireIfMatch(req), { ...payload, publicBody }, actor(req), requestId), 201)
     } catch (error) { return sendError(req, res, error, 'create note') }
 }
 
@@ -158,8 +162,9 @@ export const updateNote = async (req: Request, res: Response): Promise<Response>
         const releaseId = parseUuid(req.params.releaseId, 'releaseId')
         const noteId = parseUuid(req.params.noteId, 'noteId')
         const payload = parseBody(updateNoteSchema, req.body)
-        if (payload.publicBody !== undefined && !isSafeReleaseNoteMarkdown(payload.publicBody)) throw new AdminReleaseApiError(422, 'UNSAFE_PUBLIC_MARKDOWN', 'Public note Markdown contains unsupported or unsafe content', { publicBody: ['Use only the supported safe Markdown subset'] })
-        return sendMutation(res, requestId, await mutateAdminRelease('note.update', releaseId, requireIfMatch(req, 'note'), { ...payload, noteId }, actor(req), requestId))
+        const publicBody = payload.publicBody === undefined ? undefined : normalizeReleaseNoteMarkdown(payload.publicBody)
+        if (publicBody !== undefined && !isSafeReleaseNoteMarkdown(publicBody)) throw new AdminReleaseApiError(422, 'UNSAFE_PUBLIC_MARKDOWN', 'Public note Markdown contains unsupported or unsafe content', { publicBody: ['Use only the supported safe Markdown subset'] })
+        return sendMutation(res, requestId, await mutateAdminRelease('note.update', releaseId, requireIfMatch(req, 'note'), { ...payload, ...(publicBody === undefined ? {} : { publicBody }), noteId }, actor(req), requestId))
     } catch (error) { return sendError(req, res, error, 'update note') }
 }
 

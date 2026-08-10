@@ -231,6 +231,7 @@ DECLARE
     v_data jsonb;
     v_targets text[] := ARRAY[]::text[];
     v_job_id uuid;
+    v_audit_event_id uuid;
     v_receipt jsonb;
     v_release_version bigint;
     v_primary_version bigint;
@@ -293,6 +294,9 @@ BEGIN
                 owner_user_id = CASE WHEN p_payload ? 'ownerUserId' THEN (p_payload->>'ownerUserId')::uuid ELSE owner_user_id END,
                 updated_by = p_actor_user_id, row_version = row_version + 1
             WHERE id = v_release.id RETURNING * INTO v_release;
+            IF (v_release.lifecycle_status = 'released') <> (v_release.released_at IS NOT NULL) THEN
+                RAISE EXCEPTION 'DEV1042_INVALID_STATE';
+            END IF;
             v_action := 'release.updated';
             IF v_release.visibility <> 'private' AND p_payload ?| ARRAY['title','slug','releaseType','lifecycleStatus','publicSummary','targetMonth','targetDate','confirmedDate','releasedAt'] THEN
                 IF v_release.visibility = 'public_preview' THEN v_targets := ARRAY['/api/domani/releases/coming-soon','/coming-soon'];
@@ -428,12 +432,13 @@ BEGIN
     VALUES(p_actor_user_id,v_email,v_role,v_action,v_entity_type,COALESCE(v_entity_id,v_release.id),v_release.id,p_request_id,
         CASE WHEN v_entity_type='note' THEN v_before_note WHEN v_entity_type='source' THEN v_before_source ELSE v_before_release END,
         CASE WHEN v_entity_type='note' THEN public.admin_release_note_json(v_entity_id) WHEN v_entity_type='source' THEN public.admin_release_source_audit_json(v_entity_id) ELSE public.admin_release_json(v_release.id) END,
-        v_metadata);
+        v_metadata)
+    RETURNING id INTO v_audit_event_id;
 
     IF cardinality(v_targets)>0 THEN
         v_job_id:=gen_random_uuid();
         INSERT INTO public.release_cache_invalidation_jobs(id,release_id,event_key,targets)
-        VALUES(v_job_id,v_release.id,v_job_id::text,v_targets);
+        VALUES(v_job_id,v_release.id,v_audit_event_id::text,v_targets);
         v_receipt:=jsonb_build_object('jobId',v_job_id,'status','pending','targets',v_targets);
     END IF;
     RETURN jsonb_build_object('data',v_data,'releaseRowVersion',v_release_version,'primaryRowVersion',v_primary_version,'cacheInvalidation',v_receipt);
@@ -488,6 +493,16 @@ SET status='failed',last_error=left(COALESCE(p_error,'Delivery failed'),1000),
 WHERE id=p_job_id AND status='pending'
 $$;
 
+CREATE OR REPLACE FUNCTION public.release_cache_invalidation_request_id(p_job_id uuid)
+RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $$
+SELECT e.request_id
+FROM public.release_cache_invalidation_jobs j
+JOIN public.release_audit_events e ON e.id::text = j.event_key
+WHERE j.id = p_job_id
+$$;
+
 REVOKE ALL ON FUNCTION public.admin_release_json(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_release_note_json(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_release_source_json(uuid) FROM PUBLIC, anon, authenticated;
@@ -501,7 +516,8 @@ REVOKE ALL ON FUNCTION public.mutate_admin_domani_release(text,uuid,bigint,jsonb
 REVOKE ALL ON FUNCTION public.claim_release_cache_invalidation_jobs(integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.complete_release_cache_invalidation_job(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.fail_release_cache_invalidation_job(uuid,text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.release_cache_invalidation_request_id(uuid) FROM PUBLIC, anon, authenticated;
 
-GRANT EXECUTE ON FUNCTION public.admin_release_json(uuid), public.admin_release_note_json(uuid), public.admin_release_source_json(uuid), public.admin_release_source_audit_json(uuid), public.admin_release_allowed_actions(public.release_visibility,public.release_lifecycle_status,public.release_type,timestamptz,public.dashboard_role), public.admin_release_detail_json(uuid,public.dashboard_role,boolean), public.get_admin_domani_release(uuid,boolean,public.dashboard_role), public.list_admin_domani_releases(jsonb,integer,jsonb), public.list_admin_domani_release_audit(uuid,jsonb,integer,jsonb), public.mutate_admin_domani_release(text,uuid,bigint,jsonb,uuid,text,public.dashboard_role,text), public.claim_release_cache_invalidation_jobs(integer), public.complete_release_cache_invalidation_job(uuid), public.fail_release_cache_invalidation_job(uuid,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.admin_release_json(uuid), public.admin_release_note_json(uuid), public.admin_release_source_json(uuid), public.admin_release_source_audit_json(uuid), public.admin_release_allowed_actions(public.release_visibility,public.release_lifecycle_status,public.release_type,timestamptz,public.dashboard_role), public.admin_release_detail_json(uuid,public.dashboard_role,boolean), public.get_admin_domani_release(uuid,boolean,public.dashboard_role), public.list_admin_domani_releases(jsonb,integer,jsonb), public.list_admin_domani_release_audit(uuid,jsonb,integer,jsonb), public.mutate_admin_domani_release(text,uuid,bigint,jsonb,uuid,text,public.dashboard_role,text), public.claim_release_cache_invalidation_jobs(integer), public.complete_release_cache_invalidation_job(uuid), public.fail_release_cache_invalidation_job(uuid,text), public.release_cache_invalidation_request_id(uuid) TO service_role;
 
 NOTIFY pgrst, 'reload schema';

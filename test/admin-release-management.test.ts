@@ -147,6 +147,20 @@ describe('DEV-1042 release management controllers', () => {
         expect(state.rpc).not.toHaveBeenCalled()
     })
 
+    it('normalizes public Markdown line endings before create and update writes', async () => {
+        await createNote(request({ body: { noteType: 'feature', publicTitle: 'Canonical', publicBody: 'First\r\nsecond\rthird', platforms: ['ios'] } }), response())
+        expect(state.rpc).toHaveBeenLastCalledWith('mutate_admin_domani_release', expect.objectContaining({
+            p_operation: 'note.create',
+            p_payload: expect.objectContaining({ publicBody: 'First\nsecond\nthird' }),
+        }))
+
+        await updateNote(request({ body: { releaseRowVersion: 9, publicBody: 'Updated\r\nbody' } }), response())
+        expect(state.rpc).toHaveBeenLastCalledWith('mutate_admin_domani_release', expect.objectContaining({
+            p_operation: 'note.update',
+            p_payload: expect.objectContaining({ publicBody: 'Updated\nbody' }),
+        }))
+    })
+
     it('protects note and aggregate versions independently', async () => {
         const res = response()
         await updateNote(request({ body: { releaseRowVersion: 9, publicTitle: 'Updated' } }), res)
@@ -222,6 +236,7 @@ describe('DEV-1042 durable cache invalidation dispatcher', () => {
         state.rpc.mockReset()
             .mockResolvedValueOnce({ data: [{ ...job, attempt_count: 3 }], error: null })
             .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({ data: 'request-cache-1042', error: null })
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         const invalidator = { invalidate: vi.fn().mockRejectedValue(new Error('receiver unavailable')) }
         expect(await dispatchReleaseCacheInvalidations(invalidator)).toBe(1)
@@ -229,6 +244,7 @@ describe('DEV-1042 durable cache invalidation dispatcher', () => {
             p_job_id: job.id,
             p_error: 'receiver unavailable',
         })
-        expect(console.error).toHaveBeenCalledWith('Release cache invalidation requires attention:', expect.objectContaining({ attemptCount: 3 }))
+        expect(state.rpc).toHaveBeenNthCalledWith(3, 'release_cache_invalidation_request_id', { p_job_id: job.id })
+        expect(console.error).toHaveBeenCalledWith('Release cache invalidation requires attention:', expect.objectContaining({ requestId: 'request-cache-1042', attemptCount: 3 }))
     })
 })

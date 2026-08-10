@@ -29,8 +29,10 @@ DECLARE
     note2_id uuid;
     result jsonb;
     audit_before integer;
+    outbox_before integer;
     claimed_job uuid;
     claimed_attempt integer;
+    claimed_request_id text;
     approval_release_id uuid;
     approval_source_id uuid;
     approval_run_id uuid;
@@ -63,6 +65,23 @@ BEGIN
         editor_id,'editor@example.com','editor','req-preview');
     IF result#>>'{data,release,visibility}' <> 'public_preview' OR result#>>'{cacheInvalidation,status}' <> 'pending' THEN RAISE EXCEPTION 'preview/outbox failed: %',result; END IF;
 
+    audit_before := (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id);
+    outbox_before := (SELECT count(*) FROM public.release_cache_invalidation_jobs j WHERE j.release_id=v_release_id);
+    BEGIN
+        PERFORM public.mutate_admin_domani_release(
+            'release.update',v_release_id,4,'{"releasedAt":"2026-08-09T16:00:00.000Z"}',
+            editor_id,'editor@example.com','editor','req-preview-released-at');
+        RAISE EXCEPTION 'preview releasedAt unexpectedly succeeded';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'DEV1042_INVALID_STATE' THEN RAISE; END IF;
+    END;
+    IF (SELECT row_version FROM public.releases WHERE id=v_release_id)<>4
+        OR (SELECT released_at FROM public.releases WHERE id=v_release_id) IS NOT NULL
+        OR (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id)<>audit_before
+        OR (SELECT count(*) FROM public.release_cache_invalidation_jobs j WHERE j.release_id=v_release_id)<>outbox_before THEN
+        RAISE EXCEPTION 'invalid preview releasedAt did not roll back fully';
+    END IF;
+
     result := public.mutate_admin_domani_release(
         'release.update',v_release_id,4,'{"lifecycleStatus":"in_progress"}',
         editor_id,'editor@example.com','editor','req-in-progress');
@@ -76,6 +95,21 @@ BEGIN
     result := public.mutate_admin_domani_release(
         'release.update',v_release_id,6,'{"lifecycleStatus":"released","releasedAt":"2026-08-09T16:00:00.000Z"}',
         editor_id,'editor@example.com','editor','req-released-private');
+
+    audit_before := (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id);
+    BEGIN
+        PERFORM public.mutate_admin_domani_release(
+            'release.update',v_release_id,7,'{"releasedAt":null}',
+            editor_id,'editor@example.com','editor','req-clear-released-at');
+        RAISE EXCEPTION 'clearing releasedAt unexpectedly succeeded';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'DEV1042_INVALID_STATE' THEN RAISE; END IF;
+    END;
+    IF (SELECT row_version FROM public.releases WHERE id=v_release_id)<>7
+        OR (SELECT released_at FROM public.releases WHERE id=v_release_id) IS NULL
+        OR (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id)<>audit_before THEN
+        RAISE EXCEPTION 'invalid releasedAt clear did not roll back fully';
+    END IF;
 
     result := public.mutate_admin_domani_release(
         'release.publish',v_release_id,7,'{}',
@@ -198,6 +232,12 @@ BEGIN
     IF (SELECT count(*) FROM public.release_cache_invalidation_jobs j WHERE j.release_id=v_release_id) < 4 THEN RAISE EXCEPTION 'expected durable invalidation jobs'; END IF;
     SELECT c.id,c.attempt_count INTO claimed_job,claimed_attempt FROM public.claim_release_cache_invalidation_jobs(1) c;
     IF claimed_job IS NULL OR claimed_attempt <> 1 THEN RAISE EXCEPTION 'dispatcher claim failed'; END IF;
+    claimed_request_id := public.release_cache_invalidation_request_id(claimed_job);
+    IF claimed_request_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM public.release_cache_invalidation_jobs j
+        JOIN public.release_audit_events e ON e.id::text=j.event_key
+        WHERE j.id=claimed_job AND e.request_id=claimed_request_id
+    ) THEN RAISE EXCEPTION 'dispatcher job lost audit/request correlation'; END IF;
     PERFORM public.fail_release_cache_invalidation_job(claimed_job,'receiver unavailable');
     IF NOT EXISTS (SELECT 1 FROM public.release_cache_invalidation_jobs WHERE id=claimed_job AND status='failed' AND next_attempt_at>now()) THEN RAISE EXCEPTION 'dispatcher retry schedule failed'; END IF;
     UPDATE public.release_cache_invalidation_jobs SET status='pending',next_attempt_at=now() WHERE id=claimed_job;

@@ -54,7 +54,15 @@ export const dispatchReleaseCacheInvalidations = async (
             const safeMessage = deliveryError instanceof Error ? deliveryError.message.slice(0, 1000) : 'Delivery failed'
             const { error: failError } = await db.rpc('fail_release_cache_invalidation_job', { p_job_id: job.id, p_error: safeMessage })
             if (failError) console.error('Unable to record release invalidation failure:', { jobId: job.id, message: failError.message })
-            if (job.attempt_count >= 3) console.error('Release cache invalidation requires attention:', { jobId: job.id, releaseId: job.release_id, attemptCount: job.attempt_count })
+            if (job.attempt_count >= 3) {
+                const { data: requestId, error: requestError } = await db.rpc('release_cache_invalidation_request_id', { p_job_id: job.id })
+                console.error('Release cache invalidation requires attention:', {
+                    jobId: job.id,
+                    releaseId: job.release_id,
+                    requestId: requestError ? null : requestId,
+                    attemptCount: job.attempt_count,
+                })
+            }
         }
     }
     return jobs.length
