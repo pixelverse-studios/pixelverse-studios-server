@@ -148,10 +148,15 @@ describe('DEV-1042 release management controllers', () => {
     })
 
     it('normalizes public Markdown line endings before create and update writes', async () => {
-        await createNote(request({ body: { noteType: 'feature', publicTitle: 'Canonical', publicBody: 'First\r\nsecond\rthird', platforms: ['ios'] } }), response())
+        const windowsBody = Array.from({ length: 1000 }, () => 'abc').join('\r\n')
+        const canonicalBody = windowsBody.replace(/\r\n/g, '\n')
+        expect(windowsBody.length).toBeGreaterThan(4000)
+        expect(canonicalBody.length).toBeLessThanOrEqual(4000)
+
+        await createNote(request({ body: { noteType: 'feature', publicTitle: 'Canonical', publicBody: windowsBody, platforms: ['ios'] } }), response())
         expect(state.rpc).toHaveBeenLastCalledWith('mutate_admin_domani_release', expect.objectContaining({
             p_operation: 'note.create',
-            p_payload: expect.objectContaining({ publicBody: 'First\nsecond\nthird' }),
+            p_payload: expect.objectContaining({ publicBody: canonicalBody }),
         }))
 
         await updateNote(request({ body: { releaseRowVersion: 9, publicBody: 'Updated\r\nbody' } }), response())

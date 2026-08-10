@@ -10,6 +10,7 @@ import {
     RELEASE_AUDIT_ENTITY_TYPES,
     parseIfMatch,
 } from './admin-releases'
+import { normalizeReleaseNoteMarkdown } from './release-markdown-converter'
 
 const cursorSecret = () => process.env.ADMIN_RELEASE_CURSOR_SECRET || process.env.DOMANI_RELEASE_CURSOR_SECRET || ''
 
@@ -89,11 +90,14 @@ export const updateReleaseSchema = z.object({
     ownerUserId: z.string().uuid().nullable().optional(),
 }).strict().refine(value => Object.keys(value).length > 0, { message: 'At least one field is required' })
 
+const publicMarkdown = z.string()
+    .transform(normalizeReleaseNoteMarkdown)
+    .pipe(z.string().trim().min(1).max(4000))
 const platforms = z.array(z.enum(['ios', 'android'])).min(1).max(2).refine(items => new Set(items).size === items.length, 'Platforms must be unique')
 export const createNoteSchema = z.object({
     noteType: z.enum(['feature', 'improvement', 'fix', 'breaking']),
     publicTitle: z.string().trim().min(1).max(160),
-    publicBody: z.string().trim().min(1).max(4000),
+    publicBody: publicMarkdown,
     technicalNotes: nullableText(20000),
     platforms,
     isPublic: z.boolean().optional().default(false),
@@ -103,7 +107,7 @@ export const updateNoteSchema = z.object({
     releaseRowVersion: z.number().int().positive(),
     noteType: z.enum(['feature', 'improvement', 'fix', 'breaking']).optional(),
     publicTitle: z.string().trim().min(1).max(160).optional(),
-    publicBody: z.string().trim().min(1).max(4000).optional(),
+    publicBody: publicMarkdown.optional(),
     technicalNotes: nullableText(20000),
     platforms: platforms.optional(),
     isPublic: z.boolean().optional(),
