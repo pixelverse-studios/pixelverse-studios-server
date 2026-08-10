@@ -117,10 +117,11 @@ export const listReleaseAudit = async (req: Request, res: Response): Promise<Res
         const releaseId = parseUuid(req.params.releaseId, 'releaseId')
         const parsed = parseBody(auditFiltersSchema, querySubset(req.query, ['action', 'entityType']))
         const filters = { action: parsed.action || null, entityType: parsed.entityType || null }
-        const page = pagination(req.query, filters)
+        const cursorScope = { releaseId, ...filters }
+        const page = pagination(req.query, cursorScope)
         const result = await listAdminReleaseAudit<{ events: any[]; last: { orderedAt: string; id: string } | null }>(releaseId, filters, page.limit, page.after)
         res.setHeader('Cache-Control', 'no-store')
-        return res.json({ data: { events: result.events }, meta: successMeta(requestId, nextCursor(filters, result.last)) })
+        return res.json({ data: { events: result.events }, meta: successMeta(requestId, nextCursor(cursorScope, result.last)) })
     } catch (error) { return sendError(req, res, error, 'list release audit') }
 }
 

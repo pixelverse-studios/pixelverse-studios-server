@@ -19,6 +19,7 @@ import {
     approveSource,
     createNote,
     createRelease,
+    listReleaseAudit,
     listReleases,
     releaseAction,
     reorderNotes,
@@ -31,6 +32,7 @@ import { nextCursor, pagination } from '../src/lib/admin-release-management'
 const releaseId = 'a1000000-0000-4000-8000-000000000001'
 const noteId = 'a1000000-0000-4000-8000-000000000002'
 const sourceId = 'a1000000-0000-4000-8000-000000000003'
+const otherReleaseId = 'a1000000-0000-4000-8000-000000000011'
 
 const request = (overrides: Partial<Request> = {}): Request => {
     const headers: Record<string, string> = { 'if-match': '"4"' }
@@ -207,6 +209,28 @@ describe('DEV-1042 release management controllers', () => {
         const oldPayload = Buffer.from(JSON.stringify({ apiVersion: '2026-07-01', filters, ...item })).toString('base64url')
         const oldSignature = crypto.createHmac('sha256', process.env.ADMIN_RELEASE_CURSOR_SECRET!).update(oldPayload).digest('base64url')
         expect(() => pagination({ cursor: `${oldPayload}.${oldSignature}` }, filters)).toThrowError(expect.objectContaining({ code: 'VALIDATION_ERROR' }))
+    })
+
+    it('binds audit cursors to the release resource', async () => {
+        const item = { orderedAt: '2026-08-09T16:00:00.000Z', id: noteId }
+        state.rpc.mockResolvedValueOnce({ data: { events: [], last: item }, error: null })
+        const first = response()
+        await listReleaseAudit(request(), first)
+        const cursor = first.payload.meta.nextCursor
+        expect(cursor).toEqual(expect.any(String))
+
+        state.rpc.mockResolvedValueOnce({ data: { events: [], last: null }, error: null })
+        const sameRelease = response()
+        await listReleaseAudit(request({ query: { cursor } }), sameRelease)
+        expect(sameRelease.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenLastCalledWith('list_admin_domani_release_audit', expect.objectContaining({ p_release_id: releaseId, p_after: item }))
+
+        const callsBeforeCrossRelease = state.rpc.mock.calls.length
+        const crossRelease = response()
+        await listReleaseAudit(request({ params: { releaseId: otherReleaseId }, query: { cursor } }), crossRelease)
+        expect(crossRelease.statusCode).toBe(400)
+        expect(crossRelease.payload.error.code).toBe('VALIDATION_ERROR')
+        expect(state.rpc).toHaveBeenCalledTimes(callsBeforeCrossRelease)
     })
 
     it('maps transaction conflicts without exposing database sentinels', async () => {
