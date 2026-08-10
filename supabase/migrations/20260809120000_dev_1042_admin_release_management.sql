@@ -235,6 +235,7 @@ DECLARE
     v_release_version bigint;
     v_primary_version bigint;
     v_requested_lifecycle public.release_lifecycle_status;
+    v_metadata jsonb := jsonb_build_object('source','dashboard');
 BEGIN
     SELECT d.role, lower(u.email) INTO v_role, v_email
     FROM public.dashboard_user_roles d JOIN auth.users u ON u.id = d.user_id
@@ -293,7 +294,7 @@ BEGIN
                 updated_by = p_actor_user_id, row_version = row_version + 1
             WHERE id = v_release.id RETURNING * INTO v_release;
             v_action := 'release.updated';
-            IF v_release.visibility <> 'private' AND p_payload ?| ARRAY['title','slug','releaseType','publicSummary','targetMonth','targetDate','confirmedDate','releasedAt'] THEN
+            IF v_release.visibility <> 'private' AND p_payload ?| ARRAY['title','slug','releaseType','lifecycleStatus','publicSummary','targetMonth','targetDate','confirmedDate','releasedAt'] THEN
                 IF v_release.visibility = 'public_preview' THEN v_targets := ARRAY['/api/domani/releases/coming-soon','/coming-soon'];
                 ELSE v_targets := ARRAY['/api/domani/releases/changelog','/changelog']; END IF;
             END IF;
@@ -368,11 +369,13 @@ BEGIN
             IF v_release.visibility='public_preview' THEN v_targets := ARRAY['/api/domani/releases/coming-soon','/coming-soon']; ELSIF v_release.visibility='published' THEN v_targets := ARRAY['/api/domani/releases/changelog','/changelog']; END IF;
             v_data := jsonb_build_object('note',public.admin_release_note_json(v_note.id),'releaseRowVersion',v_release.row_version); v_primary_version:=v_note.row_version;
         ELSIF p_operation = 'note.reorder' THEN
-            SELECT count(*), count(DISTINCT x.id) INTO v_count, v_order FROM jsonb_to_recordset(p_payload->'notes') x(id uuid,rowVersion bigint);
+            SELECT count(*), count(DISTINCT (x.item->>'id')::uuid)
+            INTO v_count, v_order
+            FROM jsonb_array_elements(p_payload->'notes') x(item);
             IF v_count <> v_order OR v_count <> (SELECT count(*) FROM public.release_notes WHERE release_id=v_release.id AND archived_at IS NULL) OR EXISTS (
-                SELECT 1 FROM jsonb_to_recordset(p_payload->'notes') x(id uuid,rowVersion bigint)
-                LEFT JOIN public.release_notes n ON n.id=x.id AND n.release_id=v_release.id AND n.archived_at IS NULL
-                WHERE n.id IS NULL OR n.row_version<>x.rowVersion
+                SELECT 1 FROM jsonb_array_elements(p_payload->'notes') x(item)
+                LEFT JOIN public.release_notes n ON n.id=(x.item->>'id')::uuid AND n.release_id=v_release.id AND n.archived_at IS NULL
+                WHERE n.id IS NULL OR n.row_version<>(x.item->>'rowVersion')::bigint
             ) THEN RAISE EXCEPTION 'DEV1042_NOTE_SET_INVALID'; END IF;
             UPDATE public.release_notes SET sort_order=sort_order+1000000 WHERE release_id=v_release.id AND archived_at IS NULL;
             WITH desired AS (
@@ -382,6 +385,11 @@ BEGIN
             UPDATE public.release_notes n SET sort_order=d.sort_order,updated_by=p_actor_user_id,row_version=n.row_version+1 FROM desired d WHERE n.id=d.id;
             UPDATE public.releases SET updated_by=p_actor_user_id,row_version=row_version+1 WHERE id=v_release.id RETURNING * INTO v_release;
             v_action := 'note.reordered'; v_entity_type := 'release'; v_entity_id := v_release.id;
+            SELECT jsonb_build_object(
+                'source','dashboard',
+                'orderedNoteIds',COALESCE(jsonb_agg(x.item->'id' ORDER BY x.ordinality),'[]'::jsonb)
+            ) INTO v_metadata
+            FROM jsonb_array_elements(p_payload->'notes') WITH ORDINALITY x(item,ordinality);
             IF v_release.visibility='public_preview' THEN v_targets := ARRAY['/api/domani/releases/coming-soon','/coming-soon']; ELSIF v_release.visibility='published' THEN v_targets := ARRAY['/api/domani/releases/changelog','/changelog']; END IF;
             SELECT COALESCE(jsonb_agg(public.admin_release_note_json(n.id) ORDER BY n.sort_order,n.id),'[]'::jsonb) INTO v_data FROM public.release_notes n WHERE n.release_id=v_release.id AND n.archived_at IS NULL;
             v_data := jsonb_build_object('notes',v_data,'releaseRowVersion',v_release.row_version); v_primary_version:=v_release.row_version;
@@ -392,16 +400,18 @@ BEGIN
             IF v_source.row_version<>p_primary_if_match OR v_release.row_version<>(p_payload->>'releaseRowVersion')::bigint THEN RAISE EXCEPTION 'DEV1042_VERSION_CONFLICT'; END IF;
             IF v_source.conversion_status<>'needs_review' OR v_source.latest_conversion_run_id IS NULL THEN RAISE EXCEPTION 'DEV1042_SOURCE_STATE_INVALID'; END IF;
             v_before_source := public.admin_release_source_audit_json(v_source.id);
-            SELECT count(*),count(DISTINCT x.id) INTO v_count,v_order FROM jsonb_to_recordset(p_payload->'noteRowVersions') x(id uuid,rowVersion bigint);
+            SELECT count(*),count(DISTINCT (x.item->>'id')::uuid)
+            INTO v_count,v_order
+            FROM jsonb_array_elements(p_payload->'noteRowVersions') x(item);
             IF v_count<>v_order OR v_count<>(SELECT count(*) FROM public.release_notes WHERE release_id=v_release.id AND source_prd_id=v_source.id AND source_conversion_run_id=v_source.latest_conversion_run_id AND archived_at IS NULL) OR EXISTS (
-                SELECT 1 FROM jsonb_to_recordset(p_payload->'noteRowVersions') x(id uuid,rowVersion bigint)
-                LEFT JOIN public.release_notes n ON n.id=x.id AND n.release_id=v_release.id AND n.source_prd_id=v_source.id AND n.source_conversion_run_id=v_source.latest_conversion_run_id AND n.archived_at IS NULL
-                WHERE n.id IS NULL OR n.row_version<>x.rowVersion
+                SELECT 1 FROM jsonb_array_elements(p_payload->'noteRowVersions') x(item)
+                LEFT JOIN public.release_notes n ON n.id=(x.item->>'id')::uuid AND n.release_id=v_release.id AND n.source_prd_id=v_source.id AND n.source_conversion_run_id=v_source.latest_conversion_run_id AND n.archived_at IS NULL
+                WHERE n.id IS NULL OR n.row_version<>(x.item->>'rowVersion')::bigint
             ) THEN RAISE EXCEPTION 'DEV1042_NOTE_SET_INVALID'; END IF;
             UPDATE public.release_prds SET conversion_status='approved',updated_by=p_actor_user_id,row_version=row_version+1 WHERE id=v_source.id RETURNING * INTO v_source;
             UPDATE public.releases SET updated_by=p_actor_user_id,row_version=row_version+1 WHERE id=v_release.id RETURNING * INTO v_release;
             v_action:='source.approved';v_entity_type:='source';v_entity_id:=v_source.id;
-            v_data:=jsonb_build_object('source',public.admin_release_source_json(v_source.id),'approvedNoteIds',COALESCE((SELECT jsonb_agg(x.id) FROM jsonb_to_recordset(p_payload->'noteRowVersions') x(id uuid,rowVersion bigint)),'[]'::jsonb),'releaseRowVersion',v_release.row_version);
+            v_data:=jsonb_build_object('source',public.admin_release_source_json(v_source.id),'approvedNoteIds',COALESCE((SELECT jsonb_agg(x.item->'id') FROM jsonb_array_elements(p_payload->'noteRowVersions') x(item)),'[]'::jsonb),'releaseRowVersion',v_release.row_version);
             v_primary_version:=v_source.row_version;
         ELSE RAISE EXCEPTION 'DEV1042_INVALID_STATE';
         END IF;
@@ -418,7 +428,7 @@ BEGIN
     VALUES(p_actor_user_id,v_email,v_role,v_action,v_entity_type,COALESCE(v_entity_id,v_release.id),v_release.id,p_request_id,
         CASE WHEN v_entity_type='note' THEN v_before_note WHEN v_entity_type='source' THEN v_before_source ELSE v_before_release END,
         CASE WHEN v_entity_type='note' THEN public.admin_release_note_json(v_entity_id) WHEN v_entity_type='source' THEN public.admin_release_source_audit_json(v_entity_id) ELSE public.admin_release_json(v_release.id) END,
-        jsonb_build_object('source','dashboard'));
+        v_metadata);
 
     IF cardinality(v_targets)>0 THEN
         v_job_id:=gen_random_uuid();

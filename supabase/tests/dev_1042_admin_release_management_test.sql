@@ -64,12 +64,15 @@ BEGIN
     IF result#>>'{data,release,visibility}' <> 'public_preview' OR result#>>'{cacheInvalidation,status}' <> 'pending' THEN RAISE EXCEPTION 'preview/outbox failed: %',result; END IF;
 
     result := public.mutate_admin_domani_release(
-        'release.return_private',v_release_id,4,'{}',
-        editor_id,'editor@example.com','editor','req-return-private');
-    IF result#>>'{data,release,visibility}' <> 'private' OR (result->>'releaseRowVersion')::int <> 5 THEN RAISE EXCEPTION 'return-to-private failed'; END IF;
-    result := public.mutate_admin_domani_release(
-        'release.update',v_release_id,5,'{"lifecycleStatus":"in_progress"}',
+        'release.update',v_release_id,4,'{"lifecycleStatus":"in_progress"}',
         editor_id,'editor@example.com','editor','req-in-progress');
+    IF result#>>'{data,release,lifecycleStatus}' <> 'in_progress' OR result#>>'{cacheInvalidation,status}' <> 'pending' OR result#>'{cacheInvalidation,targets}' <> '["/api/domani/releases/coming-soon", "/coming-soon"]'::jsonb THEN
+        RAISE EXCEPTION 'visible lifecycle update did not invalidate coming-soon: %',result;
+    END IF;
+    result := public.mutate_admin_domani_release(
+        'release.return_private',v_release_id,5,'{}',
+        editor_id,'editor@example.com','editor','req-return-private');
+    IF result#>>'{data,release,visibility}' <> 'private' OR (result->>'releaseRowVersion')::int <> 6 THEN RAISE EXCEPTION 'return-to-private failed'; END IF;
     result := public.mutate_admin_domani_release(
         'release.update',v_release_id,6,'{"lifecycleStatus":"released","releasedAt":"2026-08-09T16:00:00.000Z"}',
         editor_id,'editor@example.com','editor','req-released-private');
@@ -148,8 +151,29 @@ BEGIN
     IF result#>>'{data,notes,0,id}' <> note2_id::text OR (result#>>'{data,notes,1,rowVersion}')::int <> 3 OR (result->>'releaseRowVersion')::int <> 11 THEN
         RAISE EXCEPTION 'atomic reorder failed: %',result;
     END IF;
+    IF (SELECT metadata->'orderedNoteIds' FROM public.release_audit_events WHERE release_id=v_release_id AND action='note.reordered' ORDER BY created_at DESC,id DESC LIMIT 1) <> jsonb_build_array(note2_id,note_id) THEN
+        RAISE EXCEPTION 'reorder audit omitted requested note order';
+    END IF;
 
     audit_before := (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id);
+    BEGIN
+        PERFORM public.mutate_admin_domani_release(
+            'note.reorder',v_release_id,11,
+            jsonb_build_object('notes',jsonb_build_array(jsonb_build_object('id',note2_id,'rowVersion',1),jsonb_build_object('id',note_id,'rowVersion',3))),
+            admin_id,'admin@example.com','admin','req-stale-reorder');
+        RAISE EXCEPTION 'stale child reorder unexpectedly succeeded';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'DEV1042_NOTE_SET_INVALID' THEN RAISE; END IF;
+    END;
+    IF (SELECT row_version FROM public.releases WHERE id=v_release_id) <> 11
+        OR (SELECT row_version FROM public.release_notes WHERE id=note2_id) <> 2
+        OR (SELECT sort_order FROM public.release_notes WHERE id=note2_id) <> 0
+        OR (SELECT row_version FROM public.release_notes WHERE id=note_id) <> 3
+        OR (SELECT sort_order FROM public.release_notes WHERE id=note_id) <> 1
+        OR (SELECT count(*) FROM public.release_audit_events e WHERE e.release_id=v_release_id) <> audit_before THEN
+        RAISE EXCEPTION 'stale child reorder did not roll back fully';
+    END IF;
+
     BEGIN
         PERFORM public.mutate_admin_domani_release(
             'note.reorder',v_release_id,11,
@@ -204,6 +228,18 @@ BEGIN
     UPDATE public.release_prds SET conversion_status='needs_review',latest_conversion_run_id=approval_run_id WHERE id=approval_source_id;
     INSERT INTO public.release_notes(release_id,note_type,public_title,public_body,platforms,sort_order,source_prd_id,source_conversion_run_id,created_by,updated_by)
     VALUES(approval_release_id,'feature','Approval draft','Review me',ARRAY['ios']::public.release_platform[],0,approval_source_id,approval_run_id,admin_id,admin_id) RETURNING id INTO approval_note_id;
+    BEGIN
+        PERFORM public.mutate_admin_domani_release('source.approve',approval_release_id,1,jsonb_build_object('sourceId',approval_source_id,'releaseRowVersion',1,'noteRowVersions',jsonb_build_array(jsonb_build_object('id',approval_note_id,'rowVersion',2))),editor_id,'editor@example.com','editor','req-stale-approve');
+        RAISE EXCEPTION 'stale source approval unexpectedly succeeded';
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM <> 'DEV1042_NOTE_SET_INVALID' THEN RAISE; END IF;
+    END;
+    IF (SELECT row_version FROM public.releases WHERE id=approval_release_id)<>1
+        OR (SELECT row_version FROM public.release_prds WHERE id=approval_source_id)<>1
+        OR (SELECT conversion_status FROM public.release_prds WHERE id=approval_source_id)<>'needs_review'
+        OR EXISTS(SELECT 1 FROM public.release_audit_events WHERE release_id=approval_release_id) THEN
+        RAISE EXCEPTION 'stale source approval did not roll back fully';
+    END IF;
     result:=public.mutate_admin_domani_release('source.approve',approval_release_id,1,jsonb_build_object('sourceId',approval_source_id,'releaseRowVersion',1,'noteRowVersions',jsonb_build_array(jsonb_build_object('id',approval_note_id,'rowVersion',1))),editor_id,'editor@example.com','editor','req-approve');
     IF result#>>'{data,source,conversionStatus}'<>'approved' OR (result->>'releaseRowVersion')::int<>2 THEN RAISE EXCEPTION 'source approval failed'; END IF;
     IF EXISTS(SELECT 1 FROM public.release_audit_events WHERE release_id=approval_release_id AND (before_data?'rawMarkdown' OR after_data?'rawMarkdown')) THEN RAISE EXCEPTION 'source approval audit leaked raw markdown'; END IF;

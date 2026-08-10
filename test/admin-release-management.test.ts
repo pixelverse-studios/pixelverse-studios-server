@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import express, { Request, Response } from 'express'
 import { request as httpRequest } from 'http'
 import { AddressInfo } from 'net'
@@ -25,6 +26,7 @@ import {
 } from '../src/controllers/admin-release-management'
 import { dispatchReleaseCacheInvalidations } from '../src/services/release-cache-invalidation'
 import adminReleaseManagementRouter from '../src/routes/admin-release-management'
+import { nextCursor, pagination } from '../src/lib/admin-release-management'
 
 const releaseId = 'a1000000-0000-4000-8000-000000000001'
 const noteId = 'a1000000-0000-4000-8000-000000000002'
@@ -172,6 +174,20 @@ describe('DEV-1042 release management controllers', () => {
         expect(res.statusCode).toBe(200)
         expect(res.payload.data.filters).toEqual(expect.objectContaining({ lifecycle: 'planned', archived: false }))
         expect(state.rpc).toHaveBeenCalledWith('list_admin_domani_releases', expect.objectContaining({ p_limit: 10 }))
+    })
+
+    it('versions signed cursors and rejects cursors from another API contract', () => {
+        const filters = { lifecycle: 'planned', archived: false }
+        const item = { orderedAt: '2026-08-09T16:00:00.000Z', id: releaseId }
+        const cursor = nextCursor(filters, item)
+        expect(cursor).not.toBeNull()
+        const [encoded] = cursor!.split('.')
+        expect(JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))).toEqual(expect.objectContaining({ apiVersion: '2026-08-05' }))
+        expect(pagination({ cursor }, filters).after).toEqual(item)
+
+        const oldPayload = Buffer.from(JSON.stringify({ apiVersion: '2026-07-01', filters, ...item })).toString('base64url')
+        const oldSignature = crypto.createHmac('sha256', process.env.ADMIN_RELEASE_CURSOR_SECRET!).update(oldPayload).digest('base64url')
+        expect(() => pagination({ cursor: `${oldPayload}.${oldSignature}` }, filters)).toThrowError(expect.objectContaining({ code: 'VALIDATION_ERROR' }))
     })
 
     it('maps transaction conflicts without exposing database sentinels', async () => {

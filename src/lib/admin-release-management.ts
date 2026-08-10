@@ -3,6 +3,7 @@ import { Request } from 'express'
 import { z } from 'zod'
 
 import {
+    ADMIN_RELEASE_API_VERSION,
     AdminReleaseApiError,
     FieldErrors,
     RELEASE_AUDIT_ACTIONS,
@@ -123,7 +124,7 @@ export const approveSourceSchema = z.object({
 const encodeCursor = (payload: Record<string, unknown>): string => {
     const secret = cursorSecret()
     if (!secret) throw new Error('ADMIN_RELEASE_CURSOR_SECRET is required')
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    const encoded = Buffer.from(JSON.stringify({ apiVersion: ADMIN_RELEASE_API_VERSION, ...payload })).toString('base64url')
     const signature = crypto.createHmac('sha256', secret).update(encoded).digest('base64url')
     return `${encoded}.${signature}`
 }
@@ -140,7 +141,7 @@ const decodeCursor = (cursor: string, filters: Record<string, unknown>): { order
     }
     try {
         const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
-        if (JSON.stringify(payload.filters) !== JSON.stringify(filters) || typeof payload.orderedAt !== 'string' || !z.string().uuid().safeParse(payload.id).success) throw new Error()
+        if (payload.apiVersion !== ADMIN_RELEASE_API_VERSION || JSON.stringify(payload.filters) !== JSON.stringify(filters) || typeof payload.orderedAt !== 'string' || !z.string().uuid().safeParse(payload.id).success) throw new Error()
         return { orderedAt: payload.orderedAt, id: payload.id }
     } catch {
         throw new AdminReleaseApiError(400, 'VALIDATION_ERROR', 'Invalid cursor', { cursor: ['Cursor does not match the active filters'] })
