@@ -38,6 +38,9 @@ export class ConversionContentError extends Error {
     }
 }
 
+export const normalizeReleaseNoteMarkdown = (value: string): string =>
+    value.replace(/\r\n?/g, '\n')
+
 const codepointLimit = (value: string, maximum: number): string =>
     Array.from(value).slice(0, maximum).join('').trim()
 
@@ -245,7 +248,7 @@ const draftFor = (title: string, body: string, noteType: ReleaseNoteType): Relea
 }
 
 export const convertReleaseMarkdown = (rawMarkdown: string): ReleaseNoteDraft[] => {
-    const markdown = rawMarkdown.replace(/\r\n?/g, '\n')
+    const markdown = normalizeReleaseNoteMarkdown(rawMarkdown)
     const tokens = marked.lexer(markdown, { gfm: false }) as unknown as MarkdownToken[]
     const drafts: ReleaseNoteDraft[] = []
     let active: { heading: string; noteType: ReleaseNoteType; blocks: MarkdownToken[] } | null = null
