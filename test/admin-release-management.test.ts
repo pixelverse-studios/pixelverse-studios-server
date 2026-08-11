@@ -115,6 +115,40 @@ describe('DEV-1042 authenticated HTTP routes', () => {
 })
 
 describe('DEV-1042 release management controllers', () => {
+    it('returns actor-derived list capabilities and restricts archived records to admins', async () => {
+        state.rpc.mockResolvedValue({ data: { releases: [], last: null }, error: null })
+
+        const adminResponse = response()
+        await listReleases(request(), adminResponse)
+        expect(adminResponse.statusCode).toBe(200)
+        expect(adminResponse.payload.data.capabilities).toEqual({
+            canCreateRelease: true,
+            canViewArchivedReleases: true,
+        })
+
+        const editorResponse = response()
+        await listReleases(request({ dashboardActor: { userId: 'a1000000-0000-4000-8000-000000000004', email: 'editor@example.com', role: 'editor' } }), editorResponse)
+        expect(editorResponse.payload.data.capabilities).toEqual({
+            canCreateRelease: true,
+            canViewArchivedReleases: false,
+        })
+
+        const viewerResponse = response()
+        await listReleases(request({ dashboardActor: { userId: 'a1000000-0000-4000-8000-000000000004', email: 'viewer@example.com', role: 'viewer' } }), viewerResponse)
+        expect(viewerResponse.payload.data.capabilities).toEqual({
+            canCreateRelease: false,
+            canViewArchivedReleases: false,
+        })
+
+        const archivedResponse = response()
+        await listReleases(request({
+            query: { archived: 'true' },
+            dashboardActor: { userId: 'a1000000-0000-4000-8000-000000000004', email: 'editor@example.com', role: 'editor' },
+        }), archivedResponse)
+        expect(archivedResponse.statusCode).toBe(403)
+        expect(archivedResponse.payload.error.code).toBe('FORBIDDEN')
+    })
+
     it('creates only allowlisted private-draft release input and emits concurrency headers', async () => {
         const res = response()
         await createRelease(request({ body: { version: '1.2', slug: 'calm-planning', title: 'Calm planning', releaseType: 'minor', actorRole: 'admin' } }), res)

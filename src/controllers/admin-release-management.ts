@@ -74,14 +74,21 @@ const assertQueryKeys = (query: Request['query'], allowed: string[]): void => {
 export const listReleases = async (req: Request, res: Response): Promise<Response> => {
     const requestId = requestIdFor(req, res)
     try {
-        actor(req)
+        const currentActor = actor(req)
         assertQueryKeys(req.query, ['lifecycle', 'visibility', 'releaseType', 'platform', 'version', 'archived', 'limit', 'cursor'])
         const parsed = parseBody(releaseListFiltersSchema, querySubset(req.query, ['lifecycle', 'visibility', 'releaseType', 'platform', 'version', 'archived']))
         const filters = { lifecycle: parsed.lifecycle || null, visibility: parsed.visibility || null, releaseType: parsed.releaseType || null, platform: parsed.platform || null, version: parsed.version || null, archived: parsed.archived === 'true' }
+        if (filters.archived && currentActor.role !== 'admin') {
+            throw new AdminReleaseApiError(403, 'FORBIDDEN', 'Only admins may list archived releases')
+        }
         const page = pagination(req.query, filters)
         const result = await listAdminReleases<{ releases: any[]; last: { orderedAt: string; id: string } | null }>(filters, page.limit, page.after)
+        const capabilities = {
+            canCreateRelease: currentActor.role !== 'viewer',
+            canViewArchivedReleases: currentActor.role === 'admin',
+        }
         res.setHeader('Cache-Control', 'no-store')
-        return res.json({ data: { releases: result.releases, filters }, meta: successMeta(requestId, nextCursor(filters, result.last)) })
+        return res.json({ data: { releases: result.releases, capabilities, filters }, meta: successMeta(requestId, nextCursor(filters, result.last)) })
     } catch (error) { return sendError(req, res, error, 'list releases') }
 }
 
