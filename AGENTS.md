@@ -67,13 +67,23 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
+| `/api/mini-session-campaigns/:websiteSlug/active` | GET | Return one sanitized live/sold-out Mini Sessions campaign or a true 404. | `controllers/mini-session-campaigns.getActive` |
+| `/api/mini-session-campaigns/:websiteSlug/admin` | GET | List campaigns for an authenticated media/site administrator. | `controllers/mini-session-campaigns.listAdmin` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId` | GET | Return one tenant-scoped admin campaign. | `controllers/mini-session-campaigns.getAdmin` |
+| `/api/mini-session-campaigns/:websiteSlug/admin` | POST | Create a campaign draft with ordered booking options. | `controllers/mini-session-campaigns.create` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId` | PATCH | Save campaign content/options using `expectedUpdatedAt`; lifecycle fields are rejected. | `controllers/mini-session-campaigns.update` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId/duplicate` | POST | Duplicate a campaign into a separate draft. | `controllers/mini-session-campaigns.duplicate` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId/publish` | POST | Atomically publish a ready campaign after explicit Cal.com verification. | `controllers/mini-session-campaigns.publish` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId/mark-sold-out` | POST | Keep a campaign public while disabling booking. | `controllers/mini-session-campaigns.markSoldOut` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId/close` | POST | Remove a campaign from public responses. | `controllers/mini-session-campaigns.close` |
+| `/api/mini-session-campaigns/:websiteSlug/admin/:campaignId/archive` | POST | Archive a draft/closed campaign without deleting history. | `controllers/mini-session-campaigns.archive` |
 
 > `routes/recaptcha.ts` is currently a placeholder; wire it before exposing any verification endpoint.
 
 ## Data + External Services
 
 -   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`.
+    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `mini_session_campaigns`, `mini_session_booking_options`, `mini_session_campaign_audit_logs`.
     -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
     -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
 -   **Email (Gmail OAuth2)**
@@ -91,6 +101,15 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
     - `v_prospects_all` exposes only lightweight latest-attribution scalar fields for list/reporting views: source, medium, campaign, and conversion type.
 -   **Legacy Nodemailer Utilities**
     -   Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
+-   **Mini Sessions Campaigns**
+    -   `src/services/mini-session-campaigns.ts` owns tenant resolution, campaign persistence, lifecycle rules, duplication, safe public/admin projections, and optimistic concurrency for seasonal campaigns.
+    -   `mini_session_campaigns` stores structured campaign presentation and lifecycle state; `mini_session_booking_options` stores ordered Cal.com links; `mini_session_campaign_audit_logs` stores non-blocking administrator audit events.
+    -   The browser never accesses these tables directly. RLS is enabled, `anon` and `authenticated` table privileges are revoked, and only the server-side service role receives table/function access.
+    -   Use `save_mini_session_campaign`, `duplicate_mini_session_campaign`, and `publish_mini_session_campaign` RPCs for their atomic write guarantees. Generic content saves cannot change lifecycle status.
+    -   Public projections must continue to omit tenant ids, actor fields, audit values, archived/draft content, and hidden booking options.
+    -   All `/admin` routes reuse `requireMediaAdminSession`. Mutations accept an ISO `expectedUpdatedAt` token; publish also requires `calComVerified: true`.
+    -   Lifecycle mutations call the signed site-content revalidation webhook for `/`, `/mini-sessions`, the root layout, and `/sitemap.xml`. A webhook failure is returned separately and never rolls back a successful database mutation.
+    -   Public campaign responses use a hard maximum 60-second cache window. Admin responses use `Cache-Control: no-store`.
 
 ## Coding Guidelines for Agents
 
@@ -148,6 +167,10 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `MEDIA_REVALIDATION_TIMEOUT_MS` | Optional revalidation webhook timeout; defaults to 5000ms. |
 | `MEDIA_PUBLIC_CATALOG_MAX_AGE_SECONDS` | Optional public catalog `Cache-Control` max-age; defaults to 60 seconds. |
 | `MEDIA_PUBLIC_CATALOG_STALE_WHILE_REVALIDATE_SECONDS` | Optional public catalog stale-while-revalidate window; defaults to 300 seconds. |
+| `SITE_REVALIDATION_WEBHOOK_URL` | Preferred signed frontend webhook URL for campaign/site-content revalidation; falls back to `MEDIA_REVALIDATION_WEBHOOK_URL`. |
+| `SITE_REVALIDATION_SECRET` | Preferred bearer token for site-content revalidation; falls back to `MEDIA_REVALIDATION_SECRET`. |
+| `SITE_REVALIDATION_TIMEOUT_MS` | Optional site-content webhook timeout; defaults to 5000ms and falls back to the media timeout. |
+| `MINI_SESSION_PUBLIC_MAX_AGE_SECONDS` | Optional public active-campaign cache max age, capped at 60 seconds. |
 
 Store secrets outside version control. For Supabase service keys, restrict to necessary tables.
 
