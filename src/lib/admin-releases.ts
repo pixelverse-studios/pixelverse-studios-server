@@ -3,6 +3,12 @@ import path from 'path'
 import { Request, Response } from 'express'
 import { z } from 'zod'
 
+import {
+    deriveReleaseType,
+    RELEASE_VERSION_PATTERN,
+    SemanticReleaseType,
+} from './release-version'
+
 export const ADMIN_RELEASE_API_VERSION = '2026-08-05' as const
 export const MAX_MARKDOWN_BYTES = 1_048_576
 
@@ -15,7 +21,7 @@ export interface DashboardActor {
     role: DashboardRole
 }
 
-export type ReleaseType = 'major' | 'minor' | 'patch' | 'roadmap'
+export type ReleaseType = SemanticReleaseType
 export type ReleaseLifecycle = 'draft' | 'planned' | 'in_progress' | 'released' | 'canceled'
 export type ReleaseVisibility = 'private' | 'public_preview' | 'published'
 export type ReleaseNoteType = 'feature' | 'improvement' | 'fix' | 'breaking'
@@ -237,7 +243,7 @@ const importFieldsSchema = z
             value => (value === '' || value === undefined ? undefined : value),
             z
                 .string()
-                .regex(/^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(\.(0|[1-9][0-9]{0,8}))?$/)
+                .regex(RELEASE_VERSION_PATTERN)
                 .optional()
         ),
         releaseTitle: optionalTrimmed(160),
@@ -245,7 +251,6 @@ const importFieldsSchema = z
             value => (value === '' || value === undefined ? undefined : value),
             z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional()
         ),
-        releaseType: z.enum(['major', 'minor', 'patch', 'roadmap']).optional(),
         sourceType: z.enum(['linear_epic', 'linear_ticket', 'milestone', 'manual']),
         sourceReference: z.string().trim().min(1).max(2048),
         intendedSurface: z
@@ -406,7 +411,9 @@ export const normalizeImportMarkdownRequest = (
         releaseVersion: parsed.data.releaseVersion || null,
         releaseTitle: parsed.data.releaseTitle || null,
         releaseSlug: parsed.data.releaseSlug || null,
-        releaseType: parsed.data.releaseType || null,
+        releaseType: parsed.data.releaseVersion
+            ? deriveReleaseType(parsed.data.releaseVersion)
+            : null,
         sourceType: parsed.data.sourceType,
         sourceReference: parsed.data.sourceReference,
         intendedSurface: parsed.data.intendedSurface,

@@ -7,8 +7,7 @@
 CREATE TYPE public.release_type AS ENUM (
     'major',
     'minor',
-    'patch',
-    'roadmap'
+    'patch'
 );
 
 CREATE TYPE public.release_lifecycle_status AS ENUM (
@@ -89,11 +88,14 @@ CREATE TABLE public.releases (
     archived_at       timestamptz,
     archived_by       uuid,
     CONSTRAINT releases_version_format_check CHECK (
-        version ~ '^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(\.(0|[1-9][0-9]{0,8}))?$'
+        version ~ '^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
     ),
     CONSTRAINT releases_type_version_shape_check CHECK (
-        (release_type = 'patch' AND version_patch IS NOT NULL)
-        OR (release_type <> 'patch' AND version_patch IS NULL)
+        release_type = CASE
+            WHEN version_patch > 0 THEN 'patch'::public.release_type
+            WHEN version_minor > 0 THEN 'minor'::public.release_type
+            ELSE 'major'::public.release_type
+        END
     ),
     CONSTRAINT releases_slug_format_check CHECK (
         slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
@@ -125,7 +127,7 @@ CREATE TABLE public.releases (
         OR (
             visibility = 'public_preview'
             AND lifecycle_status IN ('planned', 'in_progress')
-            AND release_type IN ('major', 'minor', 'roadmap')
+            AND release_type IN ('major', 'minor')
             AND public_summary IS NOT NULL
             AND char_length(btrim(public_summary)) > 0
         )

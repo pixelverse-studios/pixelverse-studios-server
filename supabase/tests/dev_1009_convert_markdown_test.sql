@@ -40,7 +40,7 @@ INSERT INTO public.releases (
     created_by, updated_by
 ) VALUES (
     '91000000-0000-4000-8000-000000000010',
-    '910000000.1',
+    '910000000.1.0',
     'dev-1009-conversion',
     'DEV-1009 conversion',
     'minor',
@@ -374,7 +374,7 @@ INSERT INTO public.releases (
     created_by, updated_by
 ) VALUES (
     '91000000-0000-4000-8000-000000000020',
-    '910000000.2',
+    '910000000.2.0',
     'dev-1009-approved-rerun',
     'DEV-1009 approved rerun',
     'minor',

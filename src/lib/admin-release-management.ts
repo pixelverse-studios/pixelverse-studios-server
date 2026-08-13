@@ -11,6 +11,7 @@ import {
     parseIfMatch,
 } from './admin-releases'
 import { normalizeReleaseNoteMarkdown } from './release-markdown-converter'
+import { deriveReleaseType, RELEASE_VERSION_PATTERN } from './release-version'
 
 const cursorSecret = () => process.env.ADMIN_RELEASE_CURSOR_SECRET || process.env.DOMANI_RELEASE_CURSOR_SECRET || ''
 
@@ -59,27 +60,23 @@ const date = isoDate.nullable().optional()
 const month = isoMonth.nullable().optional()
 
 export const createReleaseSchema = z.object({
-    version: z.string().regex(/^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(\.(0|[1-9][0-9]{0,8}))?$/),
+    version: z.string().regex(RELEASE_VERSION_PATTERN, 'Use a canonical X.Y.Z version'),
     slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
     title: z.string().trim().min(1).max(160),
-    releaseType: z.enum(['major', 'minor', 'patch', 'roadmap']),
     publicSummary: nullableText(2000),
     internalSummary: nullableText(10000),
     targetMonth: month,
     targetDate: date,
     confirmedDate: date,
     ownerUserId: z.string().uuid().nullable().optional(),
-}).strict().superRefine((value, context) => {
-    const hasPatch = value.version.split('.').length === 3
-    if ((value.releaseType === 'patch') !== hasPatch) {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseType'], message: 'Patch versions require patch; two-part versions require a non-patch type' })
-    }
-})
+}).strict().transform(value => ({
+    ...value,
+    releaseType: deriveReleaseType(value.version)!,
+}))
 
 export const updateReleaseSchema = z.object({
     title: z.string().trim().min(1).max(160).optional(),
     slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional(),
-    releaseType: z.enum(['major', 'minor', 'patch', 'roadmap']).optional(),
     lifecycleStatus: z.enum(['draft', 'planned', 'in_progress', 'released', 'canceled']).optional(),
     publicSummary: nullableText(2000),
     internalSummary: nullableText(10000),
@@ -168,7 +165,7 @@ export const nextCursor = (filters: Record<string, unknown>, item: { orderedAt: 
 export const releaseListFiltersSchema = z.object({
     lifecycle: z.enum(['draft', 'planned', 'in_progress', 'released', 'canceled']).optional(),
     visibility: z.enum(['private', 'public_preview', 'published']).optional(),
-    releaseType: z.enum(['major', 'minor', 'patch', 'roadmap']).optional(),
+    releaseType: z.enum(['major', 'minor', 'patch']).optional(),
     platform: z.enum(['ios', 'android']).optional(),
     version: z.string().max(64).optional(),
     archived: z.enum(['true', 'false']).optional(),

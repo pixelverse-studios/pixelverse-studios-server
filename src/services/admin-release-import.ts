@@ -48,11 +48,10 @@ const businessError = (message: string): AdminReleaseApiError | null => {
         DEV1008_CREATION_FIELDS_REQUIRED: new AdminReleaseApiError(
             400,
             'VALIDATION_ERROR',
-            'New releases require releaseTitle, releaseSlug, and releaseType',
+            'New releases require releaseTitle and releaseSlug',
             {
                 releaseTitle: ['Required when releaseVersion does not exist'],
-                releaseSlug: ['Required when releaseVersion does not exist'],
-                releaseType: ['Required when releaseVersion does not exist']
+                releaseSlug: ['Required when releaseVersion does not exist']
             }
         ),
         DEV1008_RELEASE_TYPE_INVALID: new AdminReleaseApiError(
@@ -60,9 +59,7 @@ const businessError = (message: string): AdminReleaseApiError | null => {
             'VALIDATION_ERROR',
             'releaseType does not match the release version',
             {
-                releaseType: [
-                    'Patch versions require patch; two-part versions require a non-patch type'
-                ]
+                releaseVersion: ['Use a canonical X.Y.Z semantic version']
             }
         ),
         DEV1008_VERSION_ALREADY_EXISTS: new AdminReleaseApiError(

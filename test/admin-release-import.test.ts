@@ -32,7 +32,7 @@ const releaseId = '72000000-0000-4000-8000-000000000001'
 const importedResult = (duplicate = false) => ({
     release: {
         id: releaseId,
-        version: '1.2',
+        version: '1.2.0',
         slug: 'domani-1-2',
         title: 'Domani 1.2',
         releaseType: 'minor',
@@ -212,10 +212,9 @@ describe('DEV-1008 Markdown input validation', () => {
                     'Content-Disposition: form-data; name="file"; filename="domani.md"\r\n' +
                     'Content-Type: text/plain\r\n\r\n' +
                     '# Domani multipart\r\n' +
-                    field('releaseVersion', '1.2') +
+                    field('releaseVersion', '1.2.0') +
                     field('releaseTitle', 'Domani 1.2') +
                     field('releaseSlug', 'domani-1-2') +
-                    field('releaseType', 'minor') +
                     field('sourceType', 'linear_epic') +
                     field('sourceReference', 'DEV-1004') +
                     `--${boundary}--\r\n`
@@ -281,10 +280,9 @@ describe('DEV-1008 Markdown input validation', () => {
                 body: {
                     markdown: '# Domani',
                     filename: 'folder/domani.md',
-                    releaseVersion: '1.2',
+                    releaseVersion: '1.2.0',
                     releaseTitle: 'Domani 1.2',
                     releaseSlug: 'domani-1-2',
-                    releaseType: 'minor',
                     sourceType: 'linear_epic',
                     sourceReference: ' DEV-1004 '
                 }
@@ -293,7 +291,8 @@ describe('DEV-1008 Markdown input validation', () => {
         expect(normalized).toMatchObject({
             markdown: '# Domani',
             filename: 'domani.md',
-            releaseVersion: '1.2',
+            releaseVersion: '1.2.0',
+            releaseType: 'minor',
             sourceReference: 'DEV-1004',
             intendedSurface: 'changelog',
             ifMatch: null
@@ -329,7 +328,7 @@ describe('DEV-1008 Markdown input validation', () => {
     it('rejects conversion, identity injection, missing preconditions, bad files, UTF-8, NUL, and size', () => {
         const base = {
             markdown: '# Domani',
-            releaseVersion: '1.2',
+            releaseVersion: '1.2.0',
             sourceType: 'manual',
             sourceReference: 'upload'
         }
@@ -416,10 +415,9 @@ describe('DEV-1008 Markdown import controller', () => {
             body: {
                 markdown: '# Domani',
                 filename: 'domani.md',
-                releaseVersion: '1.2',
+                releaseVersion: '1.2.0',
                 releaseTitle: 'Domani 1.2',
                 releaseSlug: 'domani-1-2',
-                releaseType: 'minor',
                 sourceType: 'linear_epic',
                 sourceReference: 'DEV-1004'
             }

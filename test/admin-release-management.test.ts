@@ -167,10 +167,9 @@ describe('DEV-1042 authenticated HTTP routes', () => {
             expect(state.getUser).toHaveBeenCalledWith('valid-token')
 
             const create = await send('POST', '/api/admin/releases', {
-                version: '1.2',
+                version: '1.2.0',
                 slug: 'viewer-denied',
-                title: 'Viewer denied',
-                releaseType: 'minor'
+                title: 'Viewer denied'
             })
             expect(create.status).toBe(201)
         } finally {
@@ -249,10 +248,9 @@ describe('DEV-1042 release management controllers', () => {
         await createRelease(
             request({
                 body: {
-                    version: '1.2',
+                    version: '1.2.0',
                     slug: 'calm-planning',
                     title: 'Calm planning',
-                    releaseType: 'minor',
                     actorRole: 'admin'
                 }
             }),
@@ -267,10 +265,42 @@ describe('DEV-1042 release management controllers', () => {
         await createRelease(
             request({
                 body: {
-                    version: '1.2',
+                    version: '1.2.0',
                     slug: 'calm-planning',
                     title: 'Calm planning',
                     releaseType: 'minor'
+                }
+            }),
+            res
+        )
+        expect(res.statusCode).toBe(400)
+        expect(res.payload.error.fieldErrors.releaseType).toEqual([
+            'Field is not allowed'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+
+        await createRelease(
+            request({
+                body: {
+                    version: '1.2',
+                    slug: 'calm-planning',
+                    title: 'Calm planning'
+                }
+            }),
+            res
+        )
+        expect(res.statusCode).toBe(400)
+        expect(res.payload.error.fieldErrors.version).toEqual([
+            'Use a canonical X.Y.Z version'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+
+        await createRelease(
+            request({
+                body: {
+                    version: '1.2.0',
+                    slug: 'calm-planning',
+                    title: 'Calm planning'
                 }
             }),
             res
@@ -283,7 +313,8 @@ describe('DEV-1042 release management controllers', () => {
             'mutate_admin_domani_release',
             expect.objectContaining({
                 p_operation: 'release.create',
-                p_primary_if_match: null
+                p_primary_if_match: null,
+                p_payload: expect.objectContaining({ releaseType: 'minor' })
             })
         )
     })

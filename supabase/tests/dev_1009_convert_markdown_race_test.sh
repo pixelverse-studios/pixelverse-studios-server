@@ -37,7 +37,7 @@ INSERT INTO public.releases (
     public_summary, created_by, updated_by
 ) VALUES (
     :'release_id',
-    '920000000.1',
+    '920000000.1.0',
     'dev-1009-lock-race',
     'DEV-1009 lock race',
     'minor',

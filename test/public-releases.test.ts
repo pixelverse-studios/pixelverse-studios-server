@@ -29,7 +29,7 @@ const note = (overrides: Record<string, unknown> = {}) => ({
 
 const release = (overrides: Record<string, unknown> = {}) => ({
     id: 'release-1',
-    version: '1.1',
+    version: '1.1.0',
     slug: 'first-release',
     title: 'First release',
     release_type: 'minor',
@@ -51,11 +51,10 @@ describe('public release service', () => {
         mockState.rpc.mockReset()
     })
 
-    it('orders two- and three-part versions semantically', () => {
-        expect(compareVersions('1.10', '1.2')).toBeGreaterThan(0)
-        expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0)
-        expect(compareVersions('1.2.0', '1.2')).toBeGreaterThan(0)
-        expect(releaseVersionParts('1.12')).toEqual([1, 12, -1])
+    it('orders canonical semantic versions numerically', () => {
+        expect(compareVersions('1.10.0', '1.2.0')).toBeGreaterThan(0)
+        expect(compareVersions('1.2.1', '1.2.0')).toBeGreaterThan(0)
+        expect(releaseVersionParts('1.12.0')).toEqual([1, 12, 0])
     })
 
     it('requests a limit-plus-one keyset page and maps only public fields', async () => {
@@ -64,7 +63,7 @@ describe('public release service', () => {
                 release(),
                 release({
                     id: 'release-2',
-                    version: '1.2',
+                    version: '1.2.0',
                     confirmed_date: null,
                     target_month: '2026-09-01',
                     sort_primary: '2026-09-01',
@@ -109,7 +108,7 @@ describe('public release service', () => {
     it('validates and binds a cursor before issuing the RPC', async () => {
         const cursor = encodeReleaseCursor('changelog', 'ios', {
             primary: '2026-08-01 00:00:00+00',
-            version: '1.12',
+            version: '1.12.0',
             id: '20000000-0000-4000-8000-000000000002'
         })
         mockState.rpc.mockResolvedValue({ data: [], error: null })
@@ -127,7 +126,7 @@ describe('public release service', () => {
                 p_cursor_primary: '2026-08-01 00:00:00+00',
                 p_cursor_version_major: 1,
                 p_cursor_version_minor: 12,
-                p_cursor_version_patch: -1,
+                p_cursor_version_patch: 0,
                 p_cursor_id: '20000000-0000-4000-8000-000000000002'
             })
         )
@@ -146,7 +145,7 @@ describe('public release service', () => {
     it('rejects noncanonical base64url signatures', () => {
         const cursor = encodeReleaseCursor('coming-soon', null, {
             primary: null,
-            version: '1.1',
+            version: '1.1.0',
             id: '20000000-0000-4000-8000-000000000001'
         })
         expect(() =>
