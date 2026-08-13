@@ -4,20 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
     maybeSingle: vi.fn(),
-    rpc: vi.fn(),
+    rpc: vi.fn()
 }))
 
-vi.mock('../src/lib/db', () => {
+vi.mock('../src/lib/domani-db', () => {
     const query = {
         select: vi.fn(),
         eq: vi.fn(),
-        maybeSingle: mockState.maybeSingle,
+        maybeSingle: mockState.maybeSingle
     }
     query.select.mockReturnValue(query)
     query.eq.mockReturnValue(query)
     return {
-        db: { from: vi.fn(() => query), rpc: mockState.rpc },
-        Tables: { RELEASE_PRDS: 'release_prds' },
+        domaniDb: { from: vi.fn(() => query), rpc: mockState.rpc },
+        DomaniTables: { RELEASE_PRDS: 'release_prds' }
     }
 })
 
@@ -25,7 +25,7 @@ import { convertMarkdown } from '../src/controllers/admin-release-conversion'
 import { normalizeConvertMarkdownRequest } from '../src/lib/admin-releases'
 import {
     convertReleaseMarkdown,
-    isSafeReleaseNoteMarkdown,
+    isSafeReleaseNoteMarkdown
 } from '../src/lib/release-markdown-converter'
 
 const releaseId = '91000000-0000-4000-8000-000000000001'
@@ -38,9 +38,13 @@ const request = (overrides: Partial<Request> = {}): Request => {
         params: { releaseId, prdId },
         body: { rewriteMode: 'deterministic', releaseRowVersion: 2 },
         requestId: 'request-1009',
-        dashboardActor: { userId: actorId, email: 'editor@example.com', role: 'editor' },
+        dashboardActor: {
+            userId: actorId,
+            email: 'editor@example.com',
+            role: 'editor'
+        },
         get: vi.fn((name: string) => headers[name.toLowerCase()]),
-        ...overrides,
+        ...overrides
     } as unknown as Request
 }
 
@@ -62,7 +66,7 @@ const response = () => {
             res.payload = payload
             return res
         }),
-        headers,
+        headers
     }
     return res as unknown as Response & typeof res
 }
@@ -83,7 +87,7 @@ const conversionResult = {
         conversionErrorMessage: null,
         rowVersion: 2,
         createdAt: '2026-08-07T15:00:00Z',
-        updatedAt: '2026-08-07T15:01:00Z',
+        updatedAt: '2026-08-07T15:01:00Z'
     },
     conversionRun: {
         id: '91000000-0000-4000-8000-000000000004',
@@ -94,18 +98,20 @@ const conversionResult = {
         status: 'succeeded',
         createdAt: '2026-08-07T15:01:00Z',
         completedAt: '2026-08-07T15:01:01Z',
-        resultingNoteIds: ['91000000-0000-4000-8000-000000000005'],
+        resultingNoteIds: ['91000000-0000-4000-8000-000000000005']
     },
     notes: [],
-    releaseRowVersion: 3,
+    releaseRowVersion: 3
 }
 
 beforeEach(() => {
     mockState.maybeSingle.mockReset().mockResolvedValue({
         data: { raw_markdown: '## Feature: Calm setup\n\nA guided setup.' },
-        error: null,
+        error: null
     })
-    mockState.rpc.mockReset().mockResolvedValue({ data: conversionResult, error: null })
+    mockState.rpc
+        .mockReset()
+        .mockResolvedValue({ data: conversionResult, error: null })
 })
 
 describe('DEV-1009 deterministic Markdown conversion', () => {
@@ -113,50 +119,61 @@ describe('DEV-1009 deterministic Markdown conversion', () => {
         expect(() =>
             execFileSync(process.execPath, ['-e', "require('marked')"], {
                 cwd: process.cwd(),
-                stdio: 'pipe',
+                stdio: 'pipe'
             })
         ).not.toThrow()
     })
 
     it('parses ATX and Setext headings, maps types, and removes unsafe constructs', () => {
-        const notes = convertReleaseMarkdown([
-            '# Release',
-            '',
-            'Feature: Guided setup',
-            '---------------------',
-            '',
-            'Choose [safe help](https://example.com) and [bad help](JaVaScRiPt:alert(1)).',
-            '',
-            '```md',
-            '## Fix: Hidden code heading',
-            '```',
-            '',
-            '## Fix: Crash recovery',
-            '',
-            '- Restores the plan',
-            '<img src=x onerror=alert(1)>',
-        ].join('\n'))
+        const notes = convertReleaseMarkdown(
+            [
+                '# Release',
+                '',
+                'Feature: Guided setup',
+                '---------------------',
+                '',
+                'Choose [safe help](https://example.com) and [bad help](JaVaScRiPt:alert(1)).',
+                '',
+                '```md',
+                '## Fix: Hidden code heading',
+                '```',
+                '',
+                '## Fix: Crash recovery',
+                '',
+                '- Restores the plan',
+                '<img src=x onerror=alert(1)>'
+            ].join('\n')
+        )
 
         expect(notes).toHaveLength(2)
         expect(notes[0]).toMatchObject({
             noteType: 'feature',
             publicTitle: 'Guided setup',
-            platforms: ['ios', 'android'],
+            platforms: ['ios', 'android']
         })
-        expect(notes[0].publicBody).toContain('[safe help](https://example.com)')
+        expect(notes[0].publicBody).toContain(
+            '[safe help](https://example.com)'
+        )
         expect(notes[0].publicBody).toContain('bad help')
         expect(notes[0].publicBody).not.toMatch(/javascript|<img|onerror/i)
-        expect(notes[1]).toMatchObject({ noteType: 'fix', publicTitle: 'Crash recovery' })
+        expect(notes[1]).toMatchObject({
+            noteType: 'fix',
+            publicTitle: 'Crash recovery'
+        })
         expect(notes[1].publicBody).toBe('- Restores the plan')
     })
 
     it('falls back to top-level list items and rejects empty or excessive input', () => {
-        expect(convertReleaseMarkdown('- First improvement\n- Second improvement')).toHaveLength(2)
+        expect(
+            convertReleaseMarkdown('- First improvement\n- Second improvement')
+        ).toHaveLength(2)
         expect(() => convertReleaseMarkdown('# Release only')).toThrowError(
             expect.objectContaining({ code: 'NO_CONVERSION_CANDIDATES' })
         )
-        const excessive = Array.from({ length: 101 }, (_, index) => `## Fix: Item ${index}\n\nBody`)
-            .join('\n\n')
+        const excessive = Array.from(
+            { length: 101 },
+            (_, index) => `## Fix: Item ${index}\n\nBody`
+        ).join('\n\n')
         expect(() => convertReleaseMarkdown(excessive)).toThrowError(
             expect.objectContaining({ code: 'TOO_MANY_CONVERSION_CANDIDATES' })
         )
@@ -175,16 +192,24 @@ describe('DEV-1009 deterministic Markdown conversion', () => {
     })
 
     it('preserves escaped block markers as literal paragraph content', () => {
-        const [heading] = convertReleaseMarkdown('## Feature\n\n\\# literal heading')
-        const [bullet] = convertReleaseMarkdown('## Feature\n\n\\- literal bullet')
-        const [ordered] = convertReleaseMarkdown('## Feature\n\n1\\. literal ordered item')
+        const [heading] = convertReleaseMarkdown(
+            '## Feature\n\n\\# literal heading'
+        )
+        const [bullet] = convertReleaseMarkdown(
+            '## Feature\n\n\\- literal bullet'
+        )
+        const [ordered] = convertReleaseMarkdown(
+            '## Feature\n\n1\\. literal ordered item'
+        )
 
         expect(heading.publicBody).toBe('\\# literal heading')
         expect(bullet.publicBody).toBe('\\- literal bullet')
         expect(ordered.publicBody).toBe('1\\. literal ordered item')
-        expect([heading, bullet, ordered].every(note =>
-            isSafeReleaseNoteMarkdown(note.publicBody)
-        )).toBe(true)
+        expect(
+            [heading, bullet, ordered].every(note =>
+                isSafeReleaseNoteMarkdown(note.publicBody)
+            )
+        ).toBe(true)
     })
 
     it('round-trips code spans that contain backticks', () => {
@@ -202,13 +227,15 @@ describe('DEV-1009 conversion request and controller', () => {
             prdId,
             rewriteMode: 'deterministic',
             sourceIfMatch: 1,
-            releaseRowVersion: 2,
+            releaseRowVersion: 2
         })
         expect(() =>
             normalizeConvertMarkdownRequest(
                 request({ get: vi.fn(() => undefined) })
             )
-        ).toThrowError(expect.objectContaining({ code: 'PRECONDITION_REQUIRED' }))
+        ).toThrowError(
+            expect.objectContaining({ code: 'PRECONDITION_REQUIRED' })
+        )
         expect(() =>
             normalizeConvertMarkdownRequest(
                 request({ body: { releaseRowVersion: 2, actorRole: 'admin' } })
@@ -235,16 +262,22 @@ describe('DEV-1009 conversion request and controller', () => {
                     expect.objectContaining({
                         noteType: 'feature',
                         publicTitle: 'Calm setup',
-                        publicBody: 'A guided setup.',
-                    }),
-                ],
+                        publicBody: 'A guided setup.'
+                    })
+                ]
             })
         )
     })
 
     it('records deterministic content failures atomically and returns a safe 422', async () => {
-        mockState.maybeSingle.mockResolvedValueOnce({ data: { raw_markdown: '# Empty' }, error: null })
-        mockState.rpc.mockResolvedValueOnce({ data: { failed: true }, error: null })
+        mockState.maybeSingle.mockResolvedValueOnce({
+            data: { raw_markdown: '# Empty' },
+            error: null
+        })
+        mockState.rpc.mockResolvedValueOnce({
+            data: { failed: true },
+            error: null
+        })
         const res = response()
         await convertMarkdown(request(), res)
 
@@ -254,7 +287,7 @@ describe('DEV-1009 conversion request and controller', () => {
             'convert_domani_release_markdown',
             expect.objectContaining({
                 p_notes: null,
-                p_failure_code: 'NO_CONVERSION_CANDIDATES',
+                p_failure_code: 'NO_CONVERSION_CANDIDATES'
             })
         )
     })
@@ -262,7 +295,9 @@ describe('DEV-1009 conversion request and controller', () => {
     it('rejects unavailable provider mode before reading or mutating source data', async () => {
         const res = response()
         await convertMarkdown(
-            request({ body: { rewriteMode: 'provider_assisted', releaseRowVersion: 2 } }),
+            request({
+                body: { rewriteMode: 'provider_assisted', releaseRowVersion: 2 }
+            }),
             res
         )
         expect(res.statusCode).toBe(503)
@@ -273,7 +308,7 @@ describe('DEV-1009 conversion request and controller', () => {
     it('maps stale and published-boundary RPC failures without leaking database codes', async () => {
         mockState.rpc.mockResolvedValueOnce({
             data: null,
-            error: { message: 'DEV1009_RELEASE_VERSION_CONFLICT' },
+            error: { message: 'DEV1009_RELEASE_VERSION_CONFLICT' }
         })
         const stale = response()
         await convertMarkdown(request(), stale)
@@ -283,11 +318,13 @@ describe('DEV-1009 conversion request and controller', () => {
 
         mockState.rpc.mockResolvedValueOnce({
             data: null,
-            error: { message: 'DEV1009_PUBLISHED_ADMIN_REQUIRED' },
+            error: { message: 'DEV1009_PUBLISHED_ADMIN_REQUIRED' }
         })
         const published = response()
         await convertMarkdown(request(), published)
         expect(published.statusCode).toBe(403)
-        expect(published.payload.error.code).toBe('PUBLISHED_CONTENT_ADMIN_REQUIRED')
+        expect(published.payload.error.code).toBe(
+            'PUBLISHED_CONTENT_ADMIN_REQUIRED'
+        )
     })
 })

@@ -24,8 +24,6 @@ UPDATE public.release_prds SET latest_conversion_run_id = NULL WHERE release_id 
 DELETE FROM public.release_conversion_runs WHERE release_id = :'release_id';
 DELETE FROM public.release_prds WHERE release_id = :'release_id';
 DELETE FROM public.releases WHERE id = :'release_id';
-DELETE FROM public.dashboard_user_roles WHERE user_id = :'actor_id';
-DELETE FROM auth.users WHERE id = :'actor_id';
 SQL
 }
 trap cleanup EXIT
@@ -34,9 +32,6 @@ cleanup
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
     -v actor_id="$actor_id" -v release_id="$release_id" -v prd_id="$prd_id" <<'SQL'
-INSERT INTO auth.users (id) VALUES (:'actor_id');
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES (:'actor_id', 'editor');
 INSERT INTO public.releases (
     id, version, slug, title, release_type, lifecycle_status, visibility,
     public_summary, created_by, updated_by

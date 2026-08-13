@@ -7,12 +7,9 @@ import { convertMarkdown } from '../controllers/admin-release-conversion'
 import {
     AdminReleaseApiError,
     MAX_MARKDOWN_BYTES,
-    adminReleaseErrorResponse,
+    adminReleaseErrorResponse
 } from '../lib/admin-releases'
-import {
-    requireDashboardActor,
-    requireDashboardRole,
-} from '../middleware/admin-release-auth'
+import { requireDashboardActor } from '../middleware/admin-release-auth'
 
 const router = Router()
 const dashboardOrigins = (process.env.PVS_DASHBOARD_ORIGINS || '')
@@ -24,9 +21,14 @@ const dashboardCors = cors({
         callback(null, !origin || dashboardOrigins.includes(origin))
     },
     methods: ['POST', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'If-Match', 'X-Request-Id'],
+    allowedHeaders: [
+        'Authorization',
+        'Content-Type',
+        'If-Match',
+        'X-Request-Id'
+    ],
     exposedHeaders: ['ETag', 'X-Release-ETag', 'X-Request-Id'],
-    maxAge: 600,
+    maxAge: 600
 })
 const jsonParser = express.json({ limit: '7mb' })
 const conversionJsonParser = express.json({ limit: '32kb' })
@@ -36,8 +38,8 @@ const multipartParser = multer({
         fileSize: MAX_MARKDOWN_BYTES,
         files: 1,
         fields: 12,
-        fieldSize: 4096,
-    },
+        fieldSize: 4096
+    }
 }).single('file')
 
 export const parseImportBody = (
@@ -57,8 +59,16 @@ export const parseImportBody = (
                 res,
                 tooLarge ? 413 : 400,
                 tooLarge ? 'MARKDOWN_TOO_LARGE' : 'VALIDATION_ERROR',
-                tooLarge ? 'Markdown exceeds the 1 MiB limit' : 'Invalid multipart upload',
-                { file: [tooLarge ? 'Markdown must be 1 MiB or smaller' : error.message] }
+                tooLarge
+                    ? 'Markdown exceeds the 1 MiB limit'
+                    : 'Invalid multipart upload',
+                {
+                    file: [
+                        tooLarge
+                            ? 'Markdown must be 1 MiB or smaller'
+                            : error.message
+                    ]
+                }
             )
             return
         }
@@ -74,7 +84,13 @@ export const parseImportBody = (
             )
             return
         }
-        adminReleaseErrorResponse(req, res, 400, 'VALIDATION_ERROR', 'Malformed request body')
+        adminReleaseErrorResponse(
+            req,
+            res,
+            400,
+            'VALIDATION_ERROR',
+            'Malformed request body'
+        )
     }
 
     if (req.is('application/json')) {
@@ -129,7 +145,6 @@ router.use('/api/admin/releases', dashboardCors)
 router.post(
     '/api/admin/releases/import-markdown',
     requireDashboardActor,
-    requireDashboardRole('editor'),
     parseImportBody,
     importMarkdown
 )
@@ -137,7 +152,6 @@ router.post(
 router.post(
     '/api/admin/releases/:releaseId/prds/:prdId/convert',
     requireDashboardActor,
-    requireDashboardRole('editor'),
     parseConversionBody,
     convertMarkdown
 )

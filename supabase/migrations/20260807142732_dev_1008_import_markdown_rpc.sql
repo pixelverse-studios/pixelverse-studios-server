@@ -31,18 +31,10 @@ DECLARE
     v_new_release boolean := false;
     v_constraint text;
 BEGIN
-    IF p_actor_role NOT IN ('editor', 'admin') THEN
+    IF p_actor_role NOT IN ('editor', 'admin')
+       OR p_actor_user_id IS NULL
+       OR nullif(lower(btrim(p_actor_email)), '') IS NULL THEN
         RAISE EXCEPTION 'DEV1008_FORBIDDEN';
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM public.dashboard_user_roles AS actor_role
-        WHERE actor_role.user_id = p_actor_user_id
-          AND actor_role.is_active = true
-          AND actor_role.role = p_actor_role
-    ) THEN
-        RAISE EXCEPTION 'DEV1008_ROLE_REQUIRED';
     END IF;
 
     IF (p_release_id IS NULL) = (p_release_version IS NULL) THEN

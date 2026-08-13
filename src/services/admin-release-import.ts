@@ -1,15 +1,19 @@
-import { db } from '../lib/db'
+import { domaniDb } from '../lib/domani-db'
 import {
     AdminReleaseApiError,
     DashboardActor,
     ImportMarkdownInput,
     ImportMarkdownResult,
-    markdownSha256,
+    markdownSha256
 } from '../lib/admin-releases'
 
 const businessError = (message: string): AdminReleaseApiError | null => {
     const errors: Record<string, AdminReleaseApiError> = {
-        DEV1008_NOT_FOUND: new AdminReleaseApiError(404, 'NOT_FOUND', 'Release not found'),
+        DEV1008_NOT_FOUND: new AdminReleaseApiError(
+            404,
+            'NOT_FOUND',
+            'Release not found'
+        ),
         DEV1008_ROLE_REQUIRED: new AdminReleaseApiError(
             403,
             'ROLE_REQUIRED',
@@ -48,14 +52,18 @@ const businessError = (message: string): AdminReleaseApiError | null => {
             {
                 releaseTitle: ['Required when releaseVersion does not exist'],
                 releaseSlug: ['Required when releaseVersion does not exist'],
-                releaseType: ['Required when releaseVersion does not exist'],
+                releaseType: ['Required when releaseVersion does not exist']
             }
         ),
         DEV1008_RELEASE_TYPE_INVALID: new AdminReleaseApiError(
             400,
             'VALIDATION_ERROR',
             'releaseType does not match the release version',
-            { releaseType: ['Patch versions require patch; two-part versions require a non-patch type'] }
+            {
+                releaseType: [
+                    'Patch versions require patch; two-part versions require a non-patch type'
+                ]
+            }
         ),
         DEV1008_VERSION_ALREADY_EXISTS: new AdminReleaseApiError(
             409,
@@ -66,7 +74,7 @@ const businessError = (message: string): AdminReleaseApiError | null => {
             409,
             'SLUG_ALREADY_EXISTS',
             'Release slug already exists'
-        ),
+        )
     }
     return errors[message] || null
 }
@@ -76,24 +84,27 @@ export const importReleaseMarkdown = async (
     actor: DashboardActor,
     requestId: string
 ): Promise<ImportMarkdownResult> => {
-    const { data, error } = await db.rpc('import_domani_release_markdown', {
-        p_release_id: input.releaseId,
-        p_release_version: input.releaseVersion,
-        p_release_title: input.releaseTitle,
-        p_release_slug: input.releaseSlug,
-        p_release_type: input.releaseType,
-        p_source_type: input.sourceType,
-        p_source_reference: input.sourceReference,
-        p_raw_markdown: input.markdown,
-        p_original_filename: input.filename,
-        p_source_content_sha256: markdownSha256(input.markdown),
-        p_intended_surface: input.intendedSurface,
-        p_if_match: input.ifMatch,
-        p_actor_user_id: actor.userId,
-        p_actor_email: actor.email,
-        p_actor_role: actor.role,
-        p_request_id: requestId,
-    })
+    const { data, error } = await domaniDb.rpc(
+        'import_domani_release_markdown',
+        {
+            p_release_id: input.releaseId,
+            p_release_version: input.releaseVersion,
+            p_release_title: input.releaseTitle,
+            p_release_slug: input.releaseSlug,
+            p_release_type: input.releaseType,
+            p_source_type: input.sourceType,
+            p_source_reference: input.sourceReference,
+            p_raw_markdown: input.markdown,
+            p_original_filename: input.filename,
+            p_source_content_sha256: markdownSha256(input.markdown),
+            p_intended_surface: input.intendedSurface,
+            p_if_match: input.ifMatch,
+            p_actor_user_id: actor.userId,
+            p_actor_email: actor.email,
+            p_actor_role: actor.role,
+            p_request_id: requestId
+        }
+    )
     if (error) {
         const mapped = businessError(error.message)
         if (mapped) throw mapped

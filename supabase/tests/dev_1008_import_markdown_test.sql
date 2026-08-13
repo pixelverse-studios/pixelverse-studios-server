@@ -35,15 +35,6 @@ SELECT pg_temp.assert_true(
     'only service_role may execute the Markdown import RPC'
 );
 
-INSERT INTO auth.users (id) VALUES
-    ('81000000-0000-4000-8000-000000000001'),
-    ('81000000-0000-4000-8000-000000000002');
-
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES
-    ('81000000-0000-4000-8000-000000000001', 'editor'),
-    ('81000000-0000-4000-8000-000000000002', 'admin');
-
 CREATE TEMP TABLE import_results (payload jsonb);
 GRANT SELECT, INSERT, DELETE, TRUNCATE ON import_results TO service_role;
 

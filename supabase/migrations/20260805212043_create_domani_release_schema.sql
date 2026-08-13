@@ -57,30 +57,6 @@ CREATE TYPE public.release_conversion_status AS ENUM (
 
 CREATE TYPE public.dashboard_role AS ENUM ('viewer', 'editor', 'admin');
 
-CREATE TABLE public.dashboard_user_roles (
-    user_id     uuid                  PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    role        public.dashboard_role NOT NULL,
-    is_active   boolean               NOT NULL DEFAULT true,
-    created_at  timestamptz           NOT NULL DEFAULT now(),
-    updated_at  timestamptz           NOT NULL DEFAULT now(),
-    created_by  uuid                  REFERENCES auth.users(id),
-    updated_by  uuid                  REFERENCES auth.users(id)
-);
-
-CREATE INDEX dashboard_user_roles_role_active_idx
-    ON public.dashboard_user_roles (role, is_active);
-
-CREATE INDEX dashboard_user_roles_active_updated_idx
-    ON public.dashboard_user_roles (is_active, updated_at DESC);
-
-CREATE INDEX dashboard_user_roles_created_by_idx
-    ON public.dashboard_user_roles (created_by)
-    WHERE created_by IS NOT NULL;
-
-CREATE INDEX dashboard_user_roles_updated_by_idx
-    ON public.dashboard_user_roles (updated_by)
-    WHERE updated_by IS NOT NULL;
-
 CREATE TABLE public.releases (
     id                uuid                            PRIMARY KEY DEFAULT gen_random_uuid(),
     version           text                            NOT NULL UNIQUE,
@@ -104,14 +80,14 @@ CREATE TABLE public.releases (
     target_date       date,
     confirmed_date    date,
     released_at       timestamptz,
-    owner_user_id     uuid                            REFERENCES auth.users(id),
-    created_by        uuid                            NOT NULL REFERENCES auth.users(id),
-    updated_by        uuid                            NOT NULL REFERENCES auth.users(id),
+    owner_user_id     uuid,
+    created_by        uuid                            NOT NULL,
+    updated_by        uuid                            NOT NULL,
     row_version       bigint                          NOT NULL DEFAULT 1,
     created_at        timestamptz                     NOT NULL DEFAULT now(),
     updated_at        timestamptz                     NOT NULL DEFAULT now(),
     archived_at       timestamptz,
-    archived_by       uuid                            REFERENCES auth.users(id),
+    archived_by       uuid,
     CONSTRAINT releases_version_format_check CHECK (
         version ~ '^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(\.(0|[1-9][0-9]{0,8}))?$'
     ),
@@ -225,8 +201,8 @@ CREATE TABLE public.release_prds (
     latest_conversion_run_id  uuid,
     conversion_error_code     text,
     conversion_error_message  text,
-    created_by                uuid                             NOT NULL REFERENCES auth.users(id),
-    updated_by                uuid                             NOT NULL REFERENCES auth.users(id),
+    created_by                uuid                             NOT NULL,
+    updated_by                uuid                             NOT NULL,
     row_version               bigint                           NOT NULL DEFAULT 1,
     created_at                timestamptz                      NOT NULL DEFAULT now(),
     updated_at                timestamptz                      NOT NULL DEFAULT now(),
@@ -323,7 +299,7 @@ CREATE TABLE public.release_conversion_runs (
     error_code             text,
     error_message          text,
     superseded_by_run_id   uuid,
-    created_by             uuid        NOT NULL REFERENCES auth.users(id),
+    created_by             uuid        NOT NULL,
     started_at             timestamptz NOT NULL DEFAULT now(),
     completed_at           timestamptz,
     CONSTRAINT release_conversion_runs_id_source_release_unique UNIQUE (
@@ -424,13 +400,13 @@ CREATE TABLE public.release_notes (
     sort_order                integer                  NOT NULL,
     source_prd_id             uuid,
     source_conversion_run_id  uuid,
-    created_by                uuid                     NOT NULL REFERENCES auth.users(id),
-    updated_by                uuid                     NOT NULL REFERENCES auth.users(id),
+    created_by                uuid                     NOT NULL,
+    updated_by                uuid                     NOT NULL,
     row_version               bigint                   NOT NULL DEFAULT 1,
     created_at                timestamptz              NOT NULL DEFAULT now(),
     updated_at                timestamptz              NOT NULL DEFAULT now(),
     archived_at               timestamptz,
-    archived_by               uuid                     REFERENCES auth.users(id),
+    archived_by               uuid,
     CONSTRAINT release_notes_title_check CHECK (
         public_title = btrim(public_title)
         AND char_length(public_title) BETWEEN 1 AND 160
@@ -506,7 +482,7 @@ CREATE INDEX release_notes_archived_by_idx
 
 CREATE TABLE public.release_audit_events (
     id             uuid                  PRIMARY KEY DEFAULT gen_random_uuid(),
-    actor_user_id  uuid                  NOT NULL REFERENCES auth.users(id),
+    actor_user_id  uuid                  NOT NULL,
     actor_email    text                  NOT NULL,
     actor_role     public.dashboard_role NOT NULL,
     action         text                  NOT NULL,
@@ -665,10 +641,6 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER dashboard_user_roles_set_updated_at
-BEFORE UPDATE ON public.dashboard_user_roles
-FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
 CREATE TRIGGER releases_set_updated_at
 BEFORE UPDATE ON public.releases
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -685,7 +657,6 @@ CREATE TRIGGER release_cache_jobs_set_updated_at
 BEFORE UPDATE ON public.release_cache_invalidation_jobs
 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-ALTER TABLE public.dashboard_user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.releases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.release_prds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.release_conversion_runs ENABLE ROW LEVEL SECURITY;
@@ -694,7 +665,6 @@ ALTER TABLE public.release_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.release_cache_invalidation_jobs ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE
-    public.dashboard_user_roles,
     public.releases,
     public.release_prds,
     public.release_conversion_runs,
@@ -704,7 +674,6 @@ REVOKE ALL ON TABLE
 FROM anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE ON TABLE
-    public.dashboard_user_roles,
     public.releases,
     public.release_prds,
     public.release_conversion_runs,

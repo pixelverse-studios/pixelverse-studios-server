@@ -1,4 +1,4 @@
-import { db } from '../lib/db'
+import { domaniDb } from '../lib/domani-db'
 import {
     decodeReleaseCursor,
     encodeReleaseCursor,
@@ -8,7 +8,7 @@ import {
     ReleaseCollection,
     ReleasePlatform,
     releaseSortKey,
-    releaseVersionParts,
+    releaseVersionParts
 } from '../lib/public-releases'
 
 export interface ListPublicReleasesInput {
@@ -27,7 +27,7 @@ export const listPublicReleases = async ({
     collection,
     platform,
     limit,
-    cursor,
+    cursor
 }: ListPublicReleasesInput): Promise<ListPublicReleasesResult> => {
     const cursorKey = cursor
         ? decodeReleaseCursor(cursor, collection, platform)
@@ -35,7 +35,7 @@ export const listPublicReleases = async ({
     const cursorVersion = cursorKey
         ? releaseVersionParts(cursorKey.version)
         : null
-    const { data, error } = await db.rpc('list_public_domani_releases', {
+    const { data, error } = await domaniDb.rpc('list_public_domani_releases', {
         p_collection: collection,
         p_platform: platform,
         p_page_limit: limit,
@@ -43,7 +43,7 @@ export const listPublicReleases = async ({
         p_cursor_version_major: cursorVersion?.[0] ?? null,
         p_cursor_version_minor: cursorVersion?.[1] ?? null,
         p_cursor_version_patch: cursorVersion?.[2] ?? null,
-        p_cursor_id: cursorKey?.id ?? null,
+        p_cursor_id: cursorKey?.id ?? null
     })
     if (error) throw error
 
@@ -62,6 +62,6 @@ export const listPublicReleases = async ({
                       platform,
                       releaseSortKey(page[page.length - 1], collection)
                   )
-                : null,
+                : null
     }
 }

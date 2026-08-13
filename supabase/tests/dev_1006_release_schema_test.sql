@@ -18,12 +18,11 @@ $$;
 
 SELECT pg_temp.assert_true(
     (
-        SELECT count(*) = 7
+        SELECT count(*) = 6
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public'
           AND c.relname IN (
-              'dashboard_user_roles',
               'releases',
               'release_prds',
               'release_conversion_runs',
@@ -34,14 +33,13 @@ SELECT pg_temp.assert_true(
           AND c.relkind = 'r'
           AND c.relrowsecurity
     ),
-    'all seven private tables must exist with RLS enabled'
+    'all six private release tables must exist with RLS enabled'
 );
 
 SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -62,7 +60,6 @@ SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -80,7 +77,6 @@ SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -97,7 +93,6 @@ SELECT pg_temp.assert_true(
     AND NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -125,13 +120,6 @@ SELECT pg_temp.assert_true(
     AND to_regclass('public.release_cache_jobs_dispatch_idx') IS NOT NULL,
     'public, admin, source, note, audit, and outbox indexes must exist'
 );
-
-INSERT INTO auth.users (id) VALUES
-    ('10000000-0000-4000-8000-000000000001'),
-    ('10000000-0000-4000-8000-000000000002');
-
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES ('10000000-0000-4000-8000-000000000001', 'admin');
 
 SET LOCAL TIME ZONE 'America/New_York';
 

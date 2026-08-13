@@ -19,10 +19,20 @@ export const DomaniTables = {
     WAITLIST: 'waitlist',
     PROFILES: 'profiles',
     PROFILES_DASHBOARD: 'profiles_dashboard',
+    RELEASES: 'releases',
+    RELEASE_NOTES: 'release_notes',
+    RELEASE_PRDS: 'release_prds',
+    RELEASE_AUDIT_EVENTS: 'release_audit_events',
+    RELEASE_CACHE_INVALIDATION_JOBS: 'release_cache_invalidation_jobs'
 }
 
 // Feedback categories
-export const FEEDBACK_CATEGORIES = ['bug', 'feature', 'love', 'general'] as const
+export const FEEDBACK_CATEGORIES = [
+    'bug',
+    'feature',
+    'love',
+    'general'
+] as const
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]
 
 // Platform types

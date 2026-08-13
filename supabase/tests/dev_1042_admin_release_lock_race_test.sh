@@ -18,16 +18,12 @@ DELETE FROM public.release_cache_invalidation_jobs WHERE release_id=:'release_id
 DELETE FROM public.release_audit_events WHERE release_id=:'release_id';
 DELETE FROM public.release_notes WHERE release_id=:'release_id';
 DELETE FROM public.releases WHERE id=:'release_id';
-DELETE FROM public.dashboard_user_roles WHERE user_id IN (:'editor_id',:'admin_id');
-DELETE FROM auth.users WHERE id IN (:'editor_id',:'admin_id');
 SQL
 }
 trap cleanup EXIT
 cleanup
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v editor_id="$editor_id" -v admin_id="$admin_id" -v release_id="$release_id" <<'SQL'
-INSERT INTO auth.users(id,email) VALUES(:'editor_id','editor-race@example.com'),(:'admin_id','admin-race@example.com');
-INSERT INTO public.dashboard_user_roles(user_id,role) VALUES(:'editor_id','editor'),(:'admin_id','admin');
 INSERT INTO public.releases(id,version,slug,title,release_type,lifecycle_status,visibility,public_summary,created_by,updated_by)
 VALUES(:'release_id','200000000.1','dev-1042-lock-race','DEV-1042 lock race','minor','planned','public_preview','Race fixture',:'admin_id',:'admin_id');
 INSERT INTO public.release_notes(release_id,note_type,public_title,public_body,platforms,is_public,sort_order,created_by,updated_by)

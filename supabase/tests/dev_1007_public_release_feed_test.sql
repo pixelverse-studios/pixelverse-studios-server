@@ -35,9 +35,6 @@ SELECT pg_temp.assert_true(
     'only service_role may execute the public release feed RPC'
 );
 
-INSERT INTO auth.users (id)
-VALUES ('71000000-0000-4000-8000-000000000001');
-
 INSERT INTO public.releases (
     id,
     version,

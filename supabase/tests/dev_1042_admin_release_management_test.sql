@@ -2,13 +2,6 @@
 
 BEGIN;
 
-INSERT INTO auth.users (id,email) VALUES
-('b1000000-0000-4000-8000-000000000001','editor@example.com'),
-('b1000000-0000-4000-8000-000000000002','admin@example.com');
-INSERT INTO public.dashboard_user_roles(user_id,role) VALUES
-('b1000000-0000-4000-8000-000000000001','editor'),
-('b1000000-0000-4000-8000-000000000002','admin');
-
 CREATE OR REPLACE FUNCTION pg_temp.dev1042_fail_outbox()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

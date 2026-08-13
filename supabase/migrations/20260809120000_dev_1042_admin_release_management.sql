@@ -238,11 +238,12 @@ DECLARE
     v_requested_lifecycle public.release_lifecycle_status;
     v_metadata jsonb := jsonb_build_object('source','dashboard');
 BEGIN
-    SELECT d.role, lower(u.email) INTO v_role, v_email
-    FROM public.dashboard_user_roles d JOIN auth.users u ON u.id = d.user_id
-    WHERE d.user_id = p_actor_user_id AND d.is_active;
-    IF v_role IS NULL THEN RAISE EXCEPTION 'DEV1042_FORBIDDEN'; END IF;
-    IF v_email IS NULL OR v_email <> lower(btrim(p_actor_email)) OR v_role <> p_actor_role THEN RAISE EXCEPTION 'DEV1042_FORBIDDEN'; END IF;
+    v_role := p_actor_role;
+    v_email := lower(btrim(p_actor_email));
+    IF p_actor_user_id IS NULL
+       OR nullif(v_email, '') IS NULL THEN
+        RAISE EXCEPTION 'DEV1042_FORBIDDEN';
+    END IF;
     IF p_operation = 'release.create' THEN
         IF v_role = 'viewer' THEN RAISE EXCEPTION 'DEV1042_FORBIDDEN'; END IF;
         INSERT INTO public.releases (
