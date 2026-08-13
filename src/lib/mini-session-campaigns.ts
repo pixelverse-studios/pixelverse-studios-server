@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sanitizeRichText } from '../utils/html'
 
 export const MINI_SESSION_CAMPAIGN_STATUSES = [
     'draft',
@@ -25,6 +26,13 @@ const boundedText = (max: number, required = false) => {
         ? schema.refine(value => value.trim().length > 0, 'Required')
         : schema
 }
+
+const miniSessionFaqInputSchema = z.object({
+    id: z.string().uuid(),
+    question: boundedText(240, true),
+    answerHtml: boundedText(10000, true),
+    sortOrder: z.number().int().min(0).max(49),
+}).strict()
 
 export const miniSessionBookingOptionInputSchema = z.object({
     id: z.string().uuid().optional(),
@@ -70,6 +78,9 @@ export const miniSessionCampaignInputSchema = z
         headline: boundedText(160).default(''),
         summary: boundedText(320).default(''),
         description: boundedText(5000).default(''),
+        experienceHeadline: boundedText(200).default(''),
+        vibeHeadline: boundedText(200).default(''),
+        vibeContent: boundedText(10000).default(''),
         durationMinutes: z.number().int().min(1).max(480).default(20),
         totalPriceCents: z.number().int().min(0).max(10000000).default(0),
         depositCents: z.number().int().min(0).max(10000000).default(0),
@@ -88,6 +99,8 @@ export const miniSessionCampaignInputSchema = z
         promoHeadline: boundedText(160).default(''),
         promoCopy: boundedText(320).default(''),
         promoCtaLabel: boundedText(80).default(''),
+        homepageHeroCtaLabel: boundedText(80).default(''),
+        faqs: z.array(miniSessionFaqInputSchema).max(50).default([]),
         metaTitle: boundedText(120).default(''),
         metaDescription: boundedText(320).default(''),
         bookingOptions: z
@@ -113,6 +126,16 @@ export const miniSessionCampaignInputSchema = z
                 message: 'Booking option sort orders must be unique',
             })
         }
+
+
+        const faqOrders = value.faqs.map(faq => faq.sortOrder)
+        if (new Set(faqOrders).size !== faqOrders.length) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['faqs'],
+                message: 'FAQ sort orders must be unique',
+            })
+        }
     })
 
 export type MiniSessionCampaignInput = z.infer<
@@ -132,6 +155,9 @@ export interface MiniSessionCampaignRow {
     headline: string
     summary: string
     description: string
+    experience_headline: string
+    vibe_headline: string
+    vibe_content: string
     duration_minutes: number
     total_price_cents: number
     deposit_cents: number
@@ -150,6 +176,8 @@ export interface MiniSessionCampaignRow {
     promo_headline: string
     promo_copy: string
     promo_cta_label: string
+    homepage_hero_cta_label: string
+    faqs: MiniSessionFaq[]
     meta_title: string
     meta_description: string
     published_at: string | null
@@ -200,6 +228,13 @@ export interface MiniSessionBookingOption {
     updatedAt: string
 }
 
+export interface MiniSessionFaq {
+    id: string
+    question: string
+    answerHtml: string
+    sortOrder: number
+}
+
 export interface MiniSessionHeroMedia {
     id: number
     key: string
@@ -217,6 +252,9 @@ export interface MiniSessionAdminCampaign {
     headline: string
     summary: string
     description: string
+    experienceHeadline: string
+    vibeHeadline: string
+    vibeContent: string
     durationMinutes: number
     totalPriceCents: number
     depositCents: number
@@ -236,6 +274,8 @@ export interface MiniSessionAdminCampaign {
     promoHeadline: string
     promoCopy: string
     promoCtaLabel: string
+    homepageHeroCtaLabel: string
+    faqs: MiniSessionFaq[]
     metaTitle: string
     metaDescription: string
     bookingOptions: MiniSessionBookingOption[]
@@ -283,7 +323,15 @@ export const parseMiniSessionCampaignInput = (
             result.error.flatten()
         )
     }
-    return result.data
+    return {
+        ...result.data,
+        description: sanitizeRichText(result.data.description),
+        vibeContent: sanitizeRichText(result.data.vibeContent),
+        faqs: result.data.faqs.map(faq => ({
+            ...faq,
+            answerHtml: sanitizeRichText(faq.answerHtml),
+        })),
+    }
 }
 
 export const mapBookingOption = (
@@ -326,6 +374,10 @@ export const mapAdminCampaign = (
     headline: row.headline,
     summary: row.summary,
     description: row.description,
+    experienceHeadline:
+        row.experience_headline || 'A small session with room for real connection.',
+    vibeHeadline: row.vibe_headline || 'Relax and Enjoy the Moment',
+    vibeContent: row.vibe_content || '',
     durationMinutes: row.duration_minutes,
     totalPriceCents: row.total_price_cents,
     depositCents: row.deposit_cents,
@@ -345,6 +397,9 @@ export const mapAdminCampaign = (
     promoHeadline: row.promo_headline,
     promoCopy: row.promo_copy,
     promoCtaLabel: row.promo_cta_label,
+    homepageHeroCtaLabel:
+        row.homepage_hero_cta_label || 'Mini Sessions now booking',
+    faqs: [...(row.faqs || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
     bookingOptions: options.map(mapBookingOption),
@@ -410,6 +465,9 @@ export const assertCampaignReadyForPublication = ({
         campaign.headline,
         campaign.summary,
         campaign.description,
+        campaign.experience_headline,
+        campaign.vibe_headline,
+        campaign.vibe_content,
         campaign.balance_due_text,
         campaign.date_summary,
         campaign.location_summary,
@@ -421,6 +479,7 @@ export const assertCampaignReadyForPublication = ({
     if (
         requiredText.some(value => value.trim().length === 0) ||
         campaign.inclusions.length === 0 ||
+        campaign.faqs.length === 0 ||
         campaign.total_price_cents <= 0 ||
         campaign.deposit_cents <= 0
     ) {

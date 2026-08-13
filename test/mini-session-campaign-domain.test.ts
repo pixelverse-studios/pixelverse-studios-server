@@ -21,6 +21,9 @@ const campaign: MiniSessionCampaignRow = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes with a curated final gallery.',
+    experience_headline: 'A small session with room for real connection.',
+    vibe_headline: 'Relax and enjoy the moment',
+    vibe_content: '<p>Come as you are.</p>',
     duration_minutes: 20,
     total_price_cents: 30000,
     deposit_cents: 10000,
@@ -39,6 +42,13 @@ const campaign: MiniSessionCampaignRow = {
     promo_headline: 'A little time, a lifetime of memories',
     promo_copy: 'Limited seasonal dates are now open.',
     promo_cta_label: 'See fall dates',
+    homepage_hero_cta_label: 'Mini Sessions now booking',
+    faqs: [{
+        id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
+        question: 'What should we expect?',
+        answerHtml: '<p>A relaxed session.</p>',
+        sortOrder: 0,
+    }],
     meta_title: 'Fall Mini Sessions in Bergen County',
     meta_description: 'Reserve a seasonal family Mini Session.',
     published_at: '2026-08-09T12:00:00.000Z',
@@ -91,6 +101,9 @@ const validInput = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
+    experienceHeadline: 'A small session with room for real connection.',
+    vibeHeadline: 'Relax and enjoy the moment',
+    vibeContent: '<p>Come as you are.</p>',
     durationMinutes: 20,
     totalPriceCents: 30000,
     depositCents: 10000,
@@ -109,6 +122,13 @@ const validInput = {
     promoHeadline: 'A little time, a lifetime of memories',
     promoCopy: 'Limited dates are now open.',
     promoCtaLabel: 'See fall dates',
+    homepageHeroCtaLabel: 'Mini Sessions now booking',
+    faqs: [{
+        id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
+        question: 'What should we expect?',
+        answerHtml: '<p>A relaxed session.</p>',
+        sortOrder: 0,
+    }],
     metaTitle: '',
     metaDescription: '',
     bookingOptions: [
@@ -131,6 +151,22 @@ describe('Mini Sessions campaign domain', () => {
             totalPriceCents: 30000,
             depositCents: 10000,
         })
+    })
+
+    it('sanitizes campaign and FAQ rich text before persistence', () => {
+        const parsed = parseMiniSessionCampaignInput({
+            ...validInput,
+            description: '<p>Hello <strong>families</strong></p><script>alert(1)</script>',
+            vibeContent: '<p><u>Relax</u></p><img src=x onerror=alert(1)>',
+            faqs: [{
+                ...validInput.faqs[0],
+                answerHtml: '<p>Safe <em>answer</em></p><script>alert(1)</script>',
+            }],
+        })
+
+        expect(parsed.description).toBe('<p>Hello <strong>families</strong></p>')
+        expect(parsed.vibeContent).toBe('<p><u>Relax</u></p>')
+        expect(parsed.faqs[0].answerHtml).toBe('<p>Safe <em>answer</em></p>')
     })
 
     it('rejects deposits above the total price', () => {
