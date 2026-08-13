@@ -18,6 +18,7 @@ import {
     createRelease,
     listReleaseAudit,
     listReleases,
+    markReleaseReleased,
     releaseAction,
     reorderNotes,
     updateNote
@@ -168,7 +169,6 @@ describe('DEV-1042 authenticated HTTP routes', () => {
 
             const create = await send('POST', '/api/admin/releases', {
                 version: '1.2.0',
-                slug: 'viewer-denied',
                 title: 'Viewer denied'
             })
             expect(create.status).toBe(201)
@@ -249,7 +249,6 @@ describe('DEV-1042 release management controllers', () => {
             request({
                 body: {
                     version: '1.2.0',
-                    slug: 'calm-planning',
                     title: 'Calm planning',
                     actorRole: 'admin'
                 }
@@ -266,7 +265,6 @@ describe('DEV-1042 release management controllers', () => {
             request({
                 body: {
                     version: '1.2.0',
-                    slug: 'calm-planning',
                     title: 'Calm planning',
                     releaseType: 'minor'
                 }
@@ -283,7 +281,6 @@ describe('DEV-1042 release management controllers', () => {
             request({
                 body: {
                     version: '1.2',
-                    slug: 'calm-planning',
                     title: 'Calm planning'
                 }
             }),
@@ -299,7 +296,6 @@ describe('DEV-1042 release management controllers', () => {
             request({
                 body: {
                     version: '1.2.0',
-                    slug: 'calm-planning',
                     title: 'Calm planning'
                 }
             }),
@@ -310,11 +306,14 @@ describe('DEV-1042 release management controllers', () => {
         expect(res.headers['x-release-etag']).toBe('"5"')
         expect(res.payload.meta.cacheInvalidation.status).toBe('pending')
         expect(state.rpc).toHaveBeenCalledWith(
-            'mutate_admin_domani_release',
+            'mutate_admin_domani_release_v2',
             expect.objectContaining({
                 p_operation: 'release.create',
                 p_primary_if_match: null,
-                p_payload: expect.objectContaining({ releaseType: 'minor' })
+                p_payload: expect.objectContaining({
+                    releaseType: 'minor',
+                    slug: '1-2-0-calm-planning'
+                })
             })
         )
     })
@@ -335,6 +334,23 @@ describe('DEV-1042 release management controllers', () => {
             expect.objectContaining({
                 p_operation: 'release.publish',
                 p_primary_if_match: 4
+            })
+        )
+    })
+
+    it('marks a release as released through the explicit dated action', async () => {
+        const res = response()
+        await markReleaseReleased(
+            request({ body: { releasedDate: new Date().toISOString().slice(0, 10) } }),
+            res
+        )
+        expect(res.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenCalledWith(
+            'mutate_admin_domani_release_v2',
+            expect.objectContaining({
+                p_operation: 'release.mark_released',
+                p_primary_if_match: 4,
+                p_payload: expect.objectContaining({ releasedAt: expect.stringContaining('T12:00:00.000Z') })
             })
         )
     })

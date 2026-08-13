@@ -35,6 +35,10 @@ const release = (overrides: Record<string, unknown> = {}) => ({
     release_type: 'minor',
     lifecycle_status: 'planned',
     public_summary: 'Public summary',
+    public_overview: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Public summary' }] }]
+    },
     target_month: null,
     target_date: null,
     confirmed_date: '2026-08-12',
@@ -80,7 +84,7 @@ describe('public release service', () => {
         })
 
         expect(mockState.rpc).toHaveBeenCalledWith(
-            'list_public_domani_releases',
+            'list_public_domani_releases_v2',
             {
                 p_collection: 'coming-soon',
                 p_platform: null,
@@ -121,7 +125,7 @@ describe('public release service', () => {
         })
 
         expect(mockState.rpc).toHaveBeenCalledWith(
-            'list_public_domani_releases',
+            'list_public_domani_releases_v2',
             expect.objectContaining({
                 p_cursor_primary: '2026-08-01 00:00:00+00',
                 p_cursor_version_major: 1,

@@ -214,7 +214,6 @@ describe('DEV-1008 Markdown input validation', () => {
                     '# Domani multipart\r\n' +
                     field('releaseVersion', '1.2.0') +
                     field('releaseTitle', 'Domani 1.2') +
-                    field('releaseSlug', 'domani-1-2') +
                     field('sourceType', 'linear_epic') +
                     field('sourceReference', 'DEV-1004') +
                     `--${boundary}--\r\n`
@@ -282,7 +281,6 @@ describe('DEV-1008 Markdown input validation', () => {
                     filename: 'folder/domani.md',
                     releaseVersion: '1.2.0',
                     releaseTitle: 'Domani 1.2',
-                    releaseSlug: 'domani-1-2',
                     sourceType: 'linear_epic',
                     sourceReference: ' DEV-1004 '
                 }
@@ -417,7 +415,6 @@ describe('DEV-1008 Markdown import controller', () => {
                 filename: 'domani.md',
                 releaseVersion: '1.2.0',
                 releaseTitle: 'Domani 1.2',
-                releaseSlug: 'domani-1-2',
                 sourceType: 'linear_epic',
                 sourceReference: 'DEV-1004'
             }

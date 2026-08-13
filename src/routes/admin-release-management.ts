@@ -9,6 +9,7 @@ import {
     getRelease,
     listReleaseAudit,
     listReleases,
+    markReleaseReleased,
     releaseAction,
     reorderNotes,
     updateNote,
@@ -45,6 +46,11 @@ router.post('/api/admin/releases', json, createRelease)
 router.get('/api/admin/releases/:releaseId', getRelease)
 router.get('/api/admin/releases/:releaseId/audit', listReleaseAudit)
 router.patch('/api/admin/releases/:releaseId', json, updateRelease)
+router.post(
+    '/api/admin/releases/:releaseId/mark-released',
+    json,
+    markReleaseReleased
+)
 
 router.post(
     '/api/admin/releases/:releaseId/archive',

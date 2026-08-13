@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { PublicOverviewDocument } from './release-rich-content'
 
 export const RELEASE_API_VERSION = '2026-08-05' as const
 export const PUBLIC_RELEASE_CACHE_CONTROL =
@@ -20,6 +21,7 @@ export interface RawPublicRelease {
     release_type: string
     lifecycle_status: string
     public_summary: string
+    public_overview: PublicOverviewDocument | null
     target_month: string | null
     target_date: string | null
     confirmed_date: string | null
@@ -65,6 +67,7 @@ export interface PublicRelease {
     releaseType: ReleaseType
     lifecycleStatus: PublicReleaseLifecycle
     publicSummary: string
+    publicOverview: PublicOverviewDocument | null
     timeline: PublicReleaseTimeline
     releasedAt: string | null
     notes: PublicReleaseNote[]
@@ -344,6 +347,7 @@ export const mapPublicRelease = (
     releaseType: release.release_type as ReleaseType,
     lifecycleStatus: release.lifecycle_status as PublicReleaseLifecycle,
     publicSummary: release.public_summary,
+    publicOverview: release.public_overview,
     timeline: deriveReleaseTimeline(release),
     releasedAt: release.released_at,
     notes: notes

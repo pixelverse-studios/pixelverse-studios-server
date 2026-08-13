@@ -35,7 +35,7 @@ export const listPublicReleases = async ({
     const cursorVersion = cursorKey
         ? releaseVersionParts(cursorKey.version)
         : null
-    const { data, error } = await domaniDb.rpc('list_public_domani_releases', {
+    const { data, error } = await domaniDb.rpc('list_public_domani_releases_v2', {
         p_collection: collection,
         p_platform: platform,
         p_page_limit: limit,

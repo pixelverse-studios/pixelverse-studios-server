@@ -28,6 +28,18 @@ const managementError = (message: string): AdminReleaseApiError | null => {
             'INVALID_STATE_TRANSITION',
             'The requested release state transition is not allowed'
         ),
+        DEV1042_TARGET_DATE_PAST: new AdminReleaseApiError(
+            400,
+            'VALIDATION_ERROR',
+            'Target date cannot be in the past',
+            { targetDate: ['Choose today or a future date'] }
+        ),
+        DEV1042_TARGET_MONTH_PAST: new AdminReleaseApiError(
+            400,
+            'VALIDATION_ERROR',
+            'Target month cannot be in the past',
+            { targetMonth: ['Choose the current month or a future month'] }
+        ),
         DEV1042_PUBLIC_NOTE_REQUIRED: new AdminReleaseApiError(
             422,
             'PUBLIC_NOTE_REQUIRED',
@@ -135,11 +147,15 @@ export const mutateAdminRelease = <T>(
     payload: unknown,
     actor: DashboardActor,
     requestId: string
-) =>
-    rpc<T>('mutate_admin_domani_release', {
+) => {
+    const rpcName = ['release.create', 'release.update', 'release.mark_released'].includes(operation)
+        ? 'mutate_admin_domani_release_v2'
+        : 'mutate_admin_domani_release'
+    return rpc<T>(rpcName, {
         p_operation: operation,
         p_release_id: releaseId,
         p_primary_if_match: primaryIfMatch,
         p_payload: payload,
         ...actorParams(actor, requestId)
     })
+}

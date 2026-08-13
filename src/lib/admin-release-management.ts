@@ -12,6 +12,7 @@ import {
 } from './admin-releases'
 import { normalizeReleaseNoteMarkdown } from './release-markdown-converter'
 import { deriveReleaseType, RELEASE_VERSION_PATTERN } from './release-version'
+import { publicOverviewSchema, publicOverviewText, releaseSlug } from './release-rich-content'
 
 const cursorSecret = () => process.env.ADMIN_RELEASE_CURSOR_SECRET || process.env.DOMANI_RELEASE_CURSOR_SECRET || ''
 
@@ -29,7 +30,7 @@ const fieldErrorsFor = (error: z.ZodError): FieldErrors => {
     return fields
 }
 
-export const parseBody = <T>(schema: z.ZodType<T>, body: unknown): T => {
+export const parseBody = <T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T => {
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
         throw new AdminReleaseApiError(400, 'VALIDATION_ERROR', 'Invalid request fields', fieldErrorsFor(parsed.error))
@@ -56,36 +57,44 @@ const isoMonth = z.string().regex(/^\d{4}-\d{2}$/).refine(value => {
     const parsed = new Date(`${value}-01T00:00:00.000Z`)
     return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 7) === value
 }, 'Month must be a real calendar month')
-const date = isoDate.nullable().optional()
-const month = isoMonth.nullable().optional()
+const today = () => new Date().toISOString().slice(0, 10)
+const currentMonth = () => today().slice(0, 7)
+const date = isoDate.refine(value => value >= today(), 'Target date cannot be in the past').nullable().optional()
+const month = isoMonth.refine(value => value >= currentMonth(), 'Target month cannot be in the past').nullable().optional()
 
 export const createReleaseSchema = z.object({
     version: z.string().regex(RELEASE_VERSION_PATTERN, 'Use a canonical X.Y.Z version'),
-    slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
     title: z.string().trim().min(1).max(160),
-    publicSummary: nullableText(2000),
+    publicOverview: publicOverviewSchema.nullable().optional(),
     internalSummary: nullableText(10000),
     targetMonth: month,
     targetDate: date,
-    confirmedDate: date,
     ownerUserId: z.string().uuid().nullable().optional(),
 }).strict().transform(value => ({
     ...value,
     releaseType: deriveReleaseType(value.version)!,
+    slug: releaseSlug(value.version, value.title),
+    publicSummary: value.publicOverview ? publicOverviewText(value.publicOverview) || null : null,
 }))
 
 export const updateReleaseSchema = z.object({
     title: z.string().trim().min(1).max(160).optional(),
-    slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional(),
-    lifecycleStatus: z.enum(['draft', 'planned', 'in_progress', 'released', 'canceled']).optional(),
-    publicSummary: nullableText(2000),
+    lifecycleStatus: z.enum(['draft', 'planned', 'in_progress', 'canceled']).optional(),
+    publicOverview: publicOverviewSchema.nullable().optional(),
     internalSummary: nullableText(10000),
     targetMonth: month,
     targetDate: date,
-    confirmedDate: date,
-    releasedAt: z.string().datetime({ offset: true }).nullable().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
-}).strict().refine(value => Object.keys(value).length > 0, { message: 'At least one field is required' })
+}).strict().refine(value => Object.keys(value).length > 0, { message: 'At least one field is required' }).transform(value => ({
+    ...value,
+    ...(value.publicOverview !== undefined
+        ? { publicSummary: value.publicOverview ? publicOverviewText(value.publicOverview) || null : null }
+        : {}),
+}))
+
+export const markReleasedSchema = z.object({
+    releasedDate: isoDate.refine(value => value <= today(), 'Released date cannot be in the future'),
+}).strict().transform(value => ({ releasedAt: `${value.releasedDate}T12:00:00.000Z` }))
 
 const publicMarkdown = z.string()
     .transform(normalizeReleaseNoteMarkdown)

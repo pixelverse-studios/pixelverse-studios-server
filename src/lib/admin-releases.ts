@@ -8,6 +8,7 @@ import {
     RELEASE_VERSION_PATTERN,
     SemanticReleaseType,
 } from './release-version'
+import { PublicOverviewDocument, releaseSlug } from './release-rich-content'
 
 export const ADMIN_RELEASE_API_VERSION = '2026-08-05' as const
 export const MAX_MARKDOWN_BYTES = 1_048_576
@@ -55,6 +56,7 @@ export interface AdminRelease {
     releaseType: ReleaseType
     lifecycleStatus: ReleaseLifecycle
     visibility: ReleaseVisibility
+    publicOverview: PublicOverviewDocument | null
     publicSummary: string | null
     internalSummary: string | null
     targetMonth: string | null
@@ -138,7 +140,7 @@ export interface ConvertMarkdownResult {
 export interface AdminReleaseDetail extends AdminRelease {
     notes: AdminReleaseNote[]
     sources: AdminReleaseSource[]
-    allowedActions: Array<'edit' | 'publish_preview' | 'return_to_private' | 'publish' | 'unpublish' | 'archive'>
+    allowedActions: Array<'edit' | 'mark_released' | 'publish_preview' | 'return_to_private' | 'publish' | 'unpublish' | 'archive'>
 }
 
 export interface CacheInvalidationReceipt {
@@ -148,7 +150,7 @@ export interface CacheInvalidationReceipt {
 }
 
 export const RELEASE_AUDIT_ACTIONS = [
-    'release.created', 'release.updated', 'release.archived',
+    'release.created', 'release.updated', 'release.marked_released', 'release.archived',
     'release.preview_published', 'release.preview_returned_private',
     'release.published', 'release.unpublished', 'note.created',
     'note.updated', 'note.archived', 'note.reordered', 'source.imported',
@@ -247,10 +249,6 @@ const importFieldsSchema = z
                 .optional()
         ),
         releaseTitle: optionalTrimmed(160),
-        releaseSlug: z.preprocess(
-            value => (value === '' || value === undefined ? undefined : value),
-            z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional()
-        ),
         sourceType: z.enum(['linear_epic', 'linear_ticket', 'milestone', 'manual']),
         sourceReference: z.string().trim().min(1).max(2048),
         intendedSurface: z
@@ -410,7 +408,10 @@ export const normalizeImportMarkdownRequest = (
         releaseId: parsed.data.releaseId || null,
         releaseVersion: parsed.data.releaseVersion || null,
         releaseTitle: parsed.data.releaseTitle || null,
-        releaseSlug: parsed.data.releaseSlug || null,
+        releaseSlug:
+            parsed.data.releaseVersion && parsed.data.releaseTitle
+                ? releaseSlug(parsed.data.releaseVersion, parsed.data.releaseTitle)
+                : null,
         releaseType: parsed.data.releaseVersion
             ? deriveReleaseType(parsed.data.releaseVersion)
             : null,

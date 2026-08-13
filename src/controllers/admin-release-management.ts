@@ -13,6 +13,7 @@ import {
     createNoteSchema,
     createReleaseSchema,
     emptyActionSchema,
+    markReleasedSchema,
     nextCursor,
     pagination,
     parseBody,
@@ -139,6 +140,15 @@ export const updateRelease = async (req: Request, res: Response): Promise<Respon
         const payload = parseBody(updateReleaseSchema, req.body)
         return sendMutation(res, requestId, await mutateAdminRelease('release.update', releaseId, requireIfMatch(req), payload, actor(req), requestId))
     } catch (error) { return sendError(req, res, error, 'update release') }
+}
+
+export const markReleaseReleased = async (req: Request, res: Response): Promise<Response> => {
+    const requestId = requestIdFor(req, res)
+    try {
+        const releaseId = parseUuid(req.params.releaseId, 'releaseId')
+        const payload = parseBody(markReleasedSchema, req.body)
+        return sendMutation(res, requestId, await mutateAdminRelease('release.mark_released', releaseId, requireIfMatch(req), payload, actor(req), requestId))
+    } catch (error) { return sendError(req, res, error, 'mark release as released') }
 }
 
 export const releaseAction = (operation: string) => async (req: Request, res: Response): Promise<Response> => {
