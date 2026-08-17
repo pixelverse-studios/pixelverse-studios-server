@@ -44,10 +44,14 @@ BEGIN
 
     v_result := public.mutate_admin_domani_release_v2(
         'release.update',v_release_id,v_row_version,
-        '{"title":"A renamed release","lifecycleStatus":"planned"}'::jsonb,
+        '{"version":"1.3.0","releaseType":"minor","title":"A renamed release","lifecycleStatus":"planned"}'::jsonb,
         v_actor,'editor@example.com','editor','overview-update'
     );
     v_row_version := (v_result #>> '{releaseRowVersion}')::bigint;
+    IF (SELECT version FROM public.releases WHERE id=v_release_id) <> '1.3.0'
+       OR (SELECT release_type FROM public.releases WHERE id=v_release_id) <> 'minor' THEN
+        RAISE EXCEPTION 'version update did not preserve the derived release type';
+    END IF;
     IF (SELECT slug FROM public.releases WHERE id=v_release_id) <> '1-2-1-fix-morning-focus' THEN
         RAISE EXCEPTION 'slug changed after creation';
     END IF;

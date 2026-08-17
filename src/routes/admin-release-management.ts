@@ -12,6 +12,8 @@ import {
     markReleaseReleased,
     releaseAction,
     reorderNotes,
+    saveReleaseEditor,
+    setReleaseVisibility,
     updateNote,
     updateRelease
 } from '../controllers/admin-release-management'
@@ -36,16 +38,27 @@ const dashboardCors = cors({
     exposedHeaders: ['ETag', 'X-Release-ETag', 'X-Request-Id'],
     maxAge: 600
 })
-const json = express.json({ limit: '64kb' })
+const json = express.json({ limit: '1mb' })
 
 router.use('/api/admin/releases', dashboardCors)
 router.use('/api/admin/releases', requireDashboardActor)
 
 router.get('/api/admin/releases', listReleases)
+router.post('/api/admin/releases/editor', json, saveReleaseEditor)
+router.post(
+    '/api/admin/releases/:releaseId/editor',
+    json,
+    saveReleaseEditor
+)
 router.post('/api/admin/releases', json, createRelease)
 router.get('/api/admin/releases/:releaseId', getRelease)
 router.get('/api/admin/releases/:releaseId/audit', listReleaseAudit)
 router.patch('/api/admin/releases/:releaseId', json, updateRelease)
+router.post(
+    '/api/admin/releases/:releaseId/visibility',
+    json,
+    setReleaseVisibility
+)
 router.post(
     '/api/admin/releases/:releaseId/mark-released',
     json,

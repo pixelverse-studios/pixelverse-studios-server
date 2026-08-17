@@ -27,6 +27,11 @@ export type ReleaseLifecycle = 'draft' | 'planned' | 'in_progress' | 'released' 
 export type ReleaseVisibility = 'private' | 'public_preview' | 'published'
 export type ReleaseNoteType = 'feature' | 'improvement' | 'fix' | 'breaking'
 export type ReleasePlatform = 'ios' | 'android'
+export type ReleaseStatus = 'draft' | 'published'
+export type ReleaseTiming =
+    | { kind: 'date'; value: string }
+    | { kind: 'month'; value: string }
+    | { kind: 'tbd'; value: null }
 export type ReleaseSourceType =
     | 'linear_epic'
     | 'linear_ticket'
@@ -54,6 +59,9 @@ export interface AdminRelease {
     slug: string
     title: string
     releaseType: ReleaseType
+    status: ReleaseStatus
+    timing: ReleaseTiming
+    platforms: ReleasePlatform[]
     lifecycleStatus: ReleaseLifecycle
     visibility: ReleaseVisibility
     publicOverview: PublicOverviewDocument | null

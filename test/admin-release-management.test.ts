@@ -21,6 +21,9 @@ import {
     markReleaseReleased,
     releaseAction,
     reorderNotes,
+    saveReleaseEditor,
+    setReleaseVisibility,
+    updateRelease,
     updateNote
 } from '../src/controllers/admin-release-management'
 import { dispatchReleaseCacheInvalidations } from '../src/services/release-cache-invalidation'
@@ -88,17 +91,15 @@ const mutation = (
 beforeEach(() => {
     process.env.ADMIN_RELEASE_CURSOR_SECRET = 'test-secret-at-least-long-enough'
     state.rpc.mockReset().mockResolvedValue({ data: mutation(), error: null })
-    state.getUser
-        .mockReset()
-        .mockResolvedValue({
-            data: {
-                user: {
-                    id: 'a1000000-0000-4000-8000-000000000004',
-                    email: 'admin@example.com'
-                }
-            },
-            error: null
-        })
+    state.getUser.mockReset().mockResolvedValue({
+        data: {
+            user: {
+                id: 'a1000000-0000-4000-8000-000000000004',
+                email: 'admin@example.com'
+            }
+        },
+        error: null
+    })
 })
 
 describe('DEV-1042 authenticated HTTP routes', () => {
@@ -341,7 +342,9 @@ describe('DEV-1042 release management controllers', () => {
     it('marks a release as released through the explicit dated action', async () => {
         const res = response()
         await markReleaseReleased(
-            request({ body: { releasedDate: new Date().toISOString().slice(0, 10) } }),
+            request({
+                body: { releasedDate: new Date().toISOString().slice(0, 10) }
+            }),
             res
         )
         expect(res.statusCode).toBe(200)
@@ -350,9 +353,182 @@ describe('DEV-1042 release management controllers', () => {
             expect.objectContaining({
                 p_operation: 'release.mark_released',
                 p_primary_if_match: 4,
-                p_payload: expect.objectContaining({ releasedAt: expect.stringContaining('T12:00:00.000Z') })
+                p_payload: expect.objectContaining({
+                    releasedAt: expect.stringContaining('T12:00:00.000Z')
+                })
             })
         )
+    })
+
+    it('validates version edits and derives the matching release type', async () => {
+        const invalid = response()
+        await updateRelease(request({ body: { version: '1.3' } }), invalid)
+        expect(invalid.statusCode).toBe(400)
+        expect(invalid.payload.error.fieldErrors.version).toEqual([
+            'Use a canonical X.Y.Z version'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+
+        const valid = response()
+        await updateRelease(request({ body: { version: '1.2.1' } }), valid)
+        expect(valid.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenCalledWith(
+            'mutate_admin_domani_release_v2',
+            expect.objectContaining({
+                p_operation: 'release.update',
+                p_primary_if_match: 4,
+                p_payload: expect.objectContaining({
+                    version: '1.2.1',
+                    releaseType: 'patch'
+                })
+            })
+        )
+    })
+
+    it('saves the complete simplified editor in one atomic mutation', async () => {
+        const res = response()
+        await saveReleaseEditor(
+            request({
+                body: {
+                    version: '1.2.1',
+                    title: 'Smarter evening planning',
+                    status: 'published',
+                    timing: { kind: 'date', value: '2026-08-30' },
+                    platforms: ['ios', 'android'],
+                    publicOverview: {
+                        type: 'doc',
+                        content: [
+                            {
+                                type: 'paragraph',
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: 'A calmer way to plan tomorrow.'
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    internalSummary: 'QA verified both platforms.',
+                    highlights: [
+                        {
+                            id: noteId,
+                            rowVersion: 2,
+                            noteType: 'fix',
+                            publicTitle: 'More reliable reminders',
+                            publicBody: 'Fixed reminders that could arrive late.',
+                            technicalNotes: null,
+                            platforms: ['ios', 'android'],
+                            isPublic: true
+                        }
+                    ]
+                }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenCalledWith(
+            'save_admin_domani_release_editor',
+            expect.objectContaining({
+                p_release_id: releaseId,
+                p_primary_if_match: 4,
+                p_payload: expect.objectContaining({
+                    releaseType: 'patch',
+                    slug: '1-2-1-smarter-evening-planning',
+                    status: 'published',
+                    highlights: [
+                        expect.objectContaining({
+                            publicTitle: 'More reliable reminders',
+                            isPublic: true
+                        })
+                    ]
+                })
+            })
+        )
+    })
+
+    it('requires customer-facing content before publishing', async () => {
+        const res = response()
+        await saveReleaseEditor(
+            request({
+                body: {
+                    version: '1.2.1',
+                    title: 'Incomplete release',
+                    status: 'published',
+                    timing: { kind: 'tbd', value: null },
+                    platforms: ['ios'],
+                    publicOverview: {
+                        type: 'doc',
+                        content: [{ type: 'paragraph' }]
+                    },
+                    internalSummary: null,
+                    highlights: []
+                }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(400)
+        expect(res.payload.error.fieldErrors.publicOverview).toEqual([
+            'Add a quick description before publishing'
+        ])
+        expect(res.payload.error.fieldErrors.highlights).toEqual([
+            'Include at least one public highlight before publishing'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+    })
+
+    it('keeps changelog publishing restricted to administrators', async () => {
+        const res = response()
+        await saveReleaseEditor(
+            request({
+                dashboardActor: {
+                    userId: 'a1000000-0000-4000-8000-000000000004',
+                    email: 'editor@example.com',
+                    role: 'editor'
+                },
+                body: {
+                    version: '1.2.1',
+                    title: 'Released today',
+                    status: 'published',
+                    timing: {
+                        kind: 'date',
+                        value: new Date().toISOString().slice(0, 10)
+                    },
+                    platforms: ['ios'],
+                    publicOverview: {
+                        type: 'doc',
+                        content: [
+                            {
+                                type: 'paragraph',
+                                content: [{ type: 'text', text: 'Now available.' }]
+                            }
+                        ]
+                    },
+                    internalSummary: null,
+                    highlights: [
+                        {
+                            id: noteId,
+                            rowVersion: 2,
+                            noteType: 'feature',
+                            publicTitle: 'Available now',
+                            publicBody: 'This update is available now.',
+                            technicalNotes: null,
+                            platforms: ['ios'],
+                            isPublic: true
+                        }
+                    ]
+                }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(403)
+        expect(res.payload.error.code).toBe(
+            'PUBLISHED_CONTENT_ADMIN_REQUIRED'
+        )
+        expect(state.rpc).not.toHaveBeenCalled()
     })
 
     it('rejects unsafe public Markdown before any write', async () => {
@@ -372,6 +548,29 @@ describe('DEV-1042 release management controllers', () => {
         expect(res.statusCode).toBe(422)
         expect(res.payload.error.code).toBe('UNSAFE_PUBLIC_MARKDOWN')
         expect(state.rpc).not.toHaveBeenCalled()
+    })
+
+    it('changes visibility through one atomic release mutation', async () => {
+        const res = response()
+        await setReleaseVisibility(
+            request({
+                body: { visibility: 'published', releasedDate: '2026-08-01' }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenCalledWith(
+            'set_admin_domani_release_visibility',
+            expect.objectContaining({
+                p_operation: 'release.set_visibility',
+                p_primary_if_match: 4,
+                p_payload: {
+                    visibility: 'published',
+                    releasedAt: '2026-08-01T12:00:00.000Z'
+                }
+            })
+        )
     })
 
     it('normalizes public Markdown line endings before create and update writes', async () => {
@@ -398,7 +597,8 @@ describe('DEV-1042 release management controllers', () => {
             expect.objectContaining({
                 p_operation: 'note.create',
                 p_payload: expect.objectContaining({
-                    publicBody: canonicalBody
+                    publicBody: canonicalBody,
+                    isPublic: true
                 })
             })
         )

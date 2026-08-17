@@ -148,11 +148,22 @@ export const mutateAdminRelease = <T>(
     actor: DashboardActor,
     requestId: string
 ) => {
-    const rpcName = ['release.create', 'release.update', 'release.mark_released'].includes(operation)
-        ? 'mutate_admin_domani_release_v2'
-        : 'mutate_admin_domani_release'
+    const rpcName =
+        operation === 'release.editor.save'
+            ? 'save_admin_domani_release_editor'
+            : operation === 'release.set_visibility'
+            ? 'set_admin_domani_release_visibility'
+            : [
+                    'release.create',
+                    'release.update',
+                    'release.mark_released'
+                ].includes(operation)
+              ? 'mutate_admin_domani_release_v2'
+              : 'mutate_admin_domani_release'
     return rpc<T>(rpcName, {
-        p_operation: operation,
+        ...(operation === 'release.editor.save'
+            ? {}
+            : { p_operation: operation }),
         p_release_id: releaseId,
         p_primary_if_match: primaryIfMatch,
         p_payload: payload,
