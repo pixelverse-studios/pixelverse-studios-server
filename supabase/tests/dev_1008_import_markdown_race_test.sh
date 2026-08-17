@@ -20,8 +20,6 @@ cleanup() {
 DELETE FROM public.release_audit_events WHERE release_id = :'release_id';
 DELETE FROM public.release_prds WHERE release_id = :'release_id';
 DELETE FROM public.releases WHERE id = :'release_id';
-DELETE FROM public.dashboard_user_roles WHERE user_id = :'actor_id';
-DELETE FROM auth.users WHERE id = :'actor_id';
 SQL
 }
 trap cleanup EXIT
@@ -30,9 +28,6 @@ cleanup
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
     -v actor_id="$actor_id" -v release_id="$release_id" <<'SQL'
-INSERT INTO auth.users (id) VALUES (:'actor_id');
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES (:'actor_id', 'editor');
 INSERT INTO public.releases (
     id,
     version,
@@ -46,7 +41,7 @@ INSERT INTO public.releases (
     updated_by
 ) VALUES (
     :'release_id',
-    '820000000.1',
+    '820000000.1.0',
     'dev-1008-lock-race',
     'DEV-1008 lock race',
     'minor',

@@ -35,15 +35,6 @@ SELECT pg_temp.assert_true(
     'only service_role may execute the Markdown import RPC'
 );
 
-INSERT INTO auth.users (id) VALUES
-    ('81000000-0000-4000-8000-000000000001'),
-    ('81000000-0000-4000-8000-000000000002');
-
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES
-    ('81000000-0000-4000-8000-000000000001', 'editor'),
-    ('81000000-0000-4000-8000-000000000002', 'admin');
-
 CREATE TEMP TABLE import_results (payload jsonb);
 GRANT SELECT, INSERT, DELETE, TRUNCATE ON import_results TO service_role;
 
@@ -52,7 +43,7 @@ SET LOCAL ROLE service_role;
 INSERT INTO import_results (payload)
 SELECT public.import_domani_release_markdown(
     NULL,
-    '800000001.1',
+    '800000001.1.0',
     'Imported release',
     'dev-1008-imported-release',
     'minor',
@@ -87,7 +78,7 @@ SELECT pg_temp.assert_true(
         SELECT count(*) = 2
         FROM public.release_audit_events AS event
         JOIN public.releases AS release ON release.id = event.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
           AND event.action IN ('release.created', 'source.imported')
           AND event.before_data IS NULL
           AND NOT (event.after_data ? 'rawMarkdown')
@@ -101,7 +92,7 @@ TRUNCATE import_results;
 INSERT INTO import_results (payload)
 SELECT public.import_domani_release_markdown(
     NULL,
-    '800000001.1',
+    '800000001.1.0',
     NULL,
     NULL,
     NULL,
@@ -123,13 +114,13 @@ SELECT pg_temp.assert_true(
     AND (
         SELECT row_version = 1
         FROM public.releases
-        WHERE version = '800000001.1'
+        WHERE version = '800000001.1.0'
     )
     AND (
         SELECT count(*) = 2
         FROM public.release_audit_events AS event
         JOIN public.releases AS release ON release.id = event.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
     ),
     'exact duplicate is read-only and emits no audit event'
 );
@@ -140,7 +131,7 @@ DECLARE
 BEGIN
     SELECT id INTO v_release_id
     FROM public.releases
-    WHERE version = '800000001.1';
+    WHERE version = '800000001.1.0';
 
     BEGIN
         PERFORM public.import_domani_release_markdown(
@@ -192,27 +183,27 @@ SELECT public.import_domani_release_markdown(
     'dev-1008-revision'
 )
 FROM public.releases AS release
-WHERE release.version = '800000001.1';
+WHERE release.version = '800000001.1.0';
 
 SELECT pg_temp.assert_true(
     (
         SELECT row_version = 2
         FROM public.releases
-        WHERE version = '800000001.1'
+        WHERE version = '800000001.1.0'
     )
     AND (
         SELECT count(*) FILTER (WHERE conversion_status = 'superseded') = 1
            AND count(*) FILTER (WHERE conversion_status = 'raw') = 1
         FROM public.release_prds AS source
         JOIN public.releases AS release ON release.id = source.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
     )
     AND (
         SELECT count(*) FILTER (WHERE action = 'source.imported') = 2
            AND count(*) FILTER (WHERE action = 'source.superseded') = 1
         FROM public.release_audit_events AS event
         JOIN public.releases AS release ON release.id = event.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
     ),
     'changed source supersedes history, audits both changes, and increments aggregate once'
 );
@@ -239,14 +230,14 @@ SELECT public.import_domani_release_markdown(
     'dev-1008-revision-retry'
 )
 FROM public.releases AS release
-WHERE release.version = '800000001.1';
+WHERE release.version = '800000001.1.0';
 
 SELECT pg_temp.assert_true(
     (SELECT payload->>'duplicate' = 'true' FROM import_results LIMIT 1)
     AND (
         SELECT row_version = 2
         FROM public.releases
-        WHERE version = '800000001.1'
+        WHERE version = '800000001.1.0'
     ),
     'exact retry remains idempotent after the original import increments the aggregate'
 );
@@ -258,7 +249,7 @@ DECLARE
 BEGIN
     SELECT id INTO v_release_id
     FROM public.releases
-    WHERE version = '800000001.1';
+    WHERE version = '800000001.1.0';
     SELECT count(*) INTO v_source_count
     FROM public.release_prds
     WHERE release_id = v_release_id;
@@ -300,7 +291,7 @@ UPDATE public.releases
 SET lifecycle_status = 'planned',
     visibility = 'public_preview',
     public_summary = 'Preview import authorization test'
-WHERE version = '800000001.1';
+WHERE version = '800000001.1.0';
 
 TRUNCATE import_results;
 
@@ -324,14 +315,14 @@ SELECT public.import_domani_release_markdown(
     'dev-1008-preview-editor'
 )
 FROM public.releases AS release
-WHERE release.version = '800000001.1';
+WHERE release.version = '800000001.1.0';
 
 SELECT pg_temp.assert_true(
     (SELECT payload->>'duplicate' = 'false' FROM import_results LIMIT 1)
     AND (
         SELECT row_version = 3 AND visibility = 'public_preview'
         FROM public.releases
-        WHERE version = '800000001.1'
+        WHERE version = '800000001.1.0'
     ),
     'editor can import into a public-preview release'
 );
@@ -340,7 +331,7 @@ UPDATE public.releases
 SET lifecycle_status = 'released',
     visibility = 'published',
     released_at = now()
-WHERE version = '800000001.1';
+WHERE version = '800000001.1.0';
 
 DO $$
 DECLARE
@@ -348,7 +339,7 @@ DECLARE
 BEGIN
     SELECT id INTO v_release_id
     FROM public.releases
-    WHERE version = '800000001.1';
+    WHERE version = '800000001.1.0';
 
     BEGIN
         PERFORM public.import_domani_release_markdown(
@@ -383,7 +374,7 @@ SELECT pg_temp.assert_true(
         SELECT 1
         FROM public.release_prds AS source
         JOIN public.releases AS release ON release.id = source.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
           AND source.source_reference = 'published-editor-test'
     ),
     'editor cannot import into a published release'
@@ -411,14 +402,14 @@ SELECT public.import_domani_release_markdown(
     'dev-1008-published-admin'
 )
 FROM public.releases AS release
-WHERE release.version = '800000001.1';
+WHERE release.version = '800000001.1.0';
 
 SELECT pg_temp.assert_true(
     (SELECT payload->>'duplicate' = 'false' FROM import_results LIMIT 1)
     AND (
         SELECT row_version = 4 AND visibility = 'published'
         FROM public.releases
-        WHERE version = '800000001.1'
+        WHERE version = '800000001.1.0'
     ),
     'admin can import into a published release'
 );
@@ -428,7 +419,7 @@ SELECT pg_temp.assert_true(
         SELECT 1
         FROM public.release_notes AS note
         JOIN public.releases AS release ON release.id = note.release_id
-        WHERE release.version = '800000001.1'
+        WHERE release.version = '800000001.1.0'
     ),
     'import never creates release notes'
 );

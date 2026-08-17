@@ -1,19 +1,25 @@
-import { db, Tables } from '../lib/db'
+import { domaniDb, DomaniTables } from '../lib/domani-db'
 import {
     AdminReleaseApiError,
     ConvertMarkdownInput,
     ConvertMarkdownResult,
-    DashboardActor,
+    DashboardActor
 } from '../lib/admin-releases'
 import {
     ConversionContentError,
     RELEASE_CONVERTER_VERSION,
-    convertReleaseMarkdown,
+    convertReleaseMarkdown
 } from '../lib/release-markdown-converter'
 
-const conversionBusinessError = (message: string): AdminReleaseApiError | null => {
+const conversionBusinessError = (
+    message: string
+): AdminReleaseApiError | null => {
     const errors: Record<string, AdminReleaseApiError> = {
-        DEV1009_NOT_FOUND: new AdminReleaseApiError(404, 'NOT_FOUND', 'Release source not found'),
+        DEV1009_NOT_FOUND: new AdminReleaseApiError(
+            404,
+            'NOT_FOUND',
+            'Release source not found'
+        ),
         DEV1009_ROLE_REQUIRED: new AdminReleaseApiError(
             403,
             'ROLE_REQUIRED',
@@ -48,7 +54,7 @@ const conversionBusinessError = (message: string): AdminReleaseApiError | null =
             422,
             'CONVERSION_FAILED',
             'Generated release notes failed validation'
-        ),
+        )
     }
     return errors[message] || null
 }
@@ -60,20 +66,23 @@ const callConversionRpc = async (
     notes: unknown[] | null,
     failure: ConversionContentError | null
 ): Promise<ConvertMarkdownResult | null> => {
-    const { data, error } = await db.rpc('convert_domani_release_markdown', {
-        p_release_id: input.releaseId,
-        p_prd_id: input.prdId,
-        p_source_if_match: input.sourceIfMatch,
-        p_release_if_match: input.releaseRowVersion,
-        p_converter_version: RELEASE_CONVERTER_VERSION,
-        p_notes: notes,
-        p_failure_code: failure?.code || null,
-        p_failure_message: failure?.message || null,
-        p_actor_user_id: actor.userId,
-        p_actor_email: actor.email,
-        p_actor_role: actor.role,
-        p_request_id: requestId,
-    })
+    const { data, error } = await domaniDb.rpc(
+        'convert_domani_release_markdown',
+        {
+            p_release_id: input.releaseId,
+            p_prd_id: input.prdId,
+            p_source_if_match: input.sourceIfMatch,
+            p_release_if_match: input.releaseRowVersion,
+            p_converter_version: RELEASE_CONVERTER_VERSION,
+            p_notes: notes,
+            p_failure_code: failure?.code || null,
+            p_failure_message: failure?.message || null,
+            p_actor_user_id: actor.userId,
+            p_actor_email: actor.email,
+            p_actor_role: actor.role,
+            p_request_id: requestId
+        }
+    )
     if (error) {
         const mapped = conversionBusinessError(error.message)
         if (mapped) throw mapped
@@ -95,20 +104,28 @@ export const convertSavedReleaseMarkdown = async (
         )
     }
 
-    const { data: source, error } = await db
-        .from(Tables.RELEASE_PRDS)
+    const { data: source, error } = await domaniDb
+        .from(DomaniTables.RELEASE_PRDS)
         .select('raw_markdown')
         .eq('id', input.prdId)
         .eq('release_id', input.releaseId)
         .maybeSingle()
     if (error) throw error
-    if (!source) throw new AdminReleaseApiError(404, 'NOT_FOUND', 'Release source not found')
+    if (!source)
+        throw new AdminReleaseApiError(
+            404,
+            'NOT_FOUND',
+            'Release source not found'
+        )
 
     let notes
     try {
-        notes = convertReleaseMarkdown((source as { raw_markdown: string }).raw_markdown)
+        notes = convertReleaseMarkdown(
+            (source as { raw_markdown: string }).raw_markdown
+        )
     } catch (conversionError) {
-        if (!(conversionError instanceof ConversionContentError)) throw conversionError
+        if (!(conversionError instanceof ConversionContentError))
+            throw conversionError
         await callConversionRpc(input, actor, requestId, null, conversionError)
         throw new AdminReleaseApiError(
             422,

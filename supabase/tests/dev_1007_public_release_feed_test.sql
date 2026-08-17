@@ -35,9 +35,6 @@ SELECT pg_temp.assert_true(
     'only service_role may execute the public release feed RPC'
 );
 
-INSERT INTO auth.users (id)
-VALUES ('71000000-0000-4000-8000-000000000001');
-
 INSERT INTO public.releases (
     id,
     version,
@@ -55,7 +52,7 @@ INSERT INTO public.releases (
 ) VALUES
     (
         '72000000-0000-4000-8000-000000000001',
-        '900000001.1',
+        '900000001.1.0',
         'feed-first-preview',
         'First preview',
         'minor',
@@ -70,7 +67,7 @@ INSERT INTO public.releases (
     ),
     (
         '72000000-0000-4000-8000-000000000002',
-        '900000001.2',
+        '900000001.2.0',
         'feed-second-preview',
         'Second preview',
         'minor',
@@ -85,10 +82,10 @@ INSERT INTO public.releases (
     ),
     (
         '72000000-0000-4000-8000-000000000003',
-        '900000001.3',
+        '900000001.3.0',
         'feed-untimed-preview',
         'Untimed preview',
-        'roadmap',
+        'minor',
         'planned',
         'public_preview',
         'Untimed preview summary.',
@@ -130,13 +127,13 @@ INSERT INTO public.releases (
     ),
     (
         '72000000-0000-4000-8000-000000000006',
-        '900000001.4',
-        'feed-two-part-release',
-        'Two-part release',
+        '900000001.4.0',
+        'feed-canonical-release',
+        'Canonical release',
         'minor',
         'released',
         'published',
-        'Two-part release summary.',
+        'Canonical release summary.',
         NULL,
         NULL,
         '2026-08-02T12:00:00Z',
@@ -220,8 +217,8 @@ INSERT INTO public.release_notes (
         '73000000-0000-4000-8000-000000000006',
         '72000000-0000-4000-8000-000000000006',
         'feature',
-        'Two-part release note',
-        'Two-part release body.',
+        'Canonical release note',
+        'Canonical release body.',
         ARRAY['ios', 'android']::public.release_platform[],
         true,
         0,
@@ -259,7 +256,7 @@ SELECT pg_temp.assert_true(
             '2026-09-15',
             900000001,
             1,
-            -1,
+            0,
             '72000000-0000-4000-8000-000000000001'
         ) WITH ORDINALITY AS feed
     ),
@@ -331,7 +328,7 @@ SELECT pg_temp.assert_true(
             '72000000-0000-4000-8000-000000000006'
         ) WITH ORDINALITY AS feed
     ),
-    'two-part changelog cursor advances without repeating its release'
+    'canonical changelog cursor advances without repeating its release'
 );
 
 RESET ROLE;

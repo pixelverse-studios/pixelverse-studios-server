@@ -3,6 +3,13 @@ import path from 'path'
 import { Request, Response } from 'express'
 import { z } from 'zod'
 
+import {
+    deriveReleaseType,
+    RELEASE_VERSION_PATTERN,
+    SemanticReleaseType,
+} from './release-version'
+import { PublicOverviewDocument, releaseSlug } from './release-rich-content'
+
 export const ADMIN_RELEASE_API_VERSION = '2026-08-05' as const
 export const MAX_MARKDOWN_BYTES = 1_048_576
 
@@ -15,11 +22,16 @@ export interface DashboardActor {
     role: DashboardRole
 }
 
-export type ReleaseType = 'major' | 'minor' | 'patch' | 'roadmap'
+export type ReleaseType = SemanticReleaseType
 export type ReleaseLifecycle = 'draft' | 'planned' | 'in_progress' | 'released' | 'canceled'
 export type ReleaseVisibility = 'private' | 'public_preview' | 'published'
 export type ReleaseNoteType = 'feature' | 'improvement' | 'fix' | 'breaking'
 export type ReleasePlatform = 'ios' | 'android'
+export type ReleaseStatus = 'draft' | 'published'
+export type ReleaseTiming =
+    | { kind: 'date'; value: string }
+    | { kind: 'month'; value: string }
+    | { kind: 'tbd'; value: null }
 export type ReleaseSourceType =
     | 'linear_epic'
     | 'linear_ticket'
@@ -47,8 +59,12 @@ export interface AdminRelease {
     slug: string
     title: string
     releaseType: ReleaseType
+    status: ReleaseStatus
+    timing: ReleaseTiming
+    platforms: ReleasePlatform[]
     lifecycleStatus: ReleaseLifecycle
     visibility: ReleaseVisibility
+    publicOverview: PublicOverviewDocument | null
     publicSummary: string | null
     internalSummary: string | null
     targetMonth: string | null
@@ -132,7 +148,7 @@ export interface ConvertMarkdownResult {
 export interface AdminReleaseDetail extends AdminRelease {
     notes: AdminReleaseNote[]
     sources: AdminReleaseSource[]
-    allowedActions: Array<'edit' | 'publish_preview' | 'return_to_private' | 'publish' | 'unpublish' | 'archive'>
+    allowedActions: Array<'edit' | 'mark_released' | 'publish_preview' | 'return_to_private' | 'publish' | 'unpublish' | 'archive'>
 }
 
 export interface CacheInvalidationReceipt {
@@ -142,7 +158,7 @@ export interface CacheInvalidationReceipt {
 }
 
 export const RELEASE_AUDIT_ACTIONS = [
-    'release.created', 'release.updated', 'release.archived',
+    'release.created', 'release.updated', 'release.marked_released', 'release.archived',
     'release.preview_published', 'release.preview_returned_private',
     'release.published', 'release.unpublished', 'note.created',
     'note.updated', 'note.archived', 'note.reordered', 'source.imported',
@@ -237,15 +253,10 @@ const importFieldsSchema = z
             value => (value === '' || value === undefined ? undefined : value),
             z
                 .string()
-                .regex(/^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(\.(0|[1-9][0-9]{0,8}))?$/)
+                .regex(RELEASE_VERSION_PATTERN)
                 .optional()
         ),
         releaseTitle: optionalTrimmed(160),
-        releaseSlug: z.preprocess(
-            value => (value === '' || value === undefined ? undefined : value),
-            z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional()
-        ),
-        releaseType: z.enum(['major', 'minor', 'patch', 'roadmap']).optional(),
         sourceType: z.enum(['linear_epic', 'linear_ticket', 'milestone', 'manual']),
         sourceReference: z.string().trim().min(1).max(2048),
         intendedSurface: z
@@ -405,8 +416,13 @@ export const normalizeImportMarkdownRequest = (
         releaseId: parsed.data.releaseId || null,
         releaseVersion: parsed.data.releaseVersion || null,
         releaseTitle: parsed.data.releaseTitle || null,
-        releaseSlug: parsed.data.releaseSlug || null,
-        releaseType: parsed.data.releaseType || null,
+        releaseSlug:
+            parsed.data.releaseVersion && parsed.data.releaseTitle
+                ? releaseSlug(parsed.data.releaseVersion, parsed.data.releaseTitle)
+                : null,
+        releaseType: parsed.data.releaseVersion
+            ? deriveReleaseType(parsed.data.releaseVersion)
+            : null,
         sourceType: parsed.data.sourceType,
         sourceReference: parsed.data.sourceReference,
         intendedSurface: parsed.data.intendedSurface,

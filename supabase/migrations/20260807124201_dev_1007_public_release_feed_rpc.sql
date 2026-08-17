@@ -56,7 +56,7 @@ WITH eligible AS (
               p_collection = 'coming-soon'
               AND release.visibility = 'public_preview'
               AND release.lifecycle_status IN ('planned', 'in_progress')
-              AND release.release_type IN ('major', 'minor', 'roadmap')
+              AND release.release_type IN ('major', 'minor')
           )
           OR (
               p_collection = 'changelog'

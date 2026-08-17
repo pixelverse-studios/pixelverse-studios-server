@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
-    rpc: vi.fn(),
+    rpc: vi.fn()
 }))
 
-vi.mock('../src/lib/db', () => ({
-    db: { rpc: mockState.rpc },
+vi.mock('../src/lib/domani-db', () => ({
+    domaniDb: { rpc: mockState.rpc }
 }))
 
 import {
     compareVersions,
     decodeReleaseCursor,
     encodeReleaseCursor,
-    releaseVersionParts,
+    releaseVersionParts
 } from '../src/lib/public-releases'
 import { listPublicReleases } from '../src/services/public-releases'
 
@@ -24,17 +24,21 @@ const note = (overrides: Record<string, unknown> = {}) => ({
     platforms: ['ios', 'android'],
     sort_order: 0,
     technical_notes: 'must not leak',
-    ...overrides,
+    ...overrides
 })
 
 const release = (overrides: Record<string, unknown> = {}) => ({
     id: 'release-1',
-    version: '1.1',
+    version: '1.1.0',
     slug: 'first-release',
     title: 'First release',
     release_type: 'minor',
     lifecycle_status: 'planned',
     public_summary: 'Public summary',
+    public_overview: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Public summary' }] }]
+    },
     target_month: null,
     target_date: null,
     confirmed_date: '2026-08-12',
@@ -42,7 +46,7 @@ const release = (overrides: Record<string, unknown> = {}) => ({
     sort_primary: '2026-08-12',
     notes: [note()],
     internal_summary: 'must not leak',
-    ...overrides,
+    ...overrides
 })
 
 describe('public release service', () => {
@@ -51,11 +55,10 @@ describe('public release service', () => {
         mockState.rpc.mockReset()
     })
 
-    it('orders two- and three-part versions semantically', () => {
-        expect(compareVersions('1.10', '1.2')).toBeGreaterThan(0)
-        expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0)
-        expect(compareVersions('1.2.0', '1.2')).toBeGreaterThan(0)
-        expect(releaseVersionParts('1.12')).toEqual([1, 12, -1])
+    it('orders canonical semantic versions numerically', () => {
+        expect(compareVersions('1.10.0', '1.2.0')).toBeGreaterThan(0)
+        expect(compareVersions('1.2.1', '1.2.0')).toBeGreaterThan(0)
+        expect(releaseVersionParts('1.12.0')).toEqual([1, 12, 0])
     })
 
     it('requests a limit-plus-one keyset page and maps only public fields', async () => {
@@ -64,24 +67,24 @@ describe('public release service', () => {
                 release(),
                 release({
                     id: 'release-2',
-                    version: '1.2',
+                    version: '1.2.0',
                     confirmed_date: null,
                     target_month: '2026-09-01',
                     sort_primary: '2026-09-01',
-                    notes: [note({ id: 'note-2' })],
-                }),
+                    notes: [note({ id: 'note-2' })]
+                })
             ],
-            error: null,
+            error: null
         })
 
         const result = await listPublicReleases({
             collection: 'coming-soon',
             platform: null,
-            limit: 1,
+            limit: 1
         })
 
         expect(mockState.rpc).toHaveBeenCalledWith(
-            'list_public_domani_releases',
+            'list_public_domani_releases_v2',
             {
                 p_collection: 'coming-soon',
                 p_platform: null,
@@ -90,7 +93,7 @@ describe('public release service', () => {
                 p_cursor_version_major: null,
                 p_cursor_version_minor: null,
                 p_cursor_version_patch: null,
-                p_cursor_id: null,
+                p_cursor_id: null
             }
         )
         expect(result.releases).toHaveLength(1)
@@ -98,17 +101,19 @@ describe('public release service', () => {
         expect(result.releases[0].timeline).toEqual({
             kind: 'confirmed_date',
             value: '2026-08-12',
-            label: 'Scheduled for August 12, 2026',
+            label: 'Scheduled for August 12, 2026'
         })
         expect(result.releases[0]).not.toHaveProperty('internal_summary')
-        expect(result.releases[0].notes[0]).not.toHaveProperty('technical_notes')
+        expect(result.releases[0].notes[0]).not.toHaveProperty(
+            'technical_notes'
+        )
     })
 
     it('validates and binds a cursor before issuing the RPC', async () => {
         const cursor = encodeReleaseCursor('changelog', 'ios', {
             primary: '2026-08-01 00:00:00+00',
-            version: '1.12',
-            id: '20000000-0000-4000-8000-000000000002',
+            version: '1.12.0',
+            id: '20000000-0000-4000-8000-000000000002'
         })
         mockState.rpc.mockResolvedValue({ data: [], error: null })
 
@@ -116,17 +121,17 @@ describe('public release service', () => {
             collection: 'changelog',
             platform: 'ios',
             limit: 20,
-            cursor,
+            cursor
         })
 
         expect(mockState.rpc).toHaveBeenCalledWith(
-            'list_public_domani_releases',
+            'list_public_domani_releases_v2',
             expect.objectContaining({
                 p_cursor_primary: '2026-08-01 00:00:00+00',
                 p_cursor_version_major: 1,
                 p_cursor_version_minor: 12,
-                p_cursor_version_patch: -1,
-                p_cursor_id: '20000000-0000-4000-8000-000000000002',
+                p_cursor_version_patch: 0,
+                p_cursor_id: '20000000-0000-4000-8000-000000000002'
             })
         )
 
@@ -135,7 +140,7 @@ describe('public release service', () => {
                 collection: 'changelog',
                 platform: 'android',
                 limit: 20,
-                cursor,
+                cursor
             })
         ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_ERROR' })
         expect(mockState.rpc).toHaveBeenCalledTimes(1)
@@ -144,8 +149,8 @@ describe('public release service', () => {
     it('rejects noncanonical base64url signatures', () => {
         const cursor = encodeReleaseCursor('coming-soon', null, {
             primary: null,
-            version: '1.1',
-            id: '20000000-0000-4000-8000-000000000001',
+            version: '1.1.0',
+            id: '20000000-0000-4000-8000-000000000001'
         })
         expect(() =>
             decodeReleaseCursor(`${cursor}!`, 'coming-soon', null)
@@ -160,19 +165,19 @@ describe('public release service', () => {
             listPublicReleases({
                 collection: 'coming-soon',
                 platform: null,
-                limit: 20,
+                limit: 20
             })
         ).resolves.toEqual({ releases: [], nextCursor: null })
 
         mockState.rpc.mockResolvedValueOnce({
             data: null,
-            error: new Error('database unavailable'),
+            error: new Error('database unavailable')
         })
         await expect(
             listPublicReleases({
                 collection: 'coming-soon',
                 platform: null,
-                limit: 20,
+                limit: 20
             })
         ).rejects.toThrow('database unavailable')
     })

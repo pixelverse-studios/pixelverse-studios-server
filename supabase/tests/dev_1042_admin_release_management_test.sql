@@ -2,13 +2,6 @@
 
 BEGIN;
 
-INSERT INTO auth.users (id,email) VALUES
-('b1000000-0000-4000-8000-000000000001','editor@example.com'),
-('b1000000-0000-4000-8000-000000000002','admin@example.com');
-INSERT INTO public.dashboard_user_roles(user_id,role) VALUES
-('b1000000-0000-4000-8000-000000000001','editor'),
-('b1000000-0000-4000-8000-000000000002','admin');
-
 CREATE OR REPLACE FUNCTION pg_temp.dev1042_fail_outbox()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -41,7 +34,7 @@ DECLARE
 BEGIN
     result := public.mutate_admin_domani_release(
         'release.create',NULL,NULL,
-        '{"version":"1.2","slug":"calm-planning","title":"Calm planning","releaseType":"minor","publicSummary":"A calmer planning experience."}',
+        '{"version":"1.2.0","slug":"calm-planning","title":"Calm planning","releaseType":"minor","publicSummary":"A calmer planning experience."}',
         editor_id,'editor@example.com','editor','req-create');
     v_release_id := (result#>>'{data,release,id}')::uuid;
     IF result#>>'{data,release,lifecycleStatus}' <> 'draft' OR result#>>'{data,release,visibility}' <> 'private' OR (result->>'releaseRowVersion')::int <> 1 THEN
@@ -254,13 +247,13 @@ BEGIN
     result:=public.get_admin_domani_release(v_release_id,true,'admin');
     IF (result->>'rowVersion')::int<>15 THEN RAISE EXCEPTION 'archived admin detail failed'; END IF;
 
-    result:=public.mutate_admin_domani_release('release.create',NULL,NULL,'{"version":"3.0","slug":"cancel-release","title":"Cancel release","releaseType":"major"}',editor_id,'editor@example.com','editor','req-cancel-create');
+    result:=public.mutate_admin_domani_release('release.create',NULL,NULL,'{"version":"3.0.0","slug":"cancel-release","title":"Cancel release","releaseType":"major"}',editor_id,'editor@example.com','editor','req-cancel-create');
     cancel_release_id:=(result#>>'{data,release,id}')::uuid;
     result:=public.mutate_admin_domani_release('release.update',cancel_release_id,1,'{"lifecycleStatus":"canceled"}',editor_id,'editor@example.com','editor','req-cancel');
     IF result#>>'{data,release,lifecycleStatus}'<>'canceled' THEN RAISE EXCEPTION 'cancel transition failed'; END IF;
 
     INSERT INTO public.releases(version,slug,title,release_type,created_by,updated_by)
-    VALUES('2.0','approval-release','Approval release','major',admin_id,admin_id) RETURNING id INTO approval_release_id;
+    VALUES('2.0.0','approval-release','Approval release','major',admin_id,admin_id) RETURNING id INTO approval_release_id;
     INSERT INTO public.release_prds(release_id,raw_markdown,source_type,source_reference,source_content_sha256,intended_surface,created_by,updated_by)
     VALUES(approval_release_id,'## Feature\n\nDraft','manual','approval-source',repeat('a',64),'changelog',admin_id,admin_id) RETURNING id INTO approval_source_id;
     INSERT INTO public.release_conversion_runs(release_id,prd_id,source_content_sha256,converter_version,status,created_by,completed_at)

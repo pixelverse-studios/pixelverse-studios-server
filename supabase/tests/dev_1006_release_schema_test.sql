@@ -18,12 +18,11 @@ $$;
 
 SELECT pg_temp.assert_true(
     (
-        SELECT count(*) = 7
+        SELECT count(*) = 6
         FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public'
           AND c.relname IN (
-              'dashboard_user_roles',
               'releases',
               'release_prds',
               'release_conversion_runs',
@@ -34,14 +33,13 @@ SELECT pg_temp.assert_true(
           AND c.relkind = 'r'
           AND c.relrowsecurity
     ),
-    'all seven private tables must exist with RLS enabled'
+    'all six private release tables must exist with RLS enabled'
 );
 
 SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -62,7 +60,6 @@ SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -80,7 +77,6 @@ SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -97,7 +93,6 @@ SELECT pg_temp.assert_true(
     AND NOT EXISTS (
         SELECT 1
         FROM unnest(ARRAY[
-            'dashboard_user_roles',
             'releases',
             'release_prds',
             'release_conversion_runs',
@@ -126,13 +121,6 @@ SELECT pg_temp.assert_true(
     'public, admin, source, note, audit, and outbox indexes must exist'
 );
 
-INSERT INTO auth.users (id) VALUES
-    ('10000000-0000-4000-8000-000000000001'),
-    ('10000000-0000-4000-8000-000000000002');
-
-INSERT INTO public.dashboard_user_roles (user_id, role)
-VALUES ('10000000-0000-4000-8000-000000000001', 'admin');
-
 SET LOCAL TIME ZONE 'America/New_York';
 
 INSERT INTO public.releases (
@@ -147,7 +135,7 @@ INSERT INTO public.releases (
     updated_by
 ) VALUES (
     '20000000-0000-4000-8000-000000000001',
-    '1.12',
+    '1.12.0',
     'calmer-evenings',
     'Calmer evenings',
     'minor',
@@ -161,7 +149,7 @@ SELECT pg_temp.assert_true(
     (
         SELECT version_major = 1
            AND version_minor = 12
-           AND version_patch IS NULL
+           AND version_patch = 0
            AND lifecycle_status = 'draft'
            AND visibility = 'private'
            AND row_version = 1
@@ -206,9 +194,9 @@ INSERT INTO public.releases (
     updated_by
 ) VALUES (
     '20000000-0000-4000-8000-000000000002',
-    '1.12.0',
-    'canonical-patch-release',
-    'Canonical patch release',
+    '1.12.1',
+    'canonical-bug-fix-release',
+    'Canonical bug fix release',
     'patch',
     '10000000-0000-4000-8000-000000000001',
     '10000000-0000-4000-8000-000000000001'
@@ -218,11 +206,11 @@ SELECT pg_temp.assert_true(
     (
         SELECT version_major = 1
            AND version_minor = 12
-           AND version_patch = 0
+           AND version_patch = 1
         FROM public.releases
         WHERE id = '20000000-0000-4000-8000-000000000002'
     ),
-    'minor 1.12 and canonical patch 1.12.0 must remain distinct releases'
+    'minor 1.12.0 and patch 1.12.1 must remain distinct releases'
 );
 
 DO $$
@@ -231,7 +219,7 @@ BEGIN
         INSERT INTO public.releases (
             version, slug, title, release_type, created_by, updated_by
         ) VALUES (
-            '01.12',
+            '01.12.0',
             'invalid-leading-zero',
             'Invalid leading zero',
             'minor',
@@ -239,6 +227,38 @@ BEGIN
             '10000000-0000-4000-8000-000000000001'
         );
         RAISE EXCEPTION 'expected leading-zero version rejection';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO public.releases (
+            version, slug, title, release_type, created_by, updated_by
+        ) VALUES (
+            '1.14',
+            'invalid-two-component-version',
+            'Invalid two component version',
+            'minor',
+            '10000000-0000-4000-8000-000000000001',
+            '10000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'expected two-component version rejection';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO public.releases (
+            version, slug, title, release_type, created_by, updated_by
+        ) VALUES (
+            '1.14.0',
+            'invalid-derived-type',
+            'Invalid derived type',
+            'patch',
+            '10000000-0000-4000-8000-000000000001',
+            '10000000-0000-4000-8000-000000000001'
+        );
+        RAISE EXCEPTION 'expected derived release type rejection';
     EXCEPTION
         WHEN check_violation THEN NULL;
     END;
@@ -604,7 +624,7 @@ INSERT INTO public.release_audit_events (
     '20000000-0000-4000-8000-000000000001',
     '20000000-0000-4000-8000-000000000001',
     'req-dev-1006',
-    '{"version":"1.12"}'::jsonb
+    '{"version":"1.12.0"}'::jsonb
 );
 
 DO $$
