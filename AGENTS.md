@@ -66,6 +66,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/admin/items/batch` | POST | Create multiple draft media catalog items after direct uploads and return per-file success/failure results. | `controllers/media.batchCreateCatalogItems` |
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
+| `/api/media/:websiteSlug/admin/items/reorder` | PATCH | Atomically reorder a selected set of published portfolio images and normalize portfolio positions. | `controllers/media.reorderCatalogItems` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 | `/api/mini-session-campaigns/:websiteSlug/active` | GET | Return one sanitized live/sold-out Mini Sessions campaign or a true 404. | `controllers/mini-session-campaigns.getActive` |
 | `/api/mini-session-campaigns/:websiteSlug/admin` | GET | List campaigns for an authenticated media/site administrator. | `controllers/mini-session-campaigns.listAdmin` |

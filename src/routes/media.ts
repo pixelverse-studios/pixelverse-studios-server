@@ -311,6 +311,26 @@ router.patch(
     media.batchUpdateCatalogItems
 )
 
+router.patch(
+    `${BASE_ROUTE}/:websiteSlug/admin/items/reorder`,
+    requireMediaAdminSession,
+    [
+        param('websiteSlug')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('websiteSlug is required'),
+        body('orderedIds')
+            .isArray({ min: 2, max: 50 })
+            .withMessage('orderedIds must contain between 2 and 50 items'),
+        body('orderedIds.*')
+            .isInt({ min: 1 })
+            .withMessage('orderedIds must contain positive integers'),
+    ],
+    validateRequest,
+    media.reorderCatalogItems
+)
+
 router.post(
     `${BASE_ROUTE}/:websiteSlug/admin/items/:id/move`,
     requireMediaAdminSession,

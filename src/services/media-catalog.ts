@@ -137,6 +137,12 @@ export interface BatchUpdateMediaItemsInput {
     actor?: string
 }
 
+export interface ReorderMediaSelectionInput {
+    websiteSlug: string
+    orderedIds: number[]
+    actor?: string
+}
+
 interface BatchMediaItemError {
     code: string
     message: string
@@ -195,6 +201,44 @@ const getWebsiteOrThrow = async (websiteSlug: string): Promise<WebsiteRecord> =>
     }
 
     return website
+}
+
+const reorderSelection = async (
+    input: ReorderMediaSelectionInput
+): Promise<CatalogItemResponse[]> => {
+    const website = await getWebsiteOrThrow(input.websiteSlug)
+    const { data, error } = await db.rpc('reorder_media_catalog_selection', {
+        p_website_id: website.id,
+        p_ordered_ids: input.orderedIds,
+    })
+
+    if (error) throw error
+
+    const records = (data || []) as MediaCatalogRecord[]
+    const selectedIds = new Set(input.orderedIds)
+
+    records
+        .filter(record => selectedIds.has(record.id))
+        .forEach(record => {
+            queueAuditLog({
+                websiteId: website.id,
+                clientId: website.client_id,
+                mediaId: record.id,
+                mediaKey: record.key,
+                action: 'reorder_changed',
+                actor: input.actor,
+                oldValues: null,
+                newValues: { sortOrder: record.sort_order },
+            })
+        })
+
+    tryTriggerMediaRevalidation({
+        websiteSlug: input.websiteSlug,
+        reason: 'reorder_changed',
+        actor: input.actor,
+    })
+
+    return records.map(record => toCatalogItemResponse(record, true))
 }
 
 const getWebsiteR2Config = async (
@@ -1274,4 +1318,5 @@ export default {
     updateItem,
     updateItemWithResult,
     batchUpdateItems,
+    reorderSelection,
 }
