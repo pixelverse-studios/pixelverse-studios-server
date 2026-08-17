@@ -103,13 +103,19 @@ export const dispatchReleaseCacheInvalidations = async (
 
 export const startReleaseCacheInvalidationDispatcher =
     (): NodeJS.Timeout | null => {
-        if (!configuredInvalidator()) return null
+        const invalidator = configuredInvalidator()
+        if (!invalidator) {
+            console.warn(
+                'Release cache invalidation dispatcher is disabled. Configure both RELEASE_CACHE_INVALIDATION_ENDPOINT and RELEASE_CACHE_INVALIDATION_SECRET.'
+            )
+            return null
+        }
         const intervalMs = Math.max(
             10_000,
             Number(process.env.RELEASE_CACHE_DISPATCH_INTERVAL_MS) || 30_000
         )
         const run = () =>
-            dispatchReleaseCacheInvalidations().catch(error =>
+            dispatchReleaseCacheInvalidations(invalidator).catch(error =>
                 console.error('Release cache invalidation dispatcher failed:', {
                     message:
                         error instanceof Error ? error.message : String(error)
