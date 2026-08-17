@@ -13,6 +13,10 @@ import {
 import { normalizeReleaseNoteMarkdown } from './release-markdown-converter'
 import { deriveReleaseType, RELEASE_VERSION_PATTERN } from './release-version'
 import {
+    domaniReleaseCalendarDate,
+    domaniReleaseCalendarMonth
+} from './release-calendar'
+import {
     publicOverviewSchema,
     publicOverviewText,
     releaseSlug
@@ -91,8 +95,8 @@ const isoMonth = z
             parsed.toISOString().slice(0, 7) === value
         )
     }, 'Month must be a real calendar month')
-const today = () => new Date().toISOString().slice(0, 10)
-const currentMonth = () => today().slice(0, 7)
+const today = () => domaniReleaseCalendarDate()
+const currentMonth = () => domaniReleaseCalendarMonth()
 const date = isoDate
     .refine(value => value >= today(), 'Target date cannot be in the past')
     .nullable()
@@ -243,6 +247,25 @@ export const saveReleaseEditorSchema = z
     })
     .strict()
     .superRefine((value, context) => {
+        const highlightIds = value.highlights.map(highlight => highlight.id)
+        if (new Set(highlightIds).size !== highlightIds.length) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['highlights'],
+                message: 'Highlight IDs must be unique'
+            })
+        }
+        if (
+            value.status === 'draft' &&
+            value.timing.kind === 'date' &&
+            value.timing.value < today()
+        ) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['timing', 'value'],
+                message: 'Release date cannot be in the past'
+            })
+        }
         if (value.status !== 'published') return
         if (!publicOverviewText(value.publicOverview)) {
             context.addIssue({

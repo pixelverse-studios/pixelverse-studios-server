@@ -27,6 +27,7 @@ import {
     updateReleaseSchema
 } from '../lib/admin-release-management'
 import { isSafeReleaseNoteMarkdown } from '../lib/release-markdown-converter'
+import { domaniReleaseCalendarDate } from '../lib/release-calendar'
 import {
     getAdminRelease,
     listAdminReleaseAudit,
@@ -334,7 +335,7 @@ export const saveReleaseEditor = async (
             const publishesToChangelog =
                 payload.status === 'published' &&
                 payload.timing.kind === 'date' &&
-                payload.timing.value <= new Date().toISOString().slice(0, 10)
+                payload.timing.value <= domaniReleaseCalendarDate()
             if (publishesToChangelog)
                 throw new AdminReleaseApiError(
                     403,

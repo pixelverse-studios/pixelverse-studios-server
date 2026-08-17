@@ -479,6 +479,86 @@ describe('DEV-1042 release management controllers', () => {
         expect(state.rpc).not.toHaveBeenCalled()
     })
 
+    it('rejects duplicate highlight IDs before calling the atomic editor RPC', async () => {
+        const duplicate = {
+            id: noteId,
+            rowVersion: 2,
+            noteType: 'fix',
+            publicTitle: 'Reliable reminders',
+            publicBody: 'Fixed reminders that could arrive late.',
+            technicalNotes: null,
+            platforms: ['ios'],
+            isPublic: true
+        }
+        const res = response()
+        await saveReleaseEditor(
+            request({
+                body: {
+                    version: '1.2.1',
+                    title: 'Duplicate highlights',
+                    status: 'draft',
+                    timing: { kind: 'tbd', value: null },
+                    platforms: ['ios'],
+                    publicOverview: {
+                        type: 'doc',
+                        content: [{ type: 'paragraph' }]
+                    },
+                    internalSummary: null,
+                    highlights: [
+                        duplicate,
+                        { ...duplicate, publicTitle: 'Duplicate copy' }
+                    ]
+                }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(400)
+        expect(res.payload.error.fieldErrors.highlights).toEqual([
+            'Highlight IDs must be unique'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+    })
+
+    it('rejects a past release date while a release is still a draft', async () => {
+        const res = response()
+        await saveReleaseEditor(
+            request({
+                body: {
+                    version: '1.2.1',
+                    title: 'Past draft',
+                    status: 'draft',
+                    timing: { kind: 'date', value: '2000-01-01' },
+                    platforms: ['ios'],
+                    publicOverview: {
+                        type: 'doc',
+                        content: [{ type: 'paragraph' }]
+                    },
+                    internalSummary: null,
+                    highlights: [
+                        {
+                            id: noteId,
+                            rowVersion: 2,
+                            noteType: 'fix',
+                            publicTitle: 'Reliable reminders',
+                            publicBody: 'Fixed reminders that could arrive late.',
+                            technicalNotes: null,
+                            platforms: ['ios'],
+                            isPublic: true
+                        }
+                    ]
+                }
+            }),
+            res
+        )
+
+        expect(res.statusCode).toBe(400)
+        expect(res.payload.error.fieldErrors['timing.value']).toEqual([
+            'Release date cannot be in the past'
+        ])
+        expect(state.rpc).not.toHaveBeenCalled()
+    })
+
     it('keeps changelog publishing restricted to administrators', async () => {
         const res = response()
         await saveReleaseEditor(
