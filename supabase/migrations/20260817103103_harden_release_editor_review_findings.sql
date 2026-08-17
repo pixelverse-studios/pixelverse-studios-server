@@ -6,9 +6,30 @@ ALTER TABLE public.releases
 ADD COLUMN IF NOT EXISTS slug_frozen_at timestamptz;
 
 UPDATE public.releases
-SET slug_frozen_at = coalesce(released_at, updated_at, created_at, now())
-WHERE visibility <> 'private'
-  AND slug_frozen_at IS NULL;
+SET slug_frozen_at = coalesce(
+    (
+        SELECT min(event.created_at)
+        FROM public.release_audit_events event
+        WHERE event.release_id = releases.id
+          AND (
+              event.after_data->>'visibility' IN ('public_preview','published')
+              OR event.action IN ('release.preview_published','release.published')
+          )
+    ),
+    released_at,
+    updated_at,
+    created_at,
+    now()
+)
+WHERE slug_frozen_at IS NULL
+  AND (
+      visibility <> 'private'
+      OR EXISTS (
+          SELECT 1 FROM public.release_audit_events event
+          WHERE event.release_id = releases.id
+            AND event.after_data->>'visibility' IN ('public_preview','published')
+      )
+  );
 
 CREATE OR REPLACE FUNCTION public.sync_release_slug_from_identity()
 RETURNS trigger
