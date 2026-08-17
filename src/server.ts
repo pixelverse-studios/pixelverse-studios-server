@@ -23,6 +23,10 @@ import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
+import publicReleasesRouter from './routes/public-releases'
+import adminReleaseImportRouter from './routes/admin-release-import'
+import adminReleaseManagementRouter from './routes/admin-release-management'
+import { startReleaseCacheInvalidationDispatcher } from './services/release-cache-invalidation'
 
 process.on('uncaughtException', err => {
     console.error('Uncaught exception:', {
@@ -42,7 +46,6 @@ const app: Application = express()
 const PORT = process.env.PORT || 3000
 
 // Middleware
-app.use(cors())
 app.use((req, res, next) => {
     const requestId =
         req.get('x-request-id') ||
@@ -68,6 +71,11 @@ app.use((req, res, next) => {
 
     next()
 })
+// This route owns its JSON/multipart parsers so the decoded Markdown limit can
+// be enforced without increasing the body limit for unrelated endpoints.
+app.use(adminReleaseImportRouter)
+app.use(adminReleaseManagementRouter)
+app.use(cors())
 app.use(bodyParser.json())
 
 // Routes
@@ -86,6 +94,7 @@ app.use(websitesRouter)
 app.use(appsRouter)
 app.use(projectsRouter)
 app.use(agendaRouter)
+app.use(publicReleasesRouter)
 app.use(domaniRouter)
 app.use(calendlyWebhookRouter)
 app.use(prospectsRouter)
@@ -116,4 +125,5 @@ app.use(
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
+    startReleaseCacheInvalidationDispatcher()
 })
