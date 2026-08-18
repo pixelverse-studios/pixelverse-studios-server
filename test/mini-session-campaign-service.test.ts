@@ -72,7 +72,7 @@ const campaign = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
-    inclusions_headline: 'Everything you need.',
+    inclusions_headline: 'Session Details',
     duration_minutes: 20,
     total_price_cents: 30000,
     deposit_cents: 10000,
@@ -123,7 +123,7 @@ const validInput = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
-    inclusionsHeadline: 'Everything you need.',
+    inclusionsHeadline: 'Session Details',
     durationMinutes: 20,
     totalPriceCents: 30000,
     depositCents: 10000,
@@ -270,7 +270,7 @@ describe('Mini Sessions campaign service', () => {
             'save_mini_session_campaign',
             expect.objectContaining({
                 p_campaign: expect.objectContaining({
-                    inclusionsHeadline: 'Everything you need.',
+                    inclusionsHeadline: 'Session Details',
                 }),
             })
         )

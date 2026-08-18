@@ -80,7 +80,7 @@ export const miniSessionCampaignInputSchema = z
         description: boundedText(5000).default(''),
         experienceHeadline: boundedText(200).default(''),
         inclusionsHeadline: boundedText(200, true).default(
-            'Everything you need.'
+            'Session Details'
         ),
         vibeHeadline: boundedText(200).default(''),
         vibeContent: boundedText(10000).default(''),
@@ -381,7 +381,7 @@ export const mapAdminCampaign = (
     description: row.description,
     experienceHeadline:
         row.experience_headline || 'A small session with room for real connection.',
-    inclusionsHeadline: row.inclusions_headline || 'Everything you need.',
+    inclusionsHeadline: row.inclusions_headline || 'Session Details',
     vibeHeadline: row.vibe_headline || 'Relax and Enjoy the Moment',
     vibeContent: row.vibe_content || '',
     durationMinutes: row.duration_minutes,

@@ -11,7 +11,7 @@ not read these tables directly.
   pricing in integer cents, policies, media selection, the campaign-controlled
   inclusions heading and list, promotion copy, SEO overrides, lifecycle state,
   and optimistic-concurrency timestamps. Existing campaigns default the
-  inclusions heading to `Everything you need.`.
+  inclusions heading to `Session Details`.
 - `mini_session_booking_options` stores up to six ordered, tenant-scoped Cal.com
   booking links. Supported states are `open`, `sold_out`, and `hidden`.
 - `mini_session_campaign_audit_logs` records lifecycle and content actions with

@@ -1,12 +1,12 @@
 -- DEV-1116: make the public Mini Sessions inclusions heading campaign-controlled.
 
 ALTER TABLE public.mini_session_campaigns
-    ADD COLUMN inclusions_headline text NOT NULL DEFAULT 'Everything you need.',
+    ADD COLUMN inclusions_headline text NOT NULL DEFAULT 'Session Details',
     ADD CONSTRAINT mini_session_campaigns_inclusions_headline_length_check
         CHECK (char_length(inclusions_headline) <= 200);
 
 UPDATE public.mini_session_campaigns
-SET inclusions_headline = 'Everything you need.'
+SET inclusions_headline = 'Session Details'
 WHERE btrim(inclusions_headline) = '';
 
 CREATE OR REPLACE FUNCTION public.save_mini_session_campaign(
@@ -55,7 +55,7 @@ BEGIN
         inclusions_headline = COALESCE(
             NULLIF(btrim(p_campaign ->> 'inclusionsHeadline'), ''),
             target.inclusions_headline,
-            'Everything you need.'
+            'Session Details'
         ),
         vibe_headline = p_campaign ->> 'vibeHeadline',
         vibe_content = p_campaign ->> 'vibeContent',
