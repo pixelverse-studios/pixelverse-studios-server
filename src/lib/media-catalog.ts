@@ -46,6 +46,7 @@ export const MEDIA_SUB_CATEGORIES: Record<MediaService, string[]> = {
     Events: [
         'Baby Shower',
         'Bridal Shower',
+        'Weddings',
         'Gender Reveal',
         'Birthday',
         'Baptism',

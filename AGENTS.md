@@ -2,10 +2,10 @@
 
 ## Overview
 
--   Pixelverse Studios Server is an Express + TypeScript API that proxies CRUD operations to Supabase tables and sends transactional email via Gmail OAuth.
--   `src/server.ts` wires middleware and mounts routers for clients, newsletter, CMS, and contact-form submissions. Every route should call into a controller in `src/controllers`.
--   Supabase access is centralized in `src/lib/db.ts`, which exposes a preconfigured client plus `Tables`/`COLUMNS` enums so table and column names stay consistent.
--   Email notifications are generated in `src/lib/mailer.ts` and `src/utils/mailer`, primarily for contact-form submissions. Ops alerts for lead intake, audit requests, and Calendly bookings are sent to Slack through `src/lib/slack-notifier.ts`.
+- Pixelverse Studios Server is an Express + TypeScript API that proxies CRUD operations to Supabase tables and sends transactional email via Gmail OAuth.
+- `src/server.ts` wires middleware and mounts routers for clients, newsletter, CMS, and contact-form submissions. Every route should call into a controller in `src/controllers`.
+- Supabase access is centralized in `src/lib/db.ts`, which exposes a preconfigured client plus `Tables`/`COLUMNS` enums so table and column names stay consistent.
+- Email notifications are generated in `src/lib/mailer.ts` and `src/utils/mailer`, primarily for contact-form submissions. Ops alerts for lead intake, audit requests, and Calendly bookings are sent to Slack through `src/lib/slack-notifier.ts`.
 
 ## Local Development
 
@@ -23,13 +23,13 @@
 
 ## Project Layout
 
--   `src/server.ts` – Express bootstrap, middleware, and error handler.
--   `src/routes/` – Route definitions + validation middleware. New endpoints should live here.
--   `src/controllers/` – Business logic per domain (clients, newsletter, CMS, contact-forms) pulling data through Supabase or services.
--   `src/services/` – Thin data-services for reusable Supabase queries (e.g., websites, contact-forms). Prefer adding shared queries here.
--   `src/lib/` – Infrastructure adapters (Supabase client, Gmail transporter).
--   `src/utils/` – Helper utilities (error handling, email templates, legacy token helpers).
--   `models/` – Legacy Mongoose schemas; currently unused but still referenced historically. Avoid modifying unless migrating back to Mongo.
+- `src/server.ts` – Express bootstrap, middleware, and error handler.
+- `src/routes/` – Route definitions + validation middleware. New endpoints should live here.
+- `src/controllers/` – Business logic per domain (clients, newsletter, CMS, contact-forms) pulling data through Supabase or services.
+- `src/services/` – Thin data-services for reusable Supabase queries (e.g., websites, contact-forms). Prefer adding shared queries here.
+- `src/lib/` – Infrastructure adapters (Supabase client, Gmail transporter).
+- `src/utils/` – Helper utilities (error handling, email templates, legacy token helpers).
+- `models/` – Legacy Mongoose schemas; currently unused but still referenced historically. Avoid modifying unless migrating back to Mongo.
 
 ## API Surface
 
@@ -70,7 +70,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `/api/media/:websiteSlug/admin/items/batch` | POST | Create multiple draft media catalog items after direct uploads and return per-file success/failure results. | `controllers/media.batchCreateCatalogItems` |
 | `/api/media/:websiteSlug/admin/items/:id/move` | POST | Safely move/rename a draft R2 object and update its catalog record. | `controllers/media.moveCatalogItem` |
 | `/api/media/:websiteSlug/admin/items/:id` | PATCH | Update safe media catalog metadata for authenticated media admins. | `controllers/media.updateCatalogItem` |
-| `/api/media/:websiteSlug/admin/items/reorder` | PATCH | Atomically reorder a selected set of published portfolio images and normalize portfolio positions. | `controllers/media.reorderCatalogItems` |
+| `/api/media/:websiteSlug/admin/items/reorder` | PATCH | Atomically reorder selected published portfolio images and normalize all portfolio positions. | `controllers/media.reorderCatalogItems` |
 | `/api/media/:websiteSlug/admin/uploads/presign` | POST | Create a protected, short-lived Cloudflare R2 direct-upload URL. | `controllers/media.presignUpload` |
 | `/api/mini-session-campaigns/:websiteSlug/active` | GET | Return one sanitized live/sold-out Mini Sessions campaign or a true 404. | `controllers/mini-session-campaigns.getActive` |
 | `/api/mini-session-campaigns/:websiteSlug/admin` | GET | List campaigns for an authenticated media/site administrator. | `controllers/mini-session-campaigns.listAdmin` |
@@ -87,45 +87,46 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 
 ## Data + External Services
 
--   **Supabase**
-    -   Tables in use: `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `mini_session_campaigns`, `mini_session_booking_options`, `mini_session_campaign_audit_logs`, `dashboard_user_roles`, `releases`, `release_notes`, `release_prds`, `release_conversion_runs`, `release_audit_events`.
-    -   Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
-    -   Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
--   **Email (Gmail OAuth2)**
-    -   `sendContactSubmissionEmail` in `src/lib/mailer.ts` requests an access token from Google and dispatches HTML + plaintext using templates from `src/utils/mailer/emails.ts`.
-    -   `process.env.NODE_ENVIRONMENT === 'development'` forces contact-form mail to `info@pixelversestudios.io`; adjust if changing environment semantics.
--   **Slack Ops Notifications**
+- **Supabase**
+    - The primary PixelVerse client in `src/lib/db.ts` owns PVS dashboard authentication and PVS operational tables such as `clients`, `cms`, `newsletter`, `contact_form_submissions`, `websites`, `leads`, `audit_requests`, `media_r2_configs`, `media_catalog_items`, `media_audit_logs`, `media_admin_magic_links`, `media_admin_sessions`, `mini_session_campaigns`, `mini_session_booking_options`, `mini_session_campaign_audit_logs`, and `dashboard_user_roles`.
+    - The separate Domani client in `src/lib/domani-db.ts` owns Domani product data, including `releases`, `release_notes`, `release_prds`, `release_conversion_runs`, `release_audit_events`, and release cache invalidation jobs. Never validate dashboard sessions against Domani Auth or store Domani release records in the PixelVerse database.
+    - Always import `Tables` and `COLUMNS` from `src/lib/db.ts` to avoid string literals.
+    - Use `db.from(...).select()` and `.eq(...)` rather than raw SQL. Controllers typically `await` and throw Supabase errors so `handleGenericError` can respond with `500`.
+- **Email (Gmail OAuth2)**
+    - `sendContactSubmissionEmail` in `src/lib/mailer.ts` requests an access token from Google and dispatches HTML + plaintext using templates from `src/utils/mailer/emails.ts`.
+    - `process.env.NODE_ENVIRONMENT === 'development'` forces contact-form mail to `info@pixelversestudios.io`; adjust if changing environment semantics.
+- **Slack Ops Notifications**
     - Lead submissions, audit requests, and Calendly bookings send non-blocking ops alerts through `src/lib/slack-notifier.ts`. Configure `OPS_NOTIFY_SLACK_WEBHOOK` with the incoming webhook URL for the shared intake alerts channel.
     - Slack alert content should stay customer-facing. Do not include internal ids, prospect ids, attribution JSON, or reporting metadata unless a ticket explicitly changes that requirement.
--   **Resend Campaign Email**
+- **Resend Campaign Email**
     - Email campaign sends use the Resend API through `src/lib/resend-mailer.ts`. Configure `RESEND_API_KEY` when using campaign email features.
--   **Lead Intake Flow**
+- **Lead Intake Flow**
     - `/api/leads` persists prospect and lead submission data before dispatching a non-blocking Slack notification. Keep Slack notification content customer-facing unless internal attribution/reporting fields are intentionally added.
--   **Prospect Attribution Reporting**
+- **Prospect Attribution Reporting**
     - Campaign attribution is internal-only. Inspect full sanitized JSON on nested conversion rows returned by `GET /api/prospects/:id` and in `v_leads_detail`, `v_audits_detail`, and `v_calendly_detail`.
     - `v_prospects_all` exposes only lightweight latest-attribution scalar fields for list/reporting views: source, medium, campaign, and conversion type.
--   **Legacy Nodemailer Utilities**
-    -   Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
--   **Mini Sessions Campaigns**
-    -   `src/services/mini-session-campaigns.ts` owns tenant resolution, campaign persistence, lifecycle rules, duplication, safe public/admin projections, and optimistic concurrency for seasonal campaigns.
-    -   `mini_session_campaigns` stores structured campaign presentation and lifecycle state; `mini_session_booking_options` stores ordered Cal.com links; `mini_session_campaign_audit_logs` stores non-blocking administrator audit events.
-    -   The browser never accesses these tables directly. RLS is enabled, `anon` and `authenticated` table privileges are revoked, and only the server-side service role receives table/function access.
-    -   Use `save_mini_session_campaign`, `duplicate_mini_session_campaign`, and `publish_mini_session_campaign` RPCs for their atomic write guarantees. Generic content saves cannot change lifecycle status.
-    -   Public projections must continue to omit tenant ids, actor fields, audit values, archived/draft content, and hidden booking options.
-    -   All `/admin` routes reuse `requireMediaAdminSession`. Mutations accept an ISO `expectedUpdatedAt` token; publish also requires `calComVerified: true`.
-    -   Lifecycle mutations call the signed site-content revalidation webhook for `/`, `/mini-sessions`, the root layout, and `/sitemap.xml`. A webhook failure is returned separately and never rolls back a successful database mutation.
-    -   Public campaign responses use a hard maximum 60-second cache window. Admin responses use `Cache-Control: no-store`.
+- **Legacy Nodemailer Utilities**
+    - Files in `src/utils/mailer/**` and `src/utils/token.js` are CommonJS modules dating back to the Mongo implementation. Confirm usage before refactoring; some may be dead code.
+- **Mini Sessions Campaigns**
+    - `src/services/mini-session-campaigns.ts` owns tenant resolution, campaign persistence, lifecycle rules, duplication, safe public/admin projections, and optimistic concurrency for seasonal campaigns.
+    - `mini_session_campaigns` stores structured campaign presentation and lifecycle state; `mini_session_booking_options` stores ordered Cal.com links; `mini_session_campaign_audit_logs` stores non-blocking administrator audit events.
+    - The browser never accesses these tables directly. RLS is enabled, `anon` and `authenticated` table privileges are revoked, and only the server-side service role receives table/function access.
+    - Use `save_mini_session_campaign`, `duplicate_mini_session_campaign`, and `publish_mini_session_campaign` RPCs for their atomic write guarantees. Generic content saves cannot change lifecycle status.
+    - Public projections must continue to omit tenant ids, actor fields, audit values, archived/draft content, and hidden booking options.
+    - All `/admin` routes reuse `requireMediaAdminSession`. Mutations accept an ISO `expectedUpdatedAt` token; publish also requires `calComVerified: true`.
+    - Lifecycle mutations call the signed site-content revalidation webhook for `/`, `/mini-sessions`, the root layout, and `/sitemap.xml`. A webhook failure is returned separately and never rolls back a successful database mutation.
+    - Public campaign responses use a hard maximum 60-second cache window. Admin responses use `Cache-Control: no-store`.
 
 ## Coding Guidelines for Agents
 
--   Default to TypeScript within `src/`. When touching CommonJS utilities, ensure interop does not break ts-node.
--   Follow existing layering: routes → controllers → services/lib. Keep controllers thin and move cross-cutting Supabase logic into `src/services`.
--   Validate all incoming data using `express-validator` and re-use `validateRequest`.
--   Preserve centralized error handling by throwing or returning errors to `handleGenericError`.
--   When adding Supabase queries, prefer `.select().eq()` chaining and always handle `error` alongside `data`.
--   Use `async/await` consistently; avoid mixing Promise chains.
--   Keep `Tables`/`COLUMNS` enums in sync with Supabase schema before referencing new columns.
--   Update or add email templates alongside business logic when new notifications are required.
+- Default to TypeScript within `src/`. When touching CommonJS utilities, ensure interop does not break ts-node.
+- Follow existing layering: routes → controllers → services/lib. Keep controllers thin and move cross-cutting Supabase logic into `src/services`.
+- Validate all incoming data using `express-validator` and re-use `validateRequest`.
+- Preserve centralized error handling by throwing or returning errors to `handleGenericError`.
+- When adding Supabase queries, prefer `.select().eq()` chaining and always handle `error` alongside `data`.
+- Use `async/await` consistently; avoid mixing Promise chains.
+- Keep `Tables`/`COLUMNS` enums in sync with Supabase schema before referencing new columns.
+- Update or add email templates alongside business logic when new notifications are required.
 
 ## Environment Variables
 
@@ -135,6 +136,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `SUPABASE_URL` | Supabase project REST URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Preferred service-role key for Supabase access (falls back to `SUPABASE_SERVICE_ROLE_KEY`). |
 | `SUPABASE_SERVICE_ROLE_KEY` | Legacy Supabase anon key fallback. |
+| `DOMANI_SUPABASE_URL` | Domani Supabase project REST URL used only for Domani product data. |
+| `DOMANI_SUPABASE_SERVICE_KEY` | Server-only Domani service-role key used for release and other Domani data operations. |
 | `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
 | `PVS_DASHBOARD_ORIGINS` | Comma-separated browser origins allowed to call authenticated admin release APIs. |
 | `GMAIL_USER` | Gmail address used as sender. |
@@ -183,27 +186,27 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 
 ## Testing & Validation
 
--   Run `npm test` to execute the Vitest suite once. Tests live under `test/**/*.test.ts` and use `test/setup.ts` to reset external-service environment variables and block unmocked `fetch` calls by default.
--   Run `npm run build` to verify the TypeScript compile.
--   Pull requests targeting `main`, `dev/**`, or `dev-*` run the `API CI` GitHub Actions workflow. CI installs with `npm ci`, then runs `npm run build` and `npm test`.
--   Slack/webhook tests must mock network calls and must not use real webhook URLs or secrets. Use test-only URLs such as `https://hooks.slack.test/...`.
--   Supabase, Gmail, Resend, Calendly, and Slack integrations should be mocked in unit and controller tests unless a ticket explicitly scopes live-environment QA.
--   For manual endpoint QA, use Postman/Insomnia or curl with test payloads and inspect Supabase only when the ticket explicitly requires persistence verification.
+- Run `npm test` to execute the Vitest suite once. Tests live under `test/**/*.test.ts` and use `test/setup.ts` to reset external-service environment variables and block unmocked `fetch` calls by default.
+- Run `npm run build` to verify the TypeScript compile.
+- Pull requests targeting `main`, `dev/**`, or `dev-*` run the `API CI` GitHub Actions workflow. CI installs with `npm ci`, then runs `npm run build` and `npm test`.
+- Slack/webhook tests must mock network calls and must not use real webhook URLs or secrets. Use test-only URLs such as `https://hooks.slack.test/...`.
+- Supabase, Gmail, Resend, Calendly, and Slack integrations should be mocked in unit and controller tests unless a ticket explicitly scopes live-environment QA.
+- For manual endpoint QA, use Postman/Insomnia or curl with test payloads and inspect Supabase only when the ticket explicitly requires persistence verification.
 
 ## Known Gaps / TODOs
 
--   `services/clients.getClientEmail` logs results but does not return anything; verify intent before using.
--   `routes/recaptcha.ts` lacks implementation.
--   Legacy `models/` and some utilities point to MongoDB and JWT flows that are not wired into the current Supabase-based server. Remove or update once migrations are complete.
--   No rate limiting or authentication is currently guarding endpoints; exercise caution when exposing publicly.
+- `services/clients.getClientEmail` logs results but does not return anything; verify intent before using.
+- `routes/recaptcha.ts` lacks implementation.
+- Legacy `models/` and some utilities point to MongoDB and JWT flows that are not wired into the current Supabase-based server. Remove or update once migrations are complete.
+- No rate limiting or authentication is currently guarding endpoints; exercise caution when exposing publicly.
 
 ## Audit Trail
 
--   Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
--   Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
--   Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
--   Media catalog mutations attempt non-blocking inserts into `media_audit_logs` through `src/services/media-audit.ts`. Audit write failures are logged to STDERR and do not roll back the already-completed media mutation.
--   Public media catalog mutations trigger a non-blocking frontend revalidation webhook through `src/services/media-revalidation.ts` when `MEDIA_REVALIDATION_WEBHOOK_URL` is configured. Webhook failures are logged to STDERR and do not roll back the already-completed media mutation.
+- Lead creation logs `id` and `email` to STDOUT after the Supabase insert succeeds; aggregate these logs centrally if compliance requires retention.
+- Supabase’s `leads` table records `ip`, `user_agent`, and `created_at`, providing a persistent trail for submissions.
+- Slack notifications intentionally include customer-facing submission details only; internal ids and attribution metadata stay in Supabase/reporting views unless explicitly added to an alert.
+- Media catalog mutations attempt non-blocking inserts into `media_audit_logs` through `src/services/media-audit.ts`. Audit write failures are logged to STDERR and do not roll back the already-completed media mutation.
+- Public media catalog mutations trigger a non-blocking frontend revalidation webhook through `src/services/media-revalidation.ts` when `MEDIA_REVALIDATION_WEBHOOK_URL` is configured. Webhook failures are logged to STDERR and do not roll back the already-completed media mutation.
 
 ## When Adding Features
 
