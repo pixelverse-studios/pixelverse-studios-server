@@ -8,8 +8,10 @@ not read these tables directly.
 ## Tables
 
 - `mini_session_campaigns` stores tenant-scoped campaign copy, offer details,
-  pricing in integer cents, policies, media selection, promotion copy, SEO
-  overrides, lifecycle state, and optimistic-concurrency timestamps.
+  pricing in integer cents, policies, media selection, the campaign-controlled
+  inclusions heading and list, promotion copy, SEO overrides, lifecycle state,
+  and optimistic-concurrency timestamps. Existing campaigns default the
+  inclusions heading to `Session Details`.
 - `mini_session_booking_options` stores up to six ordered, tenant-scoped Cal.com
   booking links. Supported states are `open`, `sold_out`, and `hidden`.
 - `mini_session_campaign_audit_logs` records lifecycle and content actions with
@@ -81,7 +83,7 @@ database and verify:
 2. Deposits above total price fail.
 3. A second public campaign for one website fails.
 4. Publishing closes the previous campaign atomically.
-5. Duplication creates a draft and copies options.
+5. Duplication creates a draft and copies options, inclusions, and their heading.
 6. A stale save is rejected.
 7. RLS and server-only grants match the migration.
 

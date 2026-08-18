@@ -79,6 +79,9 @@ export const miniSessionCampaignInputSchema = z
         summary: boundedText(320).default(''),
         description: boundedText(5000).default(''),
         experienceHeadline: boundedText(200).default(''),
+        inclusionsHeadline: boundedText(200, true).default(
+            'Session Details'
+        ),
         vibeHeadline: boundedText(200).default(''),
         vibeContent: boundedText(10000).default(''),
         durationMinutes: z.number().int().min(1).max(480).default(20),
@@ -156,6 +159,7 @@ export interface MiniSessionCampaignRow {
     summary: string
     description: string
     experience_headline: string
+    inclusions_headline: string
     vibe_headline: string
     vibe_content: string
     duration_minutes: number
@@ -253,6 +257,7 @@ export interface MiniSessionAdminCampaign {
     summary: string
     description: string
     experienceHeadline: string
+    inclusionsHeadline: string
     vibeHeadline: string
     vibeContent: string
     durationMinutes: number
@@ -376,6 +381,7 @@ export const mapAdminCampaign = (
     description: row.description,
     experienceHeadline:
         row.experience_headline || 'A small session with room for real connection.',
+    inclusionsHeadline: row.inclusions_headline || 'Session Details',
     vibeHeadline: row.vibe_headline || 'Relax and Enjoy the Moment',
     vibeContent: row.vibe_content || '',
     durationMinutes: row.duration_minutes,
@@ -466,6 +472,7 @@ export const assertCampaignReadyForPublication = ({
         campaign.summary,
         campaign.description,
         campaign.experience_headline,
+        campaign.inclusions_headline,
         campaign.vibe_headline,
         campaign.vibe_content,
         campaign.balance_due_text,

@@ -54,6 +54,7 @@ const validInput = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
+    inclusionsHeadline: 'Session Details',
     durationMinutes: 20,
     totalPriceCents: 30000,
     depositCents: 10000,
