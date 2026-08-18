@@ -39,7 +39,7 @@ export const Tables = {
     MEDIA_ADMIN_SESSIONS: 'media_admin_sessions',
     MINI_SESSION_CAMPAIGNS: 'mini_session_campaigns',
     MINI_SESSION_BOOKING_OPTIONS: 'mini_session_booking_options',
-    MINI_SESSION_CAMPAIGN_AUDIT_LOGS: 'mini_session_campaign_audit_logs',
+    MINI_SESSION_CAMPAIGN_AUDIT_LOGS: 'mini_session_campaign_audit_logs'
 }
 
 // Valid project status values for websites and apps
@@ -70,5 +70,5 @@ export const COLUMNS = {
     CALENDLY_EVENT_URI: 'calendly_event_uri',
     ATTRIBUTION: 'attribution',
     PROSPECT_SOURCE: 'source',
-    PROSPECT_STATUS: 'status',
+    PROSPECT_STATUS: 'status'
 }

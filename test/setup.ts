@@ -39,6 +39,7 @@ const externalServiceEnvKeys = [
     'SITE_REVALIDATION_SECRET',
     'SITE_REVALIDATION_TIMEOUT_MS',
     'MINI_SESSION_PUBLIC_MAX_AGE_SECONDS',
+    'DOMANI_RELEASE_CURSOR_SECRET',
 ]
 
 const buildTestEnv = (): NodeJS.ProcessEnv => {
