@@ -142,6 +142,39 @@ describe('media R2 presigned upload service', () => {
         expect(result.r2_key).toContain('portrait/')
     })
 
+    it('normalizes the Weddings upload folder to events/weddings', async () => {
+        mockState.queryResults = [
+            {
+                data: {
+                    id: 'website-1',
+                    client_id: 'client-1',
+                },
+                error: null,
+            },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://persisted.example.test',
+                    key_prefix: 'portfolio',
+                },
+                error: null,
+            },
+        ]
+
+        const result = await mediaR2Service.createPresignedUpload({
+            websiteSlug: 'iffers-pictures',
+            filename: 'First Dance.jpg',
+            contentType: 'image/jpeg',
+            folder: 'events/weddings',
+            size: 123456,
+        })
+
+        expect(result.public_url).toContain(
+            'https://persisted.example.test/portfolio/events/weddings/'
+        )
+        expect(result.r2_key).toContain('portfolio/events/weddings/')
+    })
+
     it('maps a missing cache metadata target to a stable 404 error', async () => {
         mockState.queryResults = [
             {

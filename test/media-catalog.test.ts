@@ -552,6 +552,57 @@ describe('media catalog service', () => {
         })
     })
 
+    it('accepts Weddings as an Events portfolio sub-category', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: null, error: null },
+            {
+                data: {
+                    ...publishedItem,
+                    key: 'events/weddings/ceremony.jpg',
+                    filename: 'ceremony.jpg',
+                    src: 'https://pub.example.test/events/weddings/ceremony.jpg',
+                    sub_category: 'Weddings',
+                    status: 'draft',
+                },
+                error: null,
+            },
+        ]
+
+        await expect(
+            mediaCatalogService.createItem({
+                websiteSlug: 'iffers-pictures',
+                key: 'events/weddings/ceremony.jpg',
+                filename: 'ceremony.jpg',
+                src: 'https://pub.example.test/events/weddings/ceremony.jpg',
+                library: 'portfolio',
+                service: 'Events',
+                subCategory: 'Weddings',
+                aspectRatio: 'landscape',
+            })
+        ).resolves.toEqual(
+            expect.objectContaining({
+                service: 'Events',
+                subCategory: 'Weddings',
+            })
+        )
+        expect(mockState.builders[3].insert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                library: 'portfolio',
+                service: 'Events',
+                sub_category: 'Weddings',
+            })
+        )
+    })
+
     it('rejects unsafe crop position values', async () => {
         mockState.queryResults = [
             { data: { id: 'website-1', client_id: 'client-1' }, error: null },
