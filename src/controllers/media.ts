@@ -92,6 +92,20 @@ const batchUpdateCatalogItemsSchema = z
         status: z.enum(['archived']),
     })
 
+const reorderCatalogItemsSchema = z
+    .object({
+        orderedIds: z.array(z.number().int().positive()).min(2).max(50),
+    })
+    .superRefine((value, context) => {
+        if (new Set(value.orderedIds).size !== value.orderedIds.length) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['orderedIds'],
+                message: 'orderedIds must be unique',
+            })
+        }
+    })
+
 const assignPlacementSchema = z.object({
     media_id: z.number().int().positive(),
 })
@@ -1165,6 +1179,34 @@ const batchUpdateCatalogItems = async (
     }
 }
 
+const reorderCatalogItems = async (
+    req: Request,
+    res: Response
+): Promise<Response> => {
+    try {
+        const parsed = reorderCatalogItemsSchema.parse(req.body)
+        const items = await mediaCatalogService.reorderSelection({
+            websiteSlug: req.params.websiteSlug,
+            orderedIds: parsed.orderedIds,
+            actor: req.mediaAdmin?.email,
+        })
+
+        return res.status(200).json({ items })
+    } catch (err) {
+        if (err instanceof ZodError) {
+            return sendMediaError(
+                res,
+                400,
+                'media.invalid_payload',
+                'Invalid media reorder payload.',
+                err.flatten()
+            )
+        }
+
+        return handleGenericError(err, res)
+    }
+}
+
 export default {
     presignUpload,
     listObjects,
@@ -1179,6 +1221,7 @@ export default {
     batchCreateCatalogItems,
     updateCatalogItem,
     batchUpdateCatalogItems,
+    reorderCatalogItems,
     assignPlacement,
     clearPlacement,
 }

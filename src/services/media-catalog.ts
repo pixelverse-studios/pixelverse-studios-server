@@ -137,6 +137,12 @@ export interface BatchUpdateMediaItemsInput {
     actor?: string
 }
 
+export interface ReorderMediaSelectionInput {
+    websiteSlug: string
+    orderedIds: number[]
+    actor?: string
+}
+
 interface BatchMediaItemError {
     code: string
     message: string
@@ -195,6 +201,44 @@ const getWebsiteOrThrow = async (websiteSlug: string): Promise<WebsiteRecord> =>
     }
 
     return website
+}
+
+const reorderSelection = async (
+    input: ReorderMediaSelectionInput
+): Promise<CatalogItemResponse[]> => {
+    const website = await getWebsiteOrThrow(input.websiteSlug)
+    const { data, error } = await db.rpc('reorder_media_catalog_selection', {
+        p_website_id: website.id,
+        p_ordered_ids: input.orderedIds,
+    })
+
+    if (error) throw error
+
+    const records = (data || []) as MediaCatalogRecord[]
+    const selectedIds = new Set(input.orderedIds)
+
+    records
+        .filter(record => selectedIds.has(record.id))
+        .forEach(record => {
+            queueAuditLog({
+                websiteId: website.id,
+                clientId: website.client_id,
+                mediaId: record.id,
+                mediaKey: record.key,
+                action: 'reorder_changed',
+                actor: input.actor,
+                oldValues: null,
+                newValues: { sortOrder: record.sort_order },
+            })
+        })
+
+    tryTriggerMediaRevalidation({
+        websiteSlug: input.websiteSlug,
+        reason: 'reorder_changed',
+        actor: input.actor,
+    })
+
+    return records.map(record => toCatalogItemResponse(record, true))
 }
 
 const getWebsiteR2Config = async (
@@ -895,6 +939,14 @@ const updateItemWithResult = async (
         isArchivedRestore && current.archived_from_status
             ? current.archived_from_status
             : ((input.status ?? current.status) as MediaStatus)
+    const normalizedPortfolioPosition =
+        input.sortOrder !== undefined &&
+        nextLibrary === 'portfolio' &&
+        nextStatus === 'published'
+            ? Math.max(1, input.sortOrder)
+            : null
+    const shouldNormalizePortfolioPosition =
+        normalizedPortfolioPosition !== null
 
     assertSafeMediaKey(nextKey)
     assertSafeFilename(nextFilename)
@@ -928,7 +980,9 @@ const updateItemWithResult = async (
         sub_category: nextSubCategory || null,
         aspect_ratio: nextAspectRatio || null,
         crop_position: nextCropPosition,
-        sort_order: input.sortOrder ?? current.sort_order,
+        sort_order: shouldNormalizePortfolioPosition
+            ? current.sort_order
+            : (input.sortOrder ?? current.sort_order),
     }
 
     if (nextStatus === 'published') {
@@ -991,7 +1045,28 @@ const updateItemWithResult = async (
         throw error
     }
 
-    const updated = data as MediaCatalogRecord
+    let updated = data as MediaCatalogRecord
+    if (shouldNormalizePortfolioPosition) {
+        const { data: reorderedData, error: reorderError } = await db.rpc(
+            'move_media_catalog_item_to_position',
+            {
+                p_website_id: website.id,
+                p_item_id: input.id,
+                p_target_position: normalizedPortfolioPosition,
+            }
+        )
+
+        if (reorderError) throw reorderError
+
+        const reordered = (reorderedData || []) as MediaCatalogRecord[]
+        const normalizedItem = reordered.find(item => item.id === input.id)
+        if (!normalizedItem) {
+            throw new Error(
+                'Portfolio position was saved but the normalized item was not returned.'
+            )
+        }
+        updated = normalizedItem
+    }
     const oldValues = auditValuesForRecord(current)
     const newValues = auditValuesForRecord(updated)
     const auditChanges = determineUpdateAuditChanges({
@@ -1274,4 +1349,5 @@ export default {
     updateItem,
     updateItemWithResult,
     batchUpdateItems,
+    reorderSelection,
 }

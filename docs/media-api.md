@@ -575,6 +575,30 @@ Published location safety:
 - The dedicated object move route also blocks published media.
 - Draft media can be renamed/moved safely through the move route.
 
+Published portfolio ordering:
+
+- `sortOrder` is a 1-based desired position for published portfolio media.
+- Moving one image gives it the requested position and shifts the surrounding
+  images so the portfolio remains uniquely and sequentially ordered.
+- Positions beyond the end of the portfolio are clamped to the final slot.
+
+### Reorder a Portfolio Selection
+
+`PATCH /api/media/:websiteSlug/admin/items/reorder`
+
+Protected. Reorders between 2 and 50 published portfolio images while keeping
+the selected images in the same set of occupied portfolio slots. Images that
+were not selected keep their relative order.
+
+```json
+{
+  "orderedIds": [42, 18, 27]
+}
+```
+
+`orderedIds` must contain unique positive media IDs. The response contains the
+full normalized published portfolio in its resulting order.
+
 ## List R2 Objects
 
 `GET /api/media/:websiteSlug/admin/objects?prefix=events/baby-shower`

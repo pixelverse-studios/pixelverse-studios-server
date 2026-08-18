@@ -23,6 +23,7 @@ import emailCampaignsRouter from './routes/email-campaigns'
 import seoRouter from './routes/seo'
 import mediaAdminAuthRouter from './routes/media-admin-auth'
 import mediaRouter from './routes/media'
+import miniSessionCampaignsRouter from './routes/mini-session-campaigns'
 import publicReleasesRouter from './routes/public-releases'
 import adminReleaseImportRouter from './routes/admin-release-import'
 import adminReleaseManagementRouter from './routes/admin-release-management'
@@ -102,6 +103,7 @@ app.use(emailCampaignsRouter)
 app.use(seoRouter)
 app.use(mediaAdminAuthRouter)
 app.use(mediaRouter)
+app.use(miniSessionCampaignsRouter)
 
 // Error handling middleware
 app.use(

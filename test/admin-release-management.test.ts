@@ -29,6 +29,7 @@ import {
 import { dispatchReleaseCacheInvalidations } from '../src/services/release-cache-invalidation'
 import adminReleaseManagementRouter from '../src/routes/admin-release-management'
 import { nextCursor, pagination } from '../src/lib/admin-release-management'
+import { domaniReleaseCalendarDate } from '../src/lib/release-calendar'
 
 const releaseId = 'a1000000-0000-4000-8000-000000000001'
 const noteId = 'a1000000-0000-4000-8000-000000000002'
@@ -343,7 +344,7 @@ describe('DEV-1042 release management controllers', () => {
         const res = response()
         await markReleaseReleased(
             request({
-                body: { releasedDate: new Date().toISOString().slice(0, 10) }
+                body: { releasedDate: domaniReleaseCalendarDate() }
             }),
             res
         )
@@ -574,7 +575,7 @@ describe('DEV-1042 release management controllers', () => {
                     status: 'published',
                     timing: {
                         kind: 'date',
-                        value: new Date().toISOString().slice(0, 10)
+                        value: domaniReleaseCalendarDate()
                     },
                     platforms: ['ios'],
                     publicOverview: {
