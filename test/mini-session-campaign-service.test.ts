@@ -95,6 +95,8 @@ const campaign = {
     faq_eyebrow: 'Good to know',
     faq_headline: 'Mini Session questions.',
     faq_intro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    booking_eyebrow: 'Reserve your session',
+    booking_headline: 'Choose your time.',
     faqs: [],
     meta_title: '',
     meta_description: '',
@@ -151,6 +153,8 @@ const validInput = {
     faqEyebrow: 'Good to know',
     faqHeadline: 'Mini Session questions.',
     faqIntro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    bookingEyebrow: 'Reserve your session',
+    bookingHeadline: 'Choose your time.',
     faqs: [],
     metaTitle: '',
     metaDescription: '',
@@ -282,6 +286,8 @@ describe('Mini Sessions campaign service', () => {
                 p_campaign: expect.objectContaining({
                     inclusionsHeadline: 'Session Details',
                     faqHeadline: 'Mini Session questions.',
+                    bookingEyebrow: 'Reserve your session',
+                    bookingHeadline: 'Choose your time.',
                 }),
             })
         )

@@ -196,6 +196,8 @@ const toCampaignPayload = (
     faq_eyebrow: input.faqEyebrow,
     faq_headline: input.faqHeadline,
     faq_intro: input.faqIntro,
+    booking_eyebrow: input.bookingEyebrow,
+    booking_headline: input.bookingHeadline,
     faqs: input.faqs,
     meta_title: input.metaTitle,
     meta_description: input.metaDescription,

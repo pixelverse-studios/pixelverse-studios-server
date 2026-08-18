@@ -47,6 +47,8 @@ const campaign: MiniSessionCampaignRow = {
     faq_eyebrow: 'Good to know',
     faq_headline: 'Mini Session questions.',
     faq_intro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    booking_eyebrow: 'Reserve your session',
+    booking_headline: 'Choose your time.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -131,6 +133,8 @@ const validInput = {
     faqEyebrow: 'Good to know',
     faqHeadline: 'Mini Session questions.',
     faqIntro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    bookingEyebrow: 'Reserve your session',
+    bookingHeadline: 'Choose your time.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -198,6 +202,29 @@ describe('Mini Sessions campaign domain', () => {
             parseMiniSessionCampaignInput({
                 ...validInput,
                 faqHeadline: '   ',
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults booking intro copy for older clients and validates editable values', () => {
+        const {
+            bookingEyebrow: _bookingEyebrow,
+            bookingHeadline: _bookingHeadline,
+            ...legacyInput
+        } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput)).toMatchObject({
+            bookingEyebrow: 'Reserve your session',
+            bookingHeadline: 'Choose your time.',
+        })
+        expect(() =>
+            parseMiniSessionCampaignInput({
+                ...validInput,
+                bookingHeadline: '   ',
             })
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
@@ -294,6 +321,8 @@ describe('Mini Sessions campaign domain', () => {
         expect(result).not.toHaveProperty('createdBy')
         expect(result.inclusionsHeadline).toBe('Session Details')
         expect(result.faqHeadline).toBe('Mini Session questions.')
+        expect(result.bookingEyebrow).toBe('Reserve your session')
+        expect(result.bookingHeadline).toBe('Choose your time.')
         expect(result.bookingOptions).toHaveLength(1)
         expect(result.bookingOptions[0].label).toBe('Saturday, October 17')
     })
@@ -334,6 +363,20 @@ describe('Mini Sessions campaign domain', () => {
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
                 code: 'OPEN_OPTION_REQUIRED',
+            })
+        )
+    })
+
+    it('requires the editable FAQ and booking section copy before publishing', () => {
+        expect(() =>
+            assertCampaignReadyForPublication({
+                campaign: { ...campaign, booking_headline: '   ' },
+                bookingOptions: [openOption],
+                heroMedia,
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'CAMPAIGN_NOT_READY',
             })
         )
     })

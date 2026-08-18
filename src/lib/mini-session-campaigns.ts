@@ -110,6 +110,12 @@ export const miniSessionCampaignInputSchema = z
         faqIntro: boundedText(600, true).default(
             'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.'
         ),
+        bookingEyebrow: boundedText(80, true).default(
+            'Reserve your session'
+        ),
+        bookingHeadline: boundedText(200, true).default(
+            'Choose your time.'
+        ),
         faqs: z.array(miniSessionFaqInputSchema).max(50).default([]),
         metaTitle: boundedText(120).default(''),
         metaDescription: boundedText(320).default(''),
@@ -191,6 +197,8 @@ export interface MiniSessionCampaignRow {
     faq_eyebrow: string
     faq_headline: string
     faq_intro: string
+    booking_eyebrow: string
+    booking_headline: string
     faqs: MiniSessionFaq[]
     meta_title: string
     meta_description: string
@@ -293,6 +301,8 @@ export interface MiniSessionAdminCampaign {
     faqEyebrow: string
     faqHeadline: string
     faqIntro: string
+    bookingEyebrow: string
+    bookingHeadline: string
     faqs: MiniSessionFaq[]
     metaTitle: string
     metaDescription: string
@@ -423,6 +433,8 @@ export const mapAdminCampaign = (
     faqIntro:
         row.faq_intro ||
         'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    bookingEyebrow: row.booking_eyebrow || 'Reserve your session',
+    bookingHeadline: row.booking_headline || 'Choose your time.',
     faqs: [...(row.faqs || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
@@ -496,6 +508,11 @@ export const assertCampaignReadyForPublication = ({
         campaign.balance_due_text,
         campaign.date_summary,
         campaign.location_summary,
+        campaign.faq_eyebrow,
+        campaign.faq_headline,
+        campaign.faq_intro,
+        campaign.booking_eyebrow,
+        campaign.booking_headline,
         campaign.cancellation_policy,
         campaign.lateness_policy,
         campaign.cta_label,

@@ -1,15 +1,21 @@
--- DEV-1118: make all Mini Sessions FAQ section intro copy campaign-controlled.
+-- DEV-1118: make Mini Sessions FAQ and booking section intro copy campaign-controlled.
 
 ALTER TABLE public.mini_session_campaigns
     ADD COLUMN faq_eyebrow text NOT NULL DEFAULT 'Good to know',
     ADD COLUMN faq_headline text NOT NULL DEFAULT 'Mini Session questions.',
     ADD COLUMN faq_intro text NOT NULL DEFAULT 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    ADD COLUMN booking_eyebrow text NOT NULL DEFAULT 'Reserve your session',
+    ADD COLUMN booking_headline text NOT NULL DEFAULT 'Choose your time.',
     ADD CONSTRAINT mini_session_campaigns_faq_eyebrow_length_check
         CHECK (char_length(btrim(faq_eyebrow)) BETWEEN 1 AND 80),
     ADD CONSTRAINT mini_session_campaigns_faq_headline_length_check
         CHECK (char_length(btrim(faq_headline)) BETWEEN 1 AND 200),
     ADD CONSTRAINT mini_session_campaigns_faq_intro_length_check
-        CHECK (char_length(btrim(faq_intro)) BETWEEN 1 AND 600);
+        CHECK (char_length(btrim(faq_intro)) BETWEEN 1 AND 600),
+    ADD CONSTRAINT mini_session_campaigns_booking_eyebrow_length_check
+        CHECK (char_length(btrim(booking_eyebrow)) BETWEEN 1 AND 80),
+    ADD CONSTRAINT mini_session_campaigns_booking_headline_length_check
+        CHECK (char_length(btrim(booking_headline)) BETWEEN 1 AND 200);
 
 CREATE OR REPLACE FUNCTION public.save_mini_session_campaign(
     p_campaign_id uuid,
@@ -95,6 +101,16 @@ BEGIN
             target.faq_intro,
             'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.'
         ),
+        booking_eyebrow = COALESCE(
+            NULLIF(btrim(p_campaign ->> 'bookingEyebrow'), ''),
+            target.booking_eyebrow,
+            'Reserve your session'
+        ),
+        booking_headline = COALESCE(
+            NULLIF(btrim(p_campaign ->> 'bookingHeadline'), ''),
+            target.booking_headline,
+            'Choose your time.'
+        ),
         faqs = p_campaign -> 'faqs',
         meta_title = p_campaign ->> 'metaTitle',
         meta_description = p_campaign ->> 'metaDescription',
@@ -159,7 +175,8 @@ BEGIN
         inclusions, cancellation_policy, weather_policy, lateness_policy,
         terms_note, hero_media_id, cta_label, homepage_featured, promo_label,
         promo_headline, promo_copy, promo_cta_label, homepage_hero_cta_label,
-        faq_eyebrow, faq_headline, faq_intro, faqs, meta_title,
+        faq_eyebrow, faq_headline, faq_intro, booking_eyebrow,
+        booking_headline, faqs, meta_title,
         meta_description, created_by, updated_by
     ) VALUES (
         source.website_id, source.client_id,
@@ -174,7 +191,8 @@ BEGIN
         source.cta_label, source.homepage_featured, source.promo_label,
         source.promo_headline, source.promo_copy, source.promo_cta_label,
         source.homepage_hero_cta_label, source.faq_eyebrow,
-        source.faq_headline, source.faq_intro, source.faqs, source.meta_title,
+        source.faq_headline, source.faq_intro, source.booking_eyebrow,
+        source.booking_headline, source.faqs, source.meta_title,
         source.meta_description, p_actor, p_actor
     ) RETURNING id INTO duplicate_id;
 
@@ -252,6 +270,8 @@ BEGIN
        OR btrim(target.faq_eyebrow) = ''
        OR btrim(target.faq_headline) = ''
        OR btrim(target.faq_intro) = ''
+       OR btrim(target.booking_eyebrow) = ''
+       OR btrim(target.booking_headline) = ''
        OR jsonb_array_length(target.inclusions) = 0
        OR jsonb_array_length(target.faqs) = 0
        OR btrim(target.cancellation_policy) = ''
