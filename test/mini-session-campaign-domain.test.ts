@@ -23,6 +23,7 @@ const campaign: MiniSessionCampaignRow = {
     description: 'Twenty relaxed minutes with a curated final gallery.',
     experience_headline: 'A small session with room for real connection.',
     inclusions_headline: 'Session Details',
+    vibe_eyebrow: 'The vibe',
     vibe_headline: 'Relax and enjoy the moment',
     vibe_content: '<p>Come as you are.</p>',
     duration_minutes: 20,
@@ -109,6 +110,7 @@ const validInput = {
     description: 'Twenty relaxed minutes.',
     experienceHeadline: 'A small session with room for real connection.',
     inclusionsHeadline: 'Session Details',
+    vibeEyebrow: 'The vibe',
     vibeHeadline: 'Relax and enjoy the moment',
     vibeContent: '<p>Come as you are.</p>',
     durationMinutes: 20,
@@ -177,6 +179,21 @@ describe('Mini Sessions campaign domain', () => {
                 ...validInput,
                 inclusionsHeadline: '   ',
             })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults the Vibe eyebrow for older clients and rejects blank labels', () => {
+        const { vibeEyebrow: _vibeEyebrow, ...legacyInput } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput).vibeEyebrow).toBe(
+            'The vibe'
+        )
+        expect(() =>
+            parseMiniSessionCampaignInput({ ...validInput, vibeEyebrow: '   ' })
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
                 code: 'VALIDATION_ERROR',
@@ -320,6 +337,7 @@ describe('Mini Sessions campaign domain', () => {
         expect(result).not.toHaveProperty('heroMediaId')
         expect(result).not.toHaveProperty('createdBy')
         expect(result.inclusionsHeadline).toBe('Session Details')
+        expect(result.vibeEyebrow).toBe('The vibe')
         expect(result.faqHeadline).toBe('Mini Session questions.')
         expect(result.bookingEyebrow).toBe('Reserve your session')
         expect(result.bookingHeadline).toBe('Choose your time.')

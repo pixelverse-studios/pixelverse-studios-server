@@ -1,11 +1,14 @@
 -- DEV-1118: make Mini Sessions FAQ and booking section intro copy campaign-controlled.
 
 ALTER TABLE public.mini_session_campaigns
+    ADD COLUMN vibe_eyebrow text NOT NULL DEFAULT 'The vibe',
     ADD COLUMN faq_eyebrow text NOT NULL DEFAULT 'Good to know',
     ADD COLUMN faq_headline text NOT NULL DEFAULT 'Mini Session questions.',
     ADD COLUMN faq_intro text NOT NULL DEFAULT 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
     ADD COLUMN booking_eyebrow text NOT NULL DEFAULT 'Reserve your session',
     ADD COLUMN booking_headline text NOT NULL DEFAULT 'Choose your time.',
+    ADD CONSTRAINT mini_session_campaigns_vibe_eyebrow_length_check
+        CHECK (char_length(btrim(vibe_eyebrow)) BETWEEN 1 AND 80),
     ADD CONSTRAINT mini_session_campaigns_faq_eyebrow_length_check
         CHECK (char_length(btrim(faq_eyebrow)) BETWEEN 1 AND 80),
     ADD CONSTRAINT mini_session_campaigns_faq_headline_length_check
@@ -64,6 +67,11 @@ BEGIN
             NULLIF(btrim(p_campaign ->> 'inclusionsHeadline'), ''),
             target.inclusions_headline,
             'Session Details'
+        ),
+        vibe_eyebrow = COALESCE(
+            NULLIF(btrim(p_campaign ->> 'vibeEyebrow'), ''),
+            target.vibe_eyebrow,
+            'The vibe'
         ),
         vibe_headline = p_campaign ->> 'vibeHeadline',
         vibe_content = p_campaign ->> 'vibeContent',
@@ -170,7 +178,7 @@ BEGIN
     INSERT INTO public.mini_session_campaigns (
         website_id, client_id, internal_name, status, public_label, headline,
         summary, description, experience_headline, inclusions_headline,
-        vibe_headline, vibe_content, duration_minutes, total_price_cents,
+        vibe_eyebrow, vibe_headline, vibe_content, duration_minutes, total_price_cents,
         deposit_cents, balance_due_text, date_summary, location_summary,
         inclusions, cancellation_policy, weather_policy, lateness_policy,
         terms_note, hero_media_id, cta_label, homepage_featured, promo_label,
@@ -183,7 +191,7 @@ BEGIN
         left(source.internal_name, 113) || ' (Copy)', 'draft',
         source.public_label, source.headline, source.summary, source.description,
         source.experience_headline, source.inclusions_headline,
-        source.vibe_headline, source.vibe_content, source.duration_minutes,
+        source.vibe_eyebrow, source.vibe_headline, source.vibe_content, source.duration_minutes,
         source.total_price_cents, source.deposit_cents, source.balance_due_text,
         source.date_summary, source.location_summary, source.inclusions,
         source.cancellation_policy, source.weather_policy,
@@ -262,6 +270,7 @@ BEGIN
        OR btrim(target.description) = ''
        OR btrim(target.experience_headline) = ''
        OR btrim(target.inclusions_headline) = ''
+       OR btrim(target.vibe_eyebrow) = ''
        OR btrim(target.vibe_headline) = ''
        OR btrim(target.vibe_content) = ''
        OR btrim(target.balance_due_text) = ''

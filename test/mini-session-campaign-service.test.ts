@@ -73,6 +73,9 @@ const campaign = {
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
     inclusions_headline: 'Session Details',
+    vibe_eyebrow: 'The vibe',
+    vibe_headline: 'Relax and enjoy the moment',
+    vibe_content: '<p>Come as you are.</p>',
     duration_minutes: 20,
     total_price_cents: 30000,
     deposit_cents: 10000,
@@ -131,6 +134,9 @@ const validInput = {
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
     inclusionsHeadline: 'Session Details',
+    vibeEyebrow: 'The vibe',
+    vibeHeadline: 'Relax and enjoy the moment',
+    vibeContent: '<p>Come as you are.</p>',
     durationMinutes: 20,
     totalPriceCents: 30000,
     depositCents: 10000,
@@ -285,6 +291,7 @@ describe('Mini Sessions campaign service', () => {
             expect.objectContaining({
                 p_campaign: expect.objectContaining({
                     inclusionsHeadline: 'Session Details',
+                    vibeEyebrow: 'The vibe',
                     faqHeadline: 'Mini Session questions.',
                     bookingEyebrow: 'Reserve your session',
                     bookingHeadline: 'Choose your time.',

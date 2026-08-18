@@ -172,6 +172,7 @@ const toCampaignPayload = (
     description: input.description,
     experience_headline: input.experienceHeadline,
     inclusions_headline: input.inclusionsHeadline,
+    vibe_eyebrow: input.vibeEyebrow,
     vibe_headline: input.vibeHeadline,
     vibe_content: input.vibeContent,
     duration_minutes: input.durationMinutes,
