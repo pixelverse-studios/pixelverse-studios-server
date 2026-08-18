@@ -92,9 +92,19 @@ const batchUpdateCatalogItemsSchema = z
         status: z.enum(['archived']),
     })
 
-const reorderCatalogItemsSchema = z.object({
-    orderedIds: z.array(z.number().int().positive()).min(2).max(50),
-})
+const reorderCatalogItemsSchema = z
+    .object({
+        orderedIds: z.array(z.number().int().positive()).min(2).max(50),
+    })
+    .superRefine((value, context) => {
+        if (new Set(value.orderedIds).size !== value.orderedIds.length) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['orderedIds'],
+                message: 'orderedIds must be unique',
+            })
+        }
+    })
 
 const assignPlacementSchema = z.object({
     media_id: z.number().int().positive(),

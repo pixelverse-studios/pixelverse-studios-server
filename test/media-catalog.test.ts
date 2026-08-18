@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
     from: vi.fn(),
+    rpc: vi.fn(),
     queryResults: [] as Array<{ data: unknown; error: unknown }>,
     builders: [] as Array<Record<string, ReturnType<typeof vi.fn>>>,
 }))
@@ -9,6 +10,7 @@ const mockState = vi.hoisted(() => ({
 vi.mock('../src/lib/db', () => ({
     db: {
         from: mockState.from,
+        rpc: mockState.rpc,
     },
     Tables: {
         WEBSITES: 'websites',
@@ -133,6 +135,8 @@ const draftItem = {
 describe('media catalog service', () => {
     beforeEach(() => {
         mockState.from.mockReset()
+        mockState.rpc.mockReset()
+        mockState.rpc.mockResolvedValue({ data: [], error: null })
         mockState.queryResults = []
         mockState.builders = []
         mockState.from.mockImplementation(() => {
@@ -717,6 +721,75 @@ describe('media catalog service', () => {
                 }),
             })
         )
+    })
+
+    it('reorders a selected portfolio sequence through the atomic database function', async () => {
+        const reorderedRecords = [
+            { ...publishedItem, id: 2, sort_order: 1 },
+            { ...publishedItem, id: 1, sort_order: 2 },
+        ]
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+        ]
+        mockState.rpc.mockResolvedValue({ data: reorderedRecords, error: null })
+
+        const items = await mediaCatalogService.reorderSelection({
+            websiteSlug: 'iffers-pictures',
+            orderedIds: [2, 1],
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.rpc).toHaveBeenCalledWith(
+            'reorder_media_catalog_selection',
+            {
+                p_website_id: 'website-1',
+                p_ordered_ids: [2, 1],
+            }
+        )
+        expect(items.map(item => ({ id: item.id, sortOrder: item.sortOrder }))).toEqual([
+            { id: 2, sortOrder: 1 },
+            { id: 1, sortOrder: 2 },
+        ])
+    })
+
+    it('moves an individually edited portfolio image and returns its normalized position', async () => {
+        mockState.queryResults = [
+            { data: { id: 'website-1', client_id: 'client-1' }, error: null },
+            {
+                data: {
+                    bucket: 'persisted-bucket',
+                    public_base_url: 'https://pub.example.test',
+                    key_prefix: '',
+                },
+                error: null,
+            },
+            { data: publishedItem, error: null },
+            { data: { ...publishedItem, sort_order: 2 }, error: null },
+        ]
+        mockState.rpc.mockResolvedValue({
+            data: [
+                { ...publishedItem, id: 7, sort_order: 1 },
+                { ...publishedItem, sort_order: 2 },
+            ],
+            error: null,
+        })
+
+        const item = await mediaCatalogService.updateItem({
+            websiteSlug: 'iffers-pictures',
+            id: 1,
+            sortOrder: 2,
+            actor: 'jenn@example.com',
+        })
+
+        expect(mockState.rpc).toHaveBeenCalledWith(
+            'move_media_catalog_item_to_position',
+            {
+                p_website_id: 'website-1',
+                p_item_id: 1,
+                p_target_position: 2,
+            }
+        )
+        expect(item).toEqual(expect.objectContaining({ id: 1, sortOrder: 2 }))
     })
 
     it('updates crop position metadata with safe percentage values', async () => {

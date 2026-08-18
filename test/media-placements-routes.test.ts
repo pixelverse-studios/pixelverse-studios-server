@@ -33,6 +33,7 @@ vi.mock('../src/services/media-catalog', () => ({
         createItem: vi.fn(),
         updateItem: vi.fn(),
         batchUpdateItems: vi.fn(),
+        reorderSelection: vi.fn(),
     },
 }))
 
@@ -162,6 +163,7 @@ const runHandlers = async (
 describe('media placement route coverage', () => {
     beforeEach(() => {
         vi.mocked(mediaCatalogService.batchUpdateItems).mockReset()
+        vi.mocked(mediaCatalogService.reorderSelection).mockReset()
         vi.mocked(mediaPlacementsService.listPublicPlacements).mockReset()
         vi.mocked(mediaPlacementsService.listAdminPlacements).mockReset()
         vi.mocked(mediaPlacementsService.assignPlacement).mockReset()
@@ -212,6 +214,68 @@ describe('media placement route coverage', () => {
                 path: '/api/media/:websiteSlug/admin/items/:id',
             })
         )
+    })
+
+    it('registers the protected reorder route before the item id patch route', () => {
+        expect(
+            routeHandlers({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/reorder',
+            })[0]
+        ).toBe(requireMediaAdminSession)
+        expect(
+            routeIndex({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/reorder',
+            })
+        ).toBeLessThan(
+            routeIndex({
+                method: 'patch',
+                path: '/api/media/:websiteSlug/admin/items/:id',
+            })
+        )
+    })
+
+    it('passes an ordered image selection and authenticated actor to the reorder service', async () => {
+        vi.mocked(mediaCatalogService.reorderSelection).mockResolvedValue([])
+        const req = createRequest({ body: { orderedIds: [2, 1] } })
+        req.mediaAdmin = {
+            email: 'jenn@example.com',
+            sessionId: 'session-1',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+        }
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/reorder',
+        })
+
+        await runHandlers(handlers.slice(1), req, res)
+
+        expect(res.statusCode).toBe(200)
+        expect(mediaCatalogService.reorderSelection).toHaveBeenCalledWith({
+            websiteSlug: 'iffers-pictures',
+            orderedIds: [2, 1],
+            actor: 'jenn@example.com',
+        })
+    })
+
+    it('rejects duplicate image ids before executing a reorder', async () => {
+        const req = createRequest({ body: { orderedIds: [1, 1] } })
+        const res = createResponse()
+        const handlers = routeHandlers({
+            method: 'patch',
+            path: '/api/media/:websiteSlug/admin/items/reorder',
+        })
+        const validatorsThroughValidateRequest = handlers.slice(
+            1,
+            handlers.indexOf(validateRequest) + 1
+        )
+
+        await runHandlers(validatorsThroughValidateRequest, req, res)
+
+        expect(res.statusCode).toBe(400)
+        expect(mediaCatalogService.reorderSelection).not.toHaveBeenCalled()
     })
 
     it('passes authenticated admin actor context to batch media archive controller', async () => {

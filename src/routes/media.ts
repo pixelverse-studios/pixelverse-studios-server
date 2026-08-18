@@ -326,6 +326,13 @@ router.patch(
         body('orderedIds.*')
             .isInt({ min: 1 })
             .withMessage('orderedIds must contain positive integers'),
+        body('orderedIds').custom(value => {
+            if (!Array.isArray(value)) return true
+            if (new Set(value).size !== value.length) {
+                throw new Error('orderedIds must be unique')
+            }
+            return true
+        }),
     ],
     validateRequest,
     media.reorderCatalogItems
