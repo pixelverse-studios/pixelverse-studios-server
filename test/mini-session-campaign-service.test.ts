@@ -72,6 +72,7 @@ const campaign = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
+    inclusions_headline: 'Everything you need.',
     duration_minutes: 20,
     total_price_cents: 30000,
     deposit_cents: 10000,
@@ -122,6 +123,7 @@ const validInput = {
     headline: 'Fall Mini Sessions',
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
+    inclusionsHeadline: 'Everything you need.',
     durationMinutes: 20,
     totalPriceCents: 30000,
     depositCents: 10000,
@@ -262,6 +264,14 @@ describe('Mini Sessions campaign service', () => {
         ).rejects.toEqual(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
                 code: 'STALE_WRITE',
+            })
+        )
+        expect(mockState.rpc).toHaveBeenCalledWith(
+            'save_mini_session_campaign',
+            expect.objectContaining({
+                p_campaign: expect.objectContaining({
+                    inclusionsHeadline: 'Everything you need.',
+                }),
             })
         )
         expect(miniSessionCampaignAudit.tryCreateLog).not.toHaveBeenCalled()

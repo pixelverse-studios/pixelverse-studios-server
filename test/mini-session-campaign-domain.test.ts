@@ -22,6 +22,7 @@ const campaign: MiniSessionCampaignRow = {
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes with a curated final gallery.',
     experience_headline: 'A small session with room for real connection.',
+    inclusions_headline: 'Everything you need.',
     vibe_headline: 'Relax and enjoy the moment',
     vibe_content: '<p>Come as you are.</p>',
     duration_minutes: 20,
@@ -102,6 +103,7 @@ const validInput = {
     summary: 'A short seasonal session for families.',
     description: 'Twenty relaxed minutes.',
     experienceHeadline: 'A small session with room for real connection.',
+    inclusionsHeadline: 'Everything you need.',
     vibeHeadline: 'Relax and enjoy the moment',
     vibeContent: '<p>Come as you are.</p>',
     durationMinutes: 20,
@@ -150,7 +152,26 @@ describe('Mini Sessions campaign domain', () => {
         expect(parseMiniSessionCampaignInput(validInput)).toMatchObject({
             totalPriceCents: 30000,
             depositCents: 10000,
+            inclusionsHeadline: 'Everything you need.',
         })
+    })
+
+    it('defaults the inclusions heading for older clients and rejects blank headings', () => {
+        const { inclusionsHeadline: _inclusionsHeadline, ...legacyInput } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput).inclusionsHeadline).toBe(
+            'Everything you need.'
+        )
+        expect(() =>
+            parseMiniSessionCampaignInput({
+                ...validInput,
+                inclusionsHeadline: '   ',
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
     })
 
     it('sanitizes campaign and FAQ rich text before persistence', () => {
@@ -239,6 +260,7 @@ describe('Mini Sessions campaign domain', () => {
         expect(result).not.toHaveProperty('internalName')
         expect(result).not.toHaveProperty('heroMediaId')
         expect(result).not.toHaveProperty('createdBy')
+        expect(result.inclusionsHeadline).toBe('Everything you need.')
         expect(result.bookingOptions).toHaveLength(1)
         expect(result.bookingOptions[0].label).toBe('Saturday, October 17')
     })
