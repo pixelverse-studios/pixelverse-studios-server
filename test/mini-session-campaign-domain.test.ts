@@ -44,6 +44,9 @@ const campaign: MiniSessionCampaignRow = {
     promo_copy: 'Limited seasonal dates are now open.',
     promo_cta_label: 'See fall dates',
     homepage_hero_cta_label: 'Mini Sessions now booking',
+    faq_eyebrow: 'Good to know',
+    faq_headline: 'Mini Session questions.',
+    faq_intro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -125,6 +128,9 @@ const validInput = {
     promoCopy: 'Limited dates are now open.',
     promoCtaLabel: 'See fall dates',
     homepageHeroCtaLabel: 'Mini Sessions now booking',
+    faqEyebrow: 'Good to know',
+    faqHeadline: 'Mini Session questions.',
+    faqIntro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -166,6 +172,32 @@ describe('Mini Sessions campaign domain', () => {
             parseMiniSessionCampaignInput({
                 ...validInput,
                 inclusionsHeadline: '   ',
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults FAQ intro copy for older clients and validates editable values', () => {
+        const {
+            faqEyebrow: _faqEyebrow,
+            faqHeadline: _faqHeadline,
+            faqIntro: _faqIntro,
+            ...legacyInput
+        } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput)).toMatchObject({
+            faqEyebrow: 'Good to know',
+            faqHeadline: 'Mini Session questions.',
+            faqIntro:
+                'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+        })
+        expect(() =>
+            parseMiniSessionCampaignInput({
+                ...validInput,
+                faqHeadline: '   ',
             })
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
@@ -261,6 +293,7 @@ describe('Mini Sessions campaign domain', () => {
         expect(result).not.toHaveProperty('heroMediaId')
         expect(result).not.toHaveProperty('createdBy')
         expect(result.inclusionsHeadline).toBe('Session Details')
+        expect(result.faqHeadline).toBe('Mini Session questions.')
         expect(result.bookingOptions).toHaveLength(1)
         expect(result.bookingOptions[0].label).toBe('Saturday, October 17')
     })

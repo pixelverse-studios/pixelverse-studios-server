@@ -91,6 +91,11 @@ const campaign = {
     promo_headline: 'A little time, a lifetime of memories',
     promo_copy: 'Limited dates are now open.',
     promo_cta_label: 'See fall dates',
+    homepage_hero_cta_label: 'Mini Sessions now booking',
+    faq_eyebrow: 'Good to know',
+    faq_headline: 'Mini Session questions.',
+    faq_intro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    faqs: [],
     meta_title: '',
     meta_description: '',
     published_at: null,
@@ -142,6 +147,11 @@ const validInput = {
     promoHeadline: 'A little time, a lifetime of memories',
     promoCopy: 'Limited dates are now open.',
     promoCtaLabel: 'See fall dates',
+    homepageHeroCtaLabel: 'Mini Sessions now booking',
+    faqEyebrow: 'Good to know',
+    faqHeadline: 'Mini Session questions.',
+    faqIntro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    faqs: [],
     metaTitle: '',
     metaDescription: '',
     bookingOptions: [
@@ -271,6 +281,7 @@ describe('Mini Sessions campaign service', () => {
             expect.objectContaining({
                 p_campaign: expect.objectContaining({
                     inclusionsHeadline: 'Session Details',
+                    faqHeadline: 'Mini Session questions.',
                 }),
             })
         )

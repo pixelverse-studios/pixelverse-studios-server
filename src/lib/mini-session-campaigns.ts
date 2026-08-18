@@ -103,6 +103,13 @@ export const miniSessionCampaignInputSchema = z
         promoCopy: boundedText(320).default(''),
         promoCtaLabel: boundedText(80).default(''),
         homepageHeroCtaLabel: boundedText(80).default(''),
+        faqEyebrow: boundedText(80, true).default('Good to know'),
+        faqHeadline: boundedText(200, true).default(
+            'Mini Session questions.'
+        ),
+        faqIntro: boundedText(600, true).default(
+            'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.'
+        ),
         faqs: z.array(miniSessionFaqInputSchema).max(50).default([]),
         metaTitle: boundedText(120).default(''),
         metaDescription: boundedText(320).default(''),
@@ -181,6 +188,9 @@ export interface MiniSessionCampaignRow {
     promo_copy: string
     promo_cta_label: string
     homepage_hero_cta_label: string
+    faq_eyebrow: string
+    faq_headline: string
+    faq_intro: string
     faqs: MiniSessionFaq[]
     meta_title: string
     meta_description: string
@@ -280,6 +290,9 @@ export interface MiniSessionAdminCampaign {
     promoCopy: string
     promoCtaLabel: string
     homepageHeroCtaLabel: string
+    faqEyebrow: string
+    faqHeadline: string
+    faqIntro: string
     faqs: MiniSessionFaq[]
     metaTitle: string
     metaDescription: string
@@ -405,6 +418,11 @@ export const mapAdminCampaign = (
     promoCtaLabel: row.promo_cta_label,
     homepageHeroCtaLabel:
         row.homepage_hero_cta_label || 'Mini Sessions now booking',
+    faqEyebrow: row.faq_eyebrow || 'Good to know',
+    faqHeadline: row.faq_headline || 'Mini Session questions.',
+    faqIntro:
+        row.faq_intro ||
+        'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
     faqs: [...(row.faqs || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
