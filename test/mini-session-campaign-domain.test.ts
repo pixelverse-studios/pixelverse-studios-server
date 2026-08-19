@@ -23,6 +23,7 @@ const campaign: MiniSessionCampaignRow = {
     description: 'Twenty relaxed minutes with a curated final gallery.',
     experience_headline: 'A small session with room for real connection.',
     inclusions_headline: 'Session Details',
+    vibe_eyebrow: 'The vibe',
     vibe_headline: 'Relax and enjoy the moment',
     vibe_content: '<p>Come as you are.</p>',
     duration_minutes: 20,
@@ -44,6 +45,11 @@ const campaign: MiniSessionCampaignRow = {
     promo_copy: 'Limited seasonal dates are now open.',
     promo_cta_label: 'See fall dates',
     homepage_hero_cta_label: 'Mini Sessions now booking',
+    faq_eyebrow: 'Good to know',
+    faq_headline: 'Mini Session questions.',
+    faq_intro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    booking_eyebrow: 'Reserve your session',
+    booking_headline: 'Choose your time.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -104,6 +110,7 @@ const validInput = {
     description: 'Twenty relaxed minutes.',
     experienceHeadline: 'A small session with room for real connection.',
     inclusionsHeadline: 'Session Details',
+    vibeEyebrow: 'The vibe',
     vibeHeadline: 'Relax and enjoy the moment',
     vibeContent: '<p>Come as you are.</p>',
     durationMinutes: 20,
@@ -125,6 +132,11 @@ const validInput = {
     promoCopy: 'Limited dates are now open.',
     promoCtaLabel: 'See fall dates',
     homepageHeroCtaLabel: 'Mini Sessions now booking',
+    faqEyebrow: 'Good to know',
+    faqHeadline: 'Mini Session questions.',
+    faqIntro: 'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    bookingEyebrow: 'Reserve your session',
+    bookingHeadline: 'Choose your time.',
     faqs: [{
         id: '9ec1dd02-337f-49e9-a8a4-a38105c4de25',
         question: 'What should we expect?',
@@ -166,6 +178,70 @@ describe('Mini Sessions campaign domain', () => {
             parseMiniSessionCampaignInput({
                 ...validInput,
                 inclusionsHeadline: '   ',
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults the Vibe eyebrow for older clients and rejects blank labels', () => {
+        const { vibeEyebrow: _vibeEyebrow, ...legacyInput } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput).vibeEyebrow).toBe(
+            'The vibe'
+        )
+        expect(() =>
+            parseMiniSessionCampaignInput({ ...validInput, vibeEyebrow: '   ' })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults FAQ intro copy for older clients and validates editable values', () => {
+        const {
+            faqEyebrow: _faqEyebrow,
+            faqHeadline: _faqHeadline,
+            faqIntro: _faqIntro,
+            ...legacyInput
+        } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput)).toMatchObject({
+            faqEyebrow: 'Good to know',
+            faqHeadline: 'Mini Session questions.',
+            faqIntro:
+                'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+        })
+        expect(() =>
+            parseMiniSessionCampaignInput({
+                ...validInput,
+                faqHeadline: '   ',
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'VALIDATION_ERROR',
+            })
+        )
+    })
+
+    it('defaults booking intro copy for older clients and validates editable values', () => {
+        const {
+            bookingEyebrow: _bookingEyebrow,
+            bookingHeadline: _bookingHeadline,
+            ...legacyInput
+        } = validInput
+
+        expect(parseMiniSessionCampaignInput(legacyInput)).toMatchObject({
+            bookingEyebrow: 'Reserve your session',
+            bookingHeadline: 'Choose your time.',
+        })
+        expect(() =>
+            parseMiniSessionCampaignInput({
+                ...validInput,
+                bookingHeadline: '   ',
             })
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
@@ -261,6 +337,10 @@ describe('Mini Sessions campaign domain', () => {
         expect(result).not.toHaveProperty('heroMediaId')
         expect(result).not.toHaveProperty('createdBy')
         expect(result.inclusionsHeadline).toBe('Session Details')
+        expect(result.vibeEyebrow).toBe('The vibe')
+        expect(result.faqHeadline).toBe('Mini Session questions.')
+        expect(result.bookingEyebrow).toBe('Reserve your session')
+        expect(result.bookingHeadline).toBe('Choose your time.')
         expect(result.bookingOptions).toHaveLength(1)
         expect(result.bookingOptions[0].label).toBe('Saturday, October 17')
     })
@@ -301,6 +381,20 @@ describe('Mini Sessions campaign domain', () => {
         ).toThrowError(
             expect.objectContaining<Partial<MiniSessionDomainError>>({
                 code: 'OPEN_OPTION_REQUIRED',
+            })
+        )
+    })
+
+    it('requires the editable FAQ and booking section copy before publishing', () => {
+        expect(() =>
+            assertCampaignReadyForPublication({
+                campaign: { ...campaign, booking_headline: '   ' },
+                bookingOptions: [openOption],
+                heroMedia,
+            })
+        ).toThrowError(
+            expect.objectContaining<Partial<MiniSessionDomainError>>({
+                code: 'CAMPAIGN_NOT_READY',
             })
         )
     })

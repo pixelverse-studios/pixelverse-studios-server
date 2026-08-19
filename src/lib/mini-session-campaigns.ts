@@ -82,6 +82,7 @@ export const miniSessionCampaignInputSchema = z
         inclusionsHeadline: boundedText(200, true).default(
             'Session Details'
         ),
+        vibeEyebrow: boundedText(80, true).default('The vibe'),
         vibeHeadline: boundedText(200).default(''),
         vibeContent: boundedText(10000).default(''),
         durationMinutes: z.number().int().min(1).max(480).default(20),
@@ -103,6 +104,19 @@ export const miniSessionCampaignInputSchema = z
         promoCopy: boundedText(320).default(''),
         promoCtaLabel: boundedText(80).default(''),
         homepageHeroCtaLabel: boundedText(80).default(''),
+        faqEyebrow: boundedText(80, true).default('Good to know'),
+        faqHeadline: boundedText(200, true).default(
+            'Mini Session questions.'
+        ),
+        faqIntro: boundedText(600, true).default(
+            'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.'
+        ),
+        bookingEyebrow: boundedText(80, true).default(
+            'Reserve your session'
+        ),
+        bookingHeadline: boundedText(200, true).default(
+            'Choose your time.'
+        ),
         faqs: z.array(miniSessionFaqInputSchema).max(50).default([]),
         metaTitle: boundedText(120).default(''),
         metaDescription: boundedText(320).default(''),
@@ -160,6 +174,7 @@ export interface MiniSessionCampaignRow {
     description: string
     experience_headline: string
     inclusions_headline: string
+    vibe_eyebrow: string
     vibe_headline: string
     vibe_content: string
     duration_minutes: number
@@ -181,6 +196,11 @@ export interface MiniSessionCampaignRow {
     promo_copy: string
     promo_cta_label: string
     homepage_hero_cta_label: string
+    faq_eyebrow: string
+    faq_headline: string
+    faq_intro: string
+    booking_eyebrow: string
+    booking_headline: string
     faqs: MiniSessionFaq[]
     meta_title: string
     meta_description: string
@@ -258,6 +278,7 @@ export interface MiniSessionAdminCampaign {
     description: string
     experienceHeadline: string
     inclusionsHeadline: string
+    vibeEyebrow: string
     vibeHeadline: string
     vibeContent: string
     durationMinutes: number
@@ -280,6 +301,11 @@ export interface MiniSessionAdminCampaign {
     promoCopy: string
     promoCtaLabel: string
     homepageHeroCtaLabel: string
+    faqEyebrow: string
+    faqHeadline: string
+    faqIntro: string
+    bookingEyebrow: string
+    bookingHeadline: string
     faqs: MiniSessionFaq[]
     metaTitle: string
     metaDescription: string
@@ -382,6 +408,7 @@ export const mapAdminCampaign = (
     experienceHeadline:
         row.experience_headline || 'A small session with room for real connection.',
     inclusionsHeadline: row.inclusions_headline || 'Session Details',
+    vibeEyebrow: row.vibe_eyebrow || 'The vibe',
     vibeHeadline: row.vibe_headline || 'Relax and Enjoy the Moment',
     vibeContent: row.vibe_content || '',
     durationMinutes: row.duration_minutes,
@@ -405,6 +432,13 @@ export const mapAdminCampaign = (
     promoCtaLabel: row.promo_cta_label,
     homepageHeroCtaLabel:
         row.homepage_hero_cta_label || 'Mini Sessions now booking',
+    faqEyebrow: row.faq_eyebrow || 'Good to know',
+    faqHeadline: row.faq_headline || 'Mini Session questions.',
+    faqIntro:
+        row.faq_intro ||
+        'Everything you need to arrive prepared and enjoy a relaxed, beautiful session.',
+    bookingEyebrow: row.booking_eyebrow || 'Reserve your session',
+    bookingHeadline: row.booking_headline || 'Choose your time.',
     faqs: [...(row.faqs || [])].sort((a, b) => a.sortOrder - b.sortOrder),
     metaTitle: row.meta_title,
     metaDescription: row.meta_description,
@@ -473,11 +507,17 @@ export const assertCampaignReadyForPublication = ({
         campaign.description,
         campaign.experience_headline,
         campaign.inclusions_headline,
+        campaign.vibe_eyebrow,
         campaign.vibe_headline,
         campaign.vibe_content,
         campaign.balance_due_text,
         campaign.date_summary,
         campaign.location_summary,
+        campaign.faq_eyebrow,
+        campaign.faq_headline,
+        campaign.faq_intro,
+        campaign.booking_eyebrow,
+        campaign.booking_headline,
         campaign.cancellation_policy,
         campaign.lateness_policy,
         campaign.cta_label,
