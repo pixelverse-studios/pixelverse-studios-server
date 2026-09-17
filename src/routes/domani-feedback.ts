@@ -4,22 +4,24 @@ import { requireDomaniStaff } from '../middleware/domani-staff-auth'
 import * as feedback from '../controllers/domani-feedback'
 
 const router = Router()
-router.use('/api/domani/feedback', cors({
+const BASE_ROUTE = '/api/domani/feedback'
+router.use(BASE_ROUTE, cors({
     origin: (origin, callback) => callback(null, !origin || (process.env.PVS_DASHBOARD_ORIGINS || '').split(',').map(value => value.trim()).includes(origin)),
     methods: ['GET', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
+    maxAge: 600, // Cache browser preflight checks; every actual request still verifies staff access.
 }))
 // Prefix guard also covers any future history/send/read-state routes.
-router.use('/api/domani/feedback', requireDomaniStaff)
-router.get('/api/domani/feedback', feedback.list)
-router.get('/api/domani/feedback/stats', feedback.stats)
-router.get('/api/domani/feedback/:source/:id', feedback.detail)
-router.get('/api/domani/feedback/:id', feedback.detail)
-router.patch('/api/domani/feedback/:source/:id/status', express.json({ limit: '8kb' }), feedback.updateStatus)
-router.patch('/api/domani/feedback/:id/status', express.json({ limit: '8kb' }), feedback.updateStatus)
+router.use(BASE_ROUTE, requireDomaniStaff)
+router.get(BASE_ROUTE, feedback.list)
+router.get(`${BASE_ROUTE}/stats`, feedback.stats)
+router.get(`${BASE_ROUTE}/:source/:id`, feedback.detail)
+router.get(`${BASE_ROUTE}/:id`, feedback.detail)
+router.patch(`${BASE_ROUTE}/:source/:id/status`, express.json({ limit: '8kb' }), feedback.updateStatus)
+router.patch(`${BASE_ROUTE}/:id/status`, express.json({ limit: '8kb' }), feedback.updateStatus)
 
 // Keep malformed/oversized JSON responses safe and consistent at this boundary.
-router.use('/api/domani/feedback', (error: any, _req: Request, res: Response, next: NextFunction) => {
+router.use(BASE_ROUTE, (error: any, _req: Request, res: Response, next: NextFunction) => {
     if (error?.type === 'entity.too.large') {
         res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'Feedback request exceeds 8 KiB' }, message: 'Feedback request exceeds 8 KiB' })
     } else if (error?.type === 'entity.parse.failed') {

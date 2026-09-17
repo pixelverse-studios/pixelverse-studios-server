@@ -19,16 +19,16 @@ The new security-invoker dashboard view and list/status RPCs are service-role-on
 
 ## Access boundary
 
-The Next.js proxy verifies the PVS user/session then forwards the bearer token; Express independently validates the token with PVS Auth and checks exact normalized membership in `DOMANI_DASHBOARD_STAFF_EMAILS`. Empty configuration fails closed. No default staff address is silently authorized. User-editable metadata is not an authorization source. Browser Origin, if present, must match `PVS_DASHBOARD_ORIGINS`; same-origin mutation checks live at the Next.js boundary. Responses are no-store.
+Browser requests go directly to the PVS server with the current Supabase session access token. Initial page data is still fetched directly from the API by Next.js server components after session verification. There is no Next.js feedback API route. Express independently validates the token with PVS Auth and checks exact normalized membership in `DOMANI_DASHBOARD_STAFF_EMAILS`. Empty configuration fails closed. No default staff address is silently authorized. User-editable metadata is not an authorization source. Browser Origin, if present, must match `PVS_DASHBOARD_ORIGINS`; the server validates every mutation and does not use cookies as API authentication. Browser requests omit cookies. Allowed CORS preflight responses may be cached for 600 seconds; actual requests always undergo origin and staff checks. Responses are no-store.
 
 The guard covers the feedback prefix including future subroutes. Legacy support reads are protected too. Public unsubscribe and unrelated domains are unchanged. Existing Releases authorization is not silently rewritten. Users enrichment must reuse the verified staff guard and close legacy users bypasses in DEV-1407.
 
 ## Implemented HTTP contract
 
-Browser origin: `/api/domani/feedback`; upstream same path on PVS server. The proxy explicitly allows only implemented routes.
+API base: `/api/domani/feedback` on the PVS server. Both browser and server-rendered page reads call the server directly. Browser origins must be explicitly listed in `PVS_DASHBOARD_ORIGINS`, including `http://localhost:3000` and `http://127.0.0.1:3000` for local development. Production and preview origins require their own explicit entries; do not use a wildcard.
 
 - `GET /`: query fields category, status, platform, source, search (up to 200 chars), start_date, end_date, limit (1–100; default 50), offset (0–1,000,000), sort_by (created_at/status), sort_order (asc/desc). All filters apply before pagination and aggregate counts. Search is literal case-insensitive substring, not an SQL wildcard pattern. Unknown fields/arrays are rejected. Sort ties use created_at, source, id, with missing dates last.
-- Date-only boundaries are inclusive UTC dates; start means 00:00:00.000Z, end means 23:59:59.999Z. Timestamp input requires timezone. Existing date-range controls send ISO instants. Invalid calendar dates and inverted ranges return 400.
+- Date-only boundaries cover whole UTC dates: start means 00:00:00Z and end becomes the next midnight with an exclusive comparison, retaining PostgreSQL sub-millisecond precision. Explicit timestamp end bounds remain inclusive and require timezone. Existing date-range controls send date-only values. The API derives the internal end_date_exclusive RPC flag; clients cannot supply it. Invalid calendar dates and inverted ranges return 400.
 - `GET /stats`: same filters, unpaginated aggregate stats.
 - `GET /:source/:id`: one normalized item or 404.
 - `PATCH /:source/:id/status`: JSON `{ "status": "new" | "reviewed" | "resolved" }`; verified actor supplied internally, never from client payload.
@@ -53,7 +53,7 @@ Example response (synthetic):
 }
 ```
 
-Errors: 400 invalid request, 401 invalid/missing session, 403 nonstaff/forbidden origin, 404 missing record, 503 missing staff configuration/auth or database unavailable. Server shape is `{error:{code,message},message}` (validation adds details). Proxy exposes sanitized messages/status and never upstream stack/SQL details.
+Errors: 400 invalid request, 401 invalid/missing session, 403 nonstaff/forbidden origin, 404 missing record, 503 missing staff configuration/auth or database unavailable. Server shape is `{error:{code,message},message}` (validation adds details). The API emits sanitized errors; the browser client displays safe access/session/service messages.
 
 ## Subsequent conversation slices (specified, not implemented here)
 
@@ -70,9 +70,9 @@ Mailbox routing proposal for DEV-1396/1397: keep visible From as `Domani <hello@
 ## Deployment and verification
 
 1. Apply `20260917185008_domani_feedback_dashboard_foundation.sql` to the **Domani** database only, after review. This branch has not applied it remotely.
-2. Configure PVS server `DOMANI_DASHBOARD_STAFF_EMAILS` with the intended staff accounts. Configure browser origins if direct authorized API clients need them. No secrets in browser env.
+2. Configure PVS server `DOMANI_DASHBOARD_STAFF_EMAILS` with the intended staff accounts. Configure `PVS_DASHBOARD_ORIGINS` for the actual dashboard origin(s); this is required for direct browser requests. No secrets in browser env.
 3. Deploy paired server and site branches in a coordinated window. The old site does not forward authentication, so do not roll out server protection while leaving the old site as the only UI. Prefer validate both in staging, then deploy site/server together; the brief incompatible interval must fail closed with an error, not expose data.
 4. Verify ordinary signed-in and anonymous callers cannot read either feedback source; verify authorized staff can filter/list/detail/status and see a persisted audit. Use controlled data.
 5. Keep the additive migration/audit on app rollback. Avoid reverting the server to unprotected legacy reads; disable the feature or retain the guard when rolling back UI. No email feature is enabled in this slice.
 
-Automated coverage: 126 synthetic records across both sources, colliding source IDs, category/raw-status mapping, >100 pagination, exact counts, literal search, date boundaries, empty results, archived no-op, invalid source, atomic audit, anon/authenticated privilege denial, auth middleware and authenticated HTTP/proxy contract tests. The local SQL harness creates its own temporary PostgreSQL cluster and never connects to live projects.
+Automated coverage: 126 synthetic records across both sources, colliding source IDs, category/raw-status mapping, >100 pagination, exact counts, literal search, date boundaries, empty results, archived no-op, invalid source, atomic audit, anon/authenticated privilege denial, auth middleware and authenticated HTTP/client contract tests. The local SQL harness creates its own temporary PostgreSQL cluster and never connects to live projects.

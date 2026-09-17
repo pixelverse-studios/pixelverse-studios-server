@@ -53,7 +53,10 @@ WITH filtered AS MATERIALIZED (
            strpos(lower(coalesce(f.email, '')), lower(p_query->>'search')) > 0 OR
            strpos(lower(coalesce(f.message, '')), lower(p_query->>'search')) > 0)
       AND (p_query->>'start_date' IS NULL OR f.created_at >= (p_query->>'start_date')::timestamptz)
-      AND (p_query->>'end_date' IS NULL OR f.created_at <= (p_query->>'end_date')::timestamptz)
+      AND (p_query->>'end_date' IS NULL OR
+           CASE WHEN coalesce((p_query->>'end_date_exclusive')::boolean, false)
+             THEN f.created_at < (p_query->>'end_date')::timestamptz
+             ELSE f.created_at <= (p_query->>'end_date')::timestamptz END)
 ), ranked AS (
     SELECT f.*, row_number() OVER (ORDER BY
         CASE WHEN p_query->>'sort_by' = 'status' AND p_query->>'sort_order' = 'asc' THEN f.status END ASC NULLS LAST,

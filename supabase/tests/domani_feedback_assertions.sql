@@ -12,6 +12,14 @@ BEGIN
  IF (r->>'total')::int<>1 THEN RAISE EXCEPTION 'Search must be literal'; END IF;
  r := public.list_dashboard_domani_feedback('{"start_date":"2026-09-17T00:00:00Z","end_date":"2026-09-17T23:59:59.999Z"}');
  IF (r->>'total')::int<>1 THEN RAISE EXCEPTION 'Inclusive UTC date boundary'; END IF;
+ UPDATE public.support_requests SET created_at='2026-09-17T23:59:59.999500Z';
+ r := public.list_dashboard_domani_feedback('{"start_date":"2026-09-17T00:00:00Z","end_date":"2026-09-18T00:00:00Z","end_date_exclusive":true}');
+ IF (r->>'total')::int<>1 THEN RAISE EXCEPTION 'Date-only end must include sub-millisecond timestamps'; END IF;
+ UPDATE public.support_requests SET created_at='2026-09-18T00:00:00Z';
+ r := public.list_dashboard_domani_feedback('{"start_date":"2026-09-17T00:00:00Z","end_date":"2026-09-18T00:00:00Z","end_date_exclusive":true}');
+ IF (r->>'total')::int<>0 THEN RAISE EXCEPTION 'Date-only end must exclude next midnight'; END IF;
+ r := public.list_dashboard_domani_feedback('{"start_date":"2026-09-18T00:00:00Z","end_date":"2026-09-18T00:00:00Z"}');
+ IF (r->>'total')::int<>1 THEN RAISE EXCEPTION 'Explicit timestamp end must remain inclusive'; END IF;
  r := public.list_dashboard_domani_feedback('{"category":"bug","limit":1,"sort_order":"asc"}');
  IF (r->>'total')::int<>125 OR r#>>'{items,0,id}'<>'00000000-0000-4000-8000-000000000001' THEN RAISE EXCEPTION 'Category mapping/sort'; END IF;
  r := public.list_dashboard_domani_feedback('{"search":"absent-value"}');

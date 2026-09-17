@@ -23,13 +23,25 @@ export const feedbackQuerySchema = z.object({
     source: z.enum(feedbackSources).optional(),
     search: z.string().trim().max(200).optional(),
     start_date: timestamp.optional(),
-    end_date: dateValue.transform(value => /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value).transform(value => new Date(value).toISOString()).optional(),
+    end_date: dateValue.optional(),
     limit: integer.pipe(z.number().int().min(1).max(100)).default(50),
     offset: integer.pipe(z.number().int().min(0).max(1000000)).default(0),
     sort_by: z.enum(['created_at', 'status']).default('created_at'),
     sort_order: z.enum(['asc', 'desc']).default('desc'),
-}).strict().refine(value => !value.start_date || !value.end_date || value.start_date <= value.end_date,
-    { message: 'start_date must be before end_date', path: ['end_date'] })
+}).strict().refine(value => {
+    if (!value.start_date || !value.end_date) return true
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value.end_date)
+    const end = Date.parse(value.end_date) + (dateOnly ? 86400000 : 0)
+    return dateOnly ? Date.parse(value.start_date) < end : Date.parse(value.start_date) <= end
+}, { message: 'start_date must be before end_date', path: ['end_date'] }).transform(value => {
+    if (!value.end_date) return value
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value.end_date)
+    return {
+        ...value,
+        end_date: new Date(Date.parse(value.end_date) + (dateOnly ? 86400000 : 0)).toISOString(),
+        ...(dateOnly ? { end_date_exclusive: true } : {}),
+    }
+})
 
 export const feedbackIdentitySchema = z.object({
     source: z.enum(feedbackSources), id: z.string().uuid(),

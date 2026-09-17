@@ -40,10 +40,16 @@ beforeEach(() => {
 
 describe('feedback input contract', () => {
     it('normalizes date bounds, whitespace and numeric query strings', () => {
-        expect(feedbackQuerySchema.parse({ search: ' hello ', start_date: '2026-09-01', end_date: '2026-09-17', limit: '10', offset: '20' })).toEqual({ search: 'hello', start_date: '2026-09-01T00:00:00.000Z', end_date: '2026-09-17T23:59:59.999Z', limit: 10, offset: 20, sort_by: 'created_at', sort_order: 'desc' })
+        expect(feedbackQuerySchema.parse({ search: ' hello ', start_date: '2026-09-01', end_date: '2026-09-17', limit: '10', offset: '20' })).toEqual({ search: 'hello', start_date: '2026-09-01T00:00:00.000Z', end_date: '2026-09-18T00:00:00.000Z', end_date_exclusive: true, limit: 10, offset: 20, sort_by: 'created_at', sort_order: 'desc' })
+    })
+    it('keeps timestamp end bounds inclusive and allows times within a date-only end day', () => {
+        expect(feedbackQuerySchema.parse({ end_date: '2026-09-17T12:00:00Z' })).toMatchObject({ end_date: '2026-09-17T12:00:00.000Z' })
+        expect(feedbackQuerySchema.parse({ end_date: '2026-09-17T12:00:00Z' })).not.toHaveProperty('end_date_exclusive')
+        expect(feedbackQuerySchema.safeParse({ start_date: '2026-09-17T12:00:00Z', end_date: '2026-09-17' }).success).toBe(true)
+        expect(feedbackQuerySchema.parse({ end_date: '2026-12-31' }).end_date).toBe('2027-01-01T00:00:00.000Z')
     })
     it.each([
-        { limit: '0' }, { limit: '101' }, { limit: '1.5' }, { offset: '-1' }, { offset: '1000001' },
+        { end_date_exclusive: true }, { limit: '0' }, { limit: '101' }, { limit: '1.5' }, { offset: '-1' }, { offset: '1000001' },
         { limit: ['10'] }, { offset: [] }, { source: ['beta_feedback'] }, { search: ['text'] },
         { search: 'x'.repeat(201) }, { start_date: '2026-02-30' }, { end_date: '2026-02-30' },
         { start_date: '2026-02-30T12:00:00Z' }, { start_date: '2026-09-01T12:00:00' },
@@ -179,5 +185,58 @@ describe('feedback owns JSON parsing before the global parser', () => {
             expect(mocks.rpc).not.toHaveBeenCalled()
             expect(mocks.from).not.toHaveBeenCalled()
         } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) }
+    })
+})
+
+
+describe('direct dashboard browser access', () => {
+    it('allows configured preflights, verifies bearer requests, and rejects other origins', async () => {
+        vi.stubEnv('PVS_DASHBOARD_ORIGINS', 'http://localhost:3000,https://dashboard.test')
+        const app = express()
+        app.use(router)
+        const server = app.listen(0, '127.0.0.1')
+        await new Promise<void>((resolve, reject) => { server.once('listening', resolve); server.once('error', reject) })
+        const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/domani/feedback`
+        // Exercise only the loopback listener; the suite blocks global fetch.
+        const fetch = (url: string, options: { method?: string; headers: Record<string, string> }) =>
+            new Promise<{ status: number; headers: Headers }>((resolve, reject) => {
+                const outgoing = httpRequest(url, options, incoming => {
+                    const headers = new Headers()
+                    for (const [key, value] of Object.entries(incoming.headers)) {
+                        if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(',') : value)
+                    }
+                    incoming.resume()
+                    incoming.on('end', () => resolve({ status: incoming.statusCode || 0, headers }))
+                })
+                outgoing.on('error', reject)
+                outgoing.end()
+            })
+        try {
+            const preflight = await fetch(url, { method: 'OPTIONS', headers: {
+                Origin: 'http://localhost:3000', 'Access-Control-Request-Method': 'PATCH',
+                'Access-Control-Request-Headers': 'authorization,content-type',
+            } })
+            expect(preflight.status).toBe(204)
+            expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:3000')
+            expect(preflight.headers.get('access-control-allow-methods')).toContain('PATCH')
+            expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization')
+            expect(preflight.headers.get('access-control-max-age')).toBe('600')
+            expect(mocks.getUser).not.toHaveBeenCalled()
+            const allowed = await fetch(url, { headers: { Origin: 'https://dashboard.test', Authorization: 'Bearer browser-token' } })
+            expect(allowed.status).toBe(200)
+            expect(allowed.headers.get('access-control-allow-origin')).toBe('https://dashboard.test')
+            expect(mocks.getUser).toHaveBeenCalledWith('browser-token')
+            mocks.rpc.mockClear()
+            const denied = await fetch(url, { headers: { Origin: 'https://unapproved.test', Authorization: 'Bearer browser-token' } })
+            expect(denied.status).toBe(403)
+            expect(denied.headers.get('access-control-allow-origin')).toBeNull()
+            const anonymous = await fetch(url, { headers: { Origin: 'http://localhost:3000' } })
+            expect(anonymous.status).toBe(401)
+            expect(anonymous.headers.get('access-control-allow-origin')).toBe('http://localhost:3000')
+            expect(mocks.rpc).not.toHaveBeenCalled()
+        } finally {
+            vi.unstubAllEnvs()
+            await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+        }
     })
 })
