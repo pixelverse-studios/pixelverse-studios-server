@@ -139,6 +139,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `DOMANI_SUPABASE_URL` | Domani Supabase project REST URL used only for Domani product data. |
 | `DOMANI_SUPABASE_SERVICE_KEY` | Server-only Domani service-role key used for release and other Domani data operations. |
 | `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
+| `DOMANI_DASHBOARD_STAFF_EMAILS` | Comma-separated explicit PVS staff email allowlist for Domani feedback/support reads and status changes; empty configuration fails closed. |
 | `PVS_DASHBOARD_ORIGINS` | Comma-separated browser origins allowed to call authenticated admin release APIs. |
 | `GMAIL_USER` | Gmail address used as sender. |
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
@@ -198,7 +199,7 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 - `services/clients.getClientEmail` logs results but does not return anything; verify intent before using.
 - `routes/recaptcha.ts` lacks implementation.
 - Legacy `models/` and some utilities point to MongoDB and JWT flows that are not wired into the current Supabase-based server. Remove or update once migrations are complete.
-- No rate limiting or authentication is currently guarding endpoints; exercise caution when exposing publicly.
+- Legacy endpoint protection varies. Domani feedback/support reads and feedback status changes require verified PVS staff access; send rate limits belong to the subsequent reply-dispatch slice.
 
 ## Audit Trail
 
