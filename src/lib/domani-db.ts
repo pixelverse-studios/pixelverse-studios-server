@@ -15,6 +15,7 @@ export const domaniDb = createClient(
 // Domani database tables
 export const DomaniTables = {
     BETA_FEEDBACK: 'beta_feedback',
+    DASHBOARD_FEEDBACK: 'dashboard_domani_feedback',
     SUPPORT_REQUESTS: 'support_requests',
     WAITLIST: 'waitlist',
     PROFILES: 'profiles',

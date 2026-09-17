@@ -1,0 +1,38 @@
+import { z } from 'zod'
+
+export const feedbackSources = ['beta_feedback', 'support_request'] as const
+export const feedbackStatuses = ['new', 'reviewed', 'resolved'] as const
+export const feedbackCategories = ['bug', 'feature', 'love', 'general', 'support', 'unknown'] as const
+export type FeedbackSource = typeof feedbackSources[number]
+
+const validCalendarDate = (value: string) => {
+    const date = value.slice(0, 10)
+    return Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date
+}
+const dateValue = z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    z.string().datetime({ offset: true }),
+]).refine(validCalendarDate, 'Use a valid calendar date')
+const timestamp = dateValue.transform(value => new Date(value).toISOString())
+const integer = z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
+
+export const feedbackQuerySchema = z.object({
+    category: z.enum(feedbackCategories).optional(),
+    status: z.enum([...feedbackStatuses, 'unknown']).optional(),
+    platform: z.enum(['ios', 'android', 'unknown']).optional(),
+    source: z.enum(feedbackSources).optional(),
+    search: z.string().trim().max(200).optional(),
+    start_date: timestamp.optional(),
+    end_date: dateValue.transform(value => /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value).transform(value => new Date(value).toISOString()).optional(),
+    limit: integer.pipe(z.number().int().min(1).max(100)).default(50),
+    offset: integer.pipe(z.number().int().min(0).max(1000000)).default(0),
+    sort_by: z.enum(['created_at', 'status']).default('created_at'),
+    sort_order: z.enum(['asc', 'desc']).default('desc'),
+}).strict().refine(value => !value.start_date || !value.end_date || value.start_date <= value.end_date,
+    { message: 'start_date must be before end_date', path: ['end_date'] })
+
+export const feedbackIdentitySchema = z.object({
+    source: z.enum(feedbackSources), id: z.string().uuid(),
+})
+export const feedbackStatusSchema = z.object({ status: z.enum(feedbackStatuses) }).strict()
+export type FeedbackQuery = z.infer<typeof feedbackQuerySchema>

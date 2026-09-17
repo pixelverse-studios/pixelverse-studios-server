@@ -17,6 +17,7 @@ import appsRouter from './routes/apps'
 import projectsRouter from './routes/projects'
 import agendaRouter from './routes/agenda'
 import domaniRouter from './routes/domani'
+import domaniFeedbackRouter from './routes/domani-feedback'
 import calendlyWebhookRouter from './routes/calendly-webhook'
 import prospectsRouter from './routes/prospects'
 import emailCampaignsRouter from './routes/email-campaigns'
@@ -76,6 +77,7 @@ app.use((req, res, next) => {
 // be enforced without increasing the body limit for unrelated endpoints.
 app.use(adminReleaseImportRouter)
 app.use(adminReleaseManagementRouter)
+app.use(domaniFeedbackRouter)
 app.use(cors())
 app.use(bodyParser.json())
 

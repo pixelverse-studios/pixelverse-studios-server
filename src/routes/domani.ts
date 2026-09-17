@@ -3,8 +3,8 @@ import { body, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import domani from '../controllers/domani'
+import { requireDomaniStaff } from '../middleware/domani-staff-auth'
 import {
-    FEEDBACK_CATEGORIES,
     PLATFORMS,
     SIGNUP_COHORTS
 } from '../lib/domani-db'
@@ -29,27 +29,10 @@ const platformValidator = query('platform')
     .isIn([...PLATFORMS])
     .withMessage(`platform must be one of: ${PLATFORMS.join(', ')}`)
 
-// GET /api/domani/feedback - List beta feedback submissions
-router.get(
-    '/api/domani/feedback',
-    [
-        query('category')
-            .optional()
-            .isIn([...FEEDBACK_CATEGORIES])
-            .withMessage(
-                `category must be one of: ${FEEDBACK_CATEGORIES.join(', ')}`
-            ),
-        query('status').optional().isString(),
-        platformValidator,
-        ...paginationValidators
-    ],
-    validateRequest,
-    domani.listFeedback
-)
-
 // GET /api/domani/support - List support requests
 router.get(
     '/api/domani/support',
+    requireDomaniStaff,
     [
         query('category').optional().isString(),
         query('status').optional().isString(),
