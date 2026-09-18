@@ -296,3 +296,33 @@ describe('conversation history and read state', () => {
         expect(JSON.stringify(vi.mocked(res.json).mock.calls)).not.toContain('private SQL')
     })
 })
+
+
+describe('feedback reply endpoints', () => {
+    const body = { subject: 'A reply', text: 'Plain reply', request_key: id }
+    it.each([{ ...body, to: 'attacker@example.test' }, { ...body, from: 'attacker@example.test' }, { ...body, subject: 'Bad\nheader' }, { ...body, text: ' ' }, { ...body, text: 'x'.repeat(20001) }])('rejects unsafe reply input', async input => {
+        const res = response()
+        await controller.submitReply(request({ body: input }), res)
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+    it('fails closed before persistence while sending is disabled', async () => {
+        vi.stubEnv('DOMANI_FEEDBACK_SENDING_ENABLED', 'false')
+        const res = response()
+        await controller.submitReply(request({ body }), res)
+        expect(res.status).toHaveBeenCalledWith(503)
+        expect(mocks.rpc).not.toHaveBeenCalled()
+        vi.unstubAllEnvs()
+    })
+    it('persists a reply under the verified staff identity and escapes the template', async () => {
+        vi.stubEnv('DOMANI_FEEDBACK_SENDING_ENABLED', 'true'); vi.stubEnv('RESEND_API_KEY', 'synthetic')
+        const res = response()
+        await controller.submitReply(request({ body: { ...body, text: '<script>bad</script>' } }), res)
+        expect(mocks.rpc).toHaveBeenCalledWith('submit_domani_feedback_reply', expect.objectContaining({
+            p_source: 'beta_feedback', p_id: id, p_actor_id: actor.userId, p_actor_email: actor.email,
+            p_request_key: id, p_html: expect.stringContaining('&lt;script&gt;'),
+        }))
+        expect(res.status).toHaveBeenCalledWith(202)
+        vi.unstubAllEnvs()
+    })
+})

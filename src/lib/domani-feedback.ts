@@ -54,3 +54,10 @@ export const feedbackHistorySchema = z.object({
     after: z.string().uuid().optional(),
 }).strict()
 export const feedbackReadSchema = z.object({ message_id: z.string().uuid() }).strict()
+
+export const feedbackReplySchema = z.object({
+    subject: z.string().min(1).max(200).refine(value => !!value.trim() && !/[\r\n]/.test(value)),
+    text: z.string().min(1).max(20000).refine(value => !!value.trim()),
+    request_key: z.string().uuid(),
+}).strict()
+export const feedbackReplyKeySchema = z.object({ requestKey: z.string().uuid() })

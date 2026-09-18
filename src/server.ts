@@ -1,3 +1,4 @@
+import { startFeedbackReplyDispatcher } from './services/domani-feedback-dispatch'
 import 'dotenv/config'
 
 import express, { Application } from 'express'
@@ -130,4 +131,5 @@ app.use(
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
     startReleaseCacheInvalidationDispatcher()
+    startFeedbackReplyDispatcher()
 })

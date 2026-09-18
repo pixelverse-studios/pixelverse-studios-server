@@ -1,6 +1,7 @@
+import { feedbackSendingEnabled, supportReplyHtml } from '../services/domani-feedback-dispatch'
 import { Request, Response } from 'express'
 import { ZodError } from 'zod'
-import { feedbackIdentitySchema, feedbackQuerySchema, feedbackStatusSchema, feedbackHistorySchema, feedbackReadSchema } from '../lib/domani-feedback'
+import { feedbackIdentitySchema, feedbackQuerySchema, feedbackStatusSchema, feedbackHistorySchema, feedbackReadSchema, feedbackReplySchema, feedbackReplyKeySchema } from '../lib/domani-feedback'
 import * as service from '../services/domani-feedback'
 
 const fail = (res: Response, error: unknown) => {
@@ -12,6 +13,11 @@ const fail = (res: Response, error: unknown) => {
         error: { code: 'INVALID_CURSOR', message: 'Message does not belong to this conversation' },
         message: 'Message does not belong to this conversation',
     })
+    const code = (error as { code?: string })?.code
+    if (code === 'DF409' || code === 'DF422') {
+        const message = code === 'DF409' ? 'This reply cannot be changed or retried. Refresh its status.' : 'This feedback has no usable recipient email.'
+        return res.status(code === 'DF409' ? 409 : 422).json({ error: { code: code === 'DF409' ? 'REPLY_CONFLICT' : 'RECIPIENT_UNAVAILABLE', message }, message })
+    }
     // Avoid logging user content, SQL parameters or service credentials.
     console.error('Domani feedback operation failed', { code: (error as { code?: string })?.code || 'UNKNOWN' })
     return res.status(503).json({ error: { code: 'FEEDBACK_UNAVAILABLE', message: 'Feedback service unavailable' }, message: 'Feedback service unavailable' })
@@ -70,6 +76,28 @@ export const markRead = async (req: Request, res: Response) => {
         const { source, id } = feedbackIdentitySchema.parse(req.params)
         const { message_id } = feedbackReadSchema.parse(req.body)
         const result = await service.markRead(source, id, req.dashboardActor.userId, message_id)
+        return result ? res.json(result) : missing(res)
+    } catch (error) { return fail(res, error) }
+}
+
+export const submitReply = async (req: Request, res: Response) => {
+    try {
+        if (!req.dashboardActor) return res.sendStatus(401)
+        const { source, id } = feedbackIdentitySchema.parse(req.params)
+        const body = feedbackReplySchema.parse(req.body)
+        if (!feedbackSendingEnabled()) return res.status(503).json({ error: { code: 'SENDING_DISABLED', message: 'Feedback email sending is not enabled yet.' } })
+        const result = await service.submitReply(source, id, req.dashboardActor, body, supportReplyHtml(body.text))
+        return result ? res.status(202).json(result) : missing(res)
+    } catch (error) { return fail(res, error) }
+}
+export const replyState = async (req: Request, res: Response) => {
+    try {
+        if (!req.dashboardActor) return res.sendStatus(401)
+        const { source, id } = feedbackIdentitySchema.parse(req.params)
+        const { requestKey } = feedbackReplyKeySchema.parse(req.params)
+        const retry = req.method === 'POST'
+        if (retry && !feedbackSendingEnabled()) return res.status(503).json({ error: { code: 'SENDING_DISABLED', message: 'Feedback email sending is not enabled yet.' } })
+        const result = await service.replyState(source, id, requestKey, retry)
         return result ? res.json(result) : missing(res)
     } catch (error) { return fail(res, error) }
 }
