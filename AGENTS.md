@@ -139,7 +139,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `DOMANI_SUPABASE_URL` | Domani Supabase project REST URL used only for Domani product data. |
 | `DOMANI_SUPABASE_SERVICE_KEY` | Server-only Domani service-role key used for release and other Domani data operations. |
 | `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
-| `DOMANI_DASHBOARD_STAFF_EMAILS` | Comma-separated explicit PVS staff email allowlist for Domani feedback/support reads and status changes; empty configuration fails closed. |
+| `DOMANI_FEEDBACK_SENDING_ENABLED` | Explicit opt-in (`true`) for durable support replies and their dispatcher; enable only after migrations and sender-readiness verification. Requires `RESEND_API_KEY`. |
+| `DOMANI_DASHBOARD_STAFF_EMAILS` | Optional comma-separated additional Domani dashboard staff emails. Code always includes phil@pixelversestudios.io and sami@pixelversestudios.io; every account must present a verified PVS token. |
 | `PVS_DASHBOARD_ORIGINS` | Additional comma-separated browser origins allowed to call authenticated admin release APIs; the canonical PixelVerse HTTPS apex and www origins are always allowed. Include localhost or exact preview origins as needed. |
 | `GMAIL_USER` | Gmail address used as sender. |
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
