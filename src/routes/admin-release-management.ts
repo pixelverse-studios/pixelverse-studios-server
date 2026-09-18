@@ -1,4 +1,4 @@
-import cors from 'cors'
+import { adminReleaseCors } from '../middleware/admin-release-cors'
 import express, { Router } from 'express'
 
 import {
@@ -21,26 +21,9 @@ import { adminReleaseErrorResponse } from '../lib/admin-releases'
 import { requireDashboardActor } from '../middleware/admin-release-auth'
 
 const router = Router()
-const origins = (process.env.PVS_DASHBOARD_ORIGINS || '')
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean)
-const dashboardCors = cors({
-    origin: (origin, callback) =>
-        callback(null, !origin || origins.includes(origin)),
-    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-        'Authorization',
-        'Content-Type',
-        'If-Match',
-        'X-Request-Id'
-    ],
-    exposedHeaders: ['ETag', 'X-Release-ETag', 'X-Request-Id'],
-    maxAge: 600
-})
 const json = express.json({ limit: '1mb' })
 
-router.use('/api/admin/releases', dashboardCors)
+router.use('/api/admin/releases', adminReleaseCors)
 router.use('/api/admin/releases', requireDashboardActor)
 
 router.get('/api/admin/releases', listReleases)

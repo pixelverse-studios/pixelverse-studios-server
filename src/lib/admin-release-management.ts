@@ -74,6 +74,18 @@ export const requireIfMatch = (req: Request, resource = 'release'): number => {
     return version
 }
 
+// Backward compatible with header-only clients. Never refresh the version here:
+// it must be the version the editor originally loaded.
+export const requireEditorVersion = (req: Request, expectedRowVersion?: number): number => {
+    const headerVersion = parseIfMatch(req.get('if-match'))
+    if (headerVersion !== null && expectedRowVersion !== undefined && headerVersion !== expectedRowVersion) {
+        throw new AdminReleaseApiError(400, 'VALIDATION_ERROR', 'Release version values disagree', {
+            expectedRowVersion: ['The body and If-Match must refer to the same saved version']
+        })
+    }
+    return expectedRowVersion ?? headerVersion ?? requireIfMatch(req)
+}
+
 const nullableText = (max: number) => z.string().max(max).nullable().optional()
 const isoDate = z
     .string()
@@ -234,6 +246,7 @@ const editorHighlightSchema = z
 
 export const saveReleaseEditorSchema = z
     .object({
+        expectedRowVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
         version: z
             .string()
             .regex(RELEASE_VERSION_PATTERN, 'Use a complete X.Y.Z version'),
