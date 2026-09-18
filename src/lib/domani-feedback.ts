@@ -52,7 +52,9 @@ export type FeedbackQuery = z.infer<typeof feedbackQuerySchema>
 export const feedbackHistorySchema = z.object({
     limit: integer.pipe(z.number().int().min(1).max(100)).default(50),
     after: z.string().uuid().optional(),
-}).strict()
+    before: z.string().uuid().optional(),
+    latest: z.enum(['true', 'false']).optional(),
+}).strict().refine(value => !(value.after && (value.before || value.latest === 'true')), 'Choose one pagination direction')
 export const feedbackReadSchema = z.object({ message_id: z.string().uuid() }).strict()
 
 export const feedbackReplySchema = z.object({

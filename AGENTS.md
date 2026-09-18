@@ -220,3 +220,10 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 6. Smoke-test using `npm run start` and manual API calls when the change needs live route validation.
 
 Keep this document up to date whenever the API surface, environment requirements, or workflows change.
+
+## Domani feedback delivery events
+
+- `POST /api/webhooks/domani/feedback/resend` verifies the raw body with Svix before storing a durable event. Mount before JSON middleware.
+- `DOMANI_FEEDBACK_WEBHOOK_SECRET` is the dedicated Resend webhook signing secret. It enables durable unmatched-event replay, independently of the sending flag.
+- `POST /api/domani/feedback/:source/:id/replies/:requestKey/reconcile` requires PVS staff authorization and only reads provider evidence. The database limits provider checks per message to once per 30 seconds.
+- Apply `20260918121352_domani_feedback_delivery_events.sql` to Domani before this server release. See `docs/domani-feedback-conversation-contract.md` for ordering and recovery behavior. No migration enables sending.
