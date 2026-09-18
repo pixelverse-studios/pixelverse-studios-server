@@ -1,5 +1,5 @@
 import express, { NextFunction, Request, Response, Router } from 'express'
-import cors from 'cors'
+import { adminReleaseCors } from '../middleware/admin-release-cors'
 import multer from 'multer'
 
 import { importMarkdown } from '../controllers/admin-release-import'
@@ -12,24 +12,6 @@ import {
 import { requireDashboardActor } from '../middleware/admin-release-auth'
 
 const router = Router()
-const dashboardOrigins = (process.env.PVS_DASHBOARD_ORIGINS || '')
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean)
-const dashboardCors = cors({
-    origin: (origin, callback) => {
-        callback(null, !origin || dashboardOrigins.includes(origin))
-    },
-    methods: ['POST', 'OPTIONS'],
-    allowedHeaders: [
-        'Authorization',
-        'Content-Type',
-        'If-Match',
-        'X-Request-Id'
-    ],
-    exposedHeaders: ['ETag', 'X-Release-ETag', 'X-Request-Id'],
-    maxAge: 600
-})
 const jsonParser = express.json({ limit: '7mb' })
 const conversionJsonParser = express.json({ limit: '32kb' })
 const multipartParser = multer({
@@ -140,7 +122,7 @@ export const parseConversionBody = (
     })
 }
 
-router.use('/api/admin/releases', dashboardCors)
+router.use('/api/admin/releases', adminReleaseCors)
 
 router.post(
     '/api/admin/releases/import-markdown',

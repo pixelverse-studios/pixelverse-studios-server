@@ -911,3 +911,39 @@ describe('DEV-1042 durable cache invalidation dispatcher', () => {
         )
     })
 })
+
+describe('editor save version transport', () => {
+    const body = {
+        version: '1.3.0', title: 'Coming soon', status: 'published',
+        timing: { kind: 'tbd', value: null }, platforms: ['ios'],
+        publicOverview: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Coming soon.' }] }] },
+        internalSummary: null, highlights: [{ id: noteId, rowVersion: 1, noteType: 'feature', publicTitle: 'Recurring tasks', publicBody: 'Plan recurring work.', technicalNotes: null, platforms: ['ios'], isPublic: true }]
+    }
+    it('accepts the loaded body version when the header is absent', async () => {
+        state.rpc.mockResolvedValue({ data: mutation(), error: null })
+        const res = response()
+        await saveReleaseEditor(request({ body: { ...body, expectedRowVersion: 4 }, get: vi.fn() }), res)
+        expect(res.statusCode).toBe(200)
+        expect(state.rpc).toHaveBeenCalledWith('save_admin_domani_release_editor', expect.objectContaining({ p_primary_if_match: 4 }))
+        expect(state.rpc.mock.calls[0][1].p_payload).not.toHaveProperty('expectedRowVersion')
+    })
+    it.each([undefined, 0, -1, 1.5, '4'])('rejects a missing or invalid version %s before a write', async expectedRowVersion => {
+        const res = response()
+        await saveReleaseEditor(request({ body: { ...body, expectedRowVersion }, get: vi.fn() }), res)
+        expect(res.statusCode).toBe(expectedRowVersion === undefined ? 428 : 400)
+        expect(state.rpc).not.toHaveBeenCalled()
+    })
+    it('rejects disagreement between body and header', async () => {
+        const res = response()
+        await saveReleaseEditor(request({ body: { ...body, expectedRowVersion: 3 } }), res)
+        expect(res.statusCode).toBe(400)
+        expect(state.rpc).not.toHaveBeenCalled()
+    })
+    it('still rejects a stale body version through the atomic RPC', async () => {
+        state.rpc.mockResolvedValue({ data: null, error: { message: 'DEV1042_VERSION_CONFLICT' } })
+        const res = response()
+        await saveReleaseEditor(request({ body: { ...body, expectedRowVersion: 1 }, get: vi.fn() }), res)
+        expect(res.statusCode).toBe(409)
+        expect(res.payload.error.code).toBe('VERSION_CONFLICT')
+    })
+})

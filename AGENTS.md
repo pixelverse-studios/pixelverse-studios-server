@@ -140,7 +140,7 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `DOMANI_SUPABASE_SERVICE_KEY` | Server-only Domani service-role key used for release and other Domani data operations. |
 | `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
 | `DOMANI_DASHBOARD_STAFF_EMAILS` | Comma-separated explicit PVS staff email allowlist for Domani feedback/support reads and status changes; empty configuration fails closed. |
-| `PVS_DASHBOARD_ORIGINS` | Comma-separated browser origins allowed to call authenticated admin release APIs. |
+| `PVS_DASHBOARD_ORIGINS` | Additional comma-separated browser origins allowed to call authenticated admin release APIs; the canonical PixelVerse HTTPS apex and www origins are always allowed. Include localhost or exact preview origins as needed. |
 | `GMAIL_USER` | Gmail address used as sender. |
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
 | `GMAIL_CLIENT_SECRET` | Google OAuth client secret. |

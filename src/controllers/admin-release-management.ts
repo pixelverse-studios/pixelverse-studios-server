@@ -22,6 +22,7 @@ import {
     reorderNotesSchema,
     requireIfMatch,
     saveReleaseEditorSchema,
+    requireEditorVersion,
     setVisibilitySchema,
     updateNoteSchema,
     updateReleaseSchema
@@ -328,9 +329,9 @@ export const saveReleaseEditor = async (
         const releaseId = req.params.releaseId
             ? parseUuid(req.params.releaseId, 'releaseId')
             : null
-        const payload = parseBody(saveReleaseEditorSchema, req.body)
+        const { expectedRowVersion, ...payload } = parseBody(saveReleaseEditorSchema, req.body)
         const currentActor = actor(req)
-        const primaryIfMatch = releaseId ? requireIfMatch(req) : null
+        const primaryIfMatch = releaseId ? requireEditorVersion(req, expectedRowVersion) : null
         if (currentActor.role !== 'admin') {
             const publishesToChangelog =
                 payload.status === 'published' &&
