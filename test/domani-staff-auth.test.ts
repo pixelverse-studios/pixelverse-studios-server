@@ -29,12 +29,30 @@ describe('Domani staff authorization', () => {
         expect(req.dashboardActor).toEqual({ userId: 'staff-id', email: 'staff@pvs.test', role: 'admin' })
         expect(next).toHaveBeenCalledOnce()
     })
-    it.each([undefined, '', ' , '])('fails closed without configured staff (%s)', async value => {
+    it.each(['phil@pixelversestudios.io', 'sami@pixelversestudios.io'])('always allows verified default staff %s', async email => {
+        for (const value of [undefined, '', ' , ', 'additional@pvs.test']) {
+            if (value === undefined) delete process.env.DOMANI_DASHBOARD_STAFF_EMAILS
+            else process.env.DOMANI_DASHBOARD_STAFF_EMAILS = value
+            getUser.mockResolvedValue({ data: { user: { id: 'default-staff', email: ` ${email.toUpperCase()} ` } }, error: null })
+            const { req, next } = await run()
+            expect(getUser).toHaveBeenCalledWith('token')
+            expect(req.dashboardActor).toEqual({ userId: 'default-staff', email, role: 'admin' })
+            expect(next).toHaveBeenCalledOnce()
+        }
+    })
+    it.each([undefined, '', ' , '])('denies other verified users without env additions (%s)', async value => {
         if (value === undefined) delete process.env.DOMANI_DASHBOARD_STAFF_EMAILS
         else process.env.DOMANI_DASHBOARD_STAFF_EMAILS = value
         const { res, next } = await run()
-        expect(res.status).toHaveBeenCalledWith(503)
-        expect(getUser).not.toHaveBeenCalled()
+        expect(res.status).toHaveBeenCalledWith(403)
+        expect(getUser).toHaveBeenCalledWith('token')
+        expect(next).not.toHaveBeenCalled()
+    })
+    it('does not trust a default email attached to an invalid token response', async () => {
+        delete process.env.DOMANI_DASHBOARD_STAFF_EMAILS
+        getUser.mockResolvedValue({ data: { user: { id: 'id', email: 'phil@pixelversestudios.io' } }, error: { message: 'expired' } })
+        const { res, next } = await run()
+        expect(res.status).toHaveBeenCalledWith(401)
         expect(next).not.toHaveBeenCalled()
     })
     it.each([{}, { authorization: 'Basic token' }, { authorization: 'Bearer token extra' }])('rejects absent or malformed authentication', async headers => {
