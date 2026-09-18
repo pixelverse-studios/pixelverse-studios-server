@@ -48,3 +48,9 @@ export const feedbackIdentitySchema = z.object({
 })
 export const feedbackStatusSchema = z.object({ status: z.enum(feedbackStatuses) }).strict()
 export type FeedbackQuery = z.infer<typeof feedbackQuerySchema>
+
+export const feedbackHistorySchema = z.object({
+    limit: integer.pipe(z.number().int().min(1).max(100)).default(50),
+    after: z.string().uuid().optional(),
+}).strict()
+export const feedbackReadSchema = z.object({ message_id: z.string().uuid() }).strict()

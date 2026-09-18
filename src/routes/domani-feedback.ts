@@ -15,6 +15,8 @@ router.use(BASE_ROUTE, cors({
 router.use(BASE_ROUTE, requireDomaniStaff)
 router.get(BASE_ROUTE, feedback.list)
 router.get(`${BASE_ROUTE}/stats`, feedback.stats)
+router.get(`${BASE_ROUTE}/:source/:id/messages`, feedback.history)
+router.patch(`${BASE_ROUTE}/:source/:id/read`, express.json({ limit: '8kb' }), feedback.markRead)
 router.get(`${BASE_ROUTE}/:source/:id`, feedback.detail)
 router.get(`${BASE_ROUTE}/:id`, feedback.detail)
 router.patch(`${BASE_ROUTE}/:source/:id/status`, express.json({ limit: '8kb' }), feedback.updateStatus)

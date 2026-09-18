@@ -69,23 +69,24 @@ describe('feedback controllers and data calls', () => {
     it('passes normalized filters to the list RPC and returns the full response', async () => {
         const res = response()
         await controller.list(request({ query: { source: 'support_request', search: ' test ', limit: '5' } }), res)
-        expect(mocks.rpc).toHaveBeenCalledWith('list_dashboard_domani_feedback', { p_query: { source: 'support_request', search: 'test', limit: 5, offset: 0, sort_by: 'created_at', sort_order: 'desc' } })
+        expect(mocks.rpc).toHaveBeenCalledWith('list_dashboard_domani_feedback_with_conversations', { p_actor_id: actor.userId, p_query: { source: 'support_request', search: 'test', limit: 5, offset: 0, sort_by: 'created_at', sort_order: 'desc' } })
         expect(res.json).toHaveBeenCalledWith({ data: [], stats: { total: 0 } })
     })
     it('uses active filters for statistics independently of requested pagination', async () => {
         const res = response()
         await controller.stats(request({ query: { status: 'new', limit: '50', offset: '200' } }), res)
-        expect(mocks.rpc).toHaveBeenCalledWith('list_dashboard_domani_feedback', { p_query: expect.objectContaining({ status: 'new', limit: 1, offset: 0 }) })
+        expect(mocks.rpc).toHaveBeenCalledWith('list_dashboard_domani_feedback_with_conversations', { p_actor_id: actor.userId, p_query: expect.objectContaining({ status: 'new', limit: 1, offset: 0 }) })
         expect(res.json).toHaveBeenCalledWith({ total: 0 })
     })
     it('looks up details by both source and id, including legacy query-source form', async () => {
-        mocks.maybeSingle.mockResolvedValue({ data: { source: 'support_request', id }, error: null })
+        mocks.rpc.mockResolvedValue({ data: { source: 'support_request', id }, error: null })
         const res = response()
         await controller.detail(request({ params: { id }, query: { source: 'support_request' } }), res)
-        expect(mocks.eq.mock.calls).toEqual([['source', 'support_request'], ['id', id]])
+        expect(mocks.rpc).toHaveBeenCalledWith('get_dashboard_domani_feedback', { p_source: 'support_request', p_id: id, p_actor_id: actor.userId })
         expect(res.json).toHaveBeenCalledWith({ source: 'support_request', id })
     })
     it('returns 404 for missing detail', async () => {
+        mocks.rpc.mockResolvedValue({ data: null, error: null })
         const res = response()
         await controller.detail(request(), res)
         expect(res.status).toHaveBeenCalledWith(404)
@@ -143,6 +144,7 @@ describe('feedback HTTP authorization boundary', () => {
                 ['GET', '/api/domani/feedback'], ['GET', '/api/domani/feedback/stats'],
                 ['GET', `/api/domani/feedback/beta_feedback/${id}`], ['GET', `/api/domani/feedback/${id}`],
                 ['PATCH', `/api/domani/feedback/beta_feedback/${id}/status`], ['PATCH', `/api/domani/feedback/${id}/status`],
+                ['GET', `/api/domani/feedback/beta_feedback/${id}/messages`], ['PATCH', `/api/domani/feedback/beta_feedback/${id}/read`],
                 ['POST', `/api/domani/feedback/beta_feedback/${id}/future-reply`], ['GET', '/api/domani/support'],
             ]) expect(await send(method, path)).toEqual({ status: 401, cache: 'no-store' })
             expect(mocks.rpc).not.toHaveBeenCalled()
@@ -238,5 +240,59 @@ describe('direct dashboard browser access', () => {
             vi.unstubAllEnvs()
             await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
         }
+    })
+})
+
+
+describe('conversation history and read state', () => {
+    it('uses the verified actor and bounded cursor for history', async () => {
+        const res = response()
+        await controller.history(request({ query: { limit: '20', after: id } }), res)
+        expect(mocks.rpc).toHaveBeenCalledWith('list_domani_feedback_messages', {
+            p_source: 'beta_feedback', p_id: id, p_actor_id: actor.userId, p_limit: 20, p_after: id,
+        })
+    })
+    it('uses a null cursor and default page size for initial history', async () => {
+        await controller.history(request(), response())
+        expect(mocks.rpc).toHaveBeenCalledWith('list_domani_feedback_messages', expect.objectContaining({ p_limit: 50, p_after: null }))
+    })
+    it.each([{ limit: '101' }, { limit: '0' }, { limit: ['5'] }, { after: 'bad' }, { actor_id: id }, { offset: '1' }])('rejects unsafe history queries %j', async query => {
+        const res = response()
+        await controller.history(request({ query }), res)
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+    it('advances only the authenticated staff read cursor', async () => {
+        const res = response()
+        await controller.markRead(request({ body: { message_id: id } }), res)
+        expect(mocks.rpc).toHaveBeenCalledWith('mark_domani_feedback_read', {
+            p_source: 'beta_feedback', p_id: id, p_actor_id: actor.userId, p_message_id: id,
+        })
+    })
+    it.each([{}, { message_id: 'bad' }, { message_id: id, actor_id: id }, { message_id: id, sequence: 99 }])('rejects unsafe read body %j', async body => {
+        const res = response()
+        await controller.markRead(request({ body }), res)
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+    it.each([controller.history, controller.markRead])('rejects missing actors before calling storage', async handler => {
+        const res = response()
+        await handler(request({ dashboardActor: undefined, body: { message_id: id } }), res)
+        expect(res.status).toHaveBeenCalledWith(401)
+        expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+    it.each([controller.history, controller.markRead])('returns 404 when source was deleted', async handler => {
+        mocks.rpc.mockResolvedValue({ data: null, error: null })
+        const res = response()
+        await handler(request({ body: { message_id: id } }), res)
+        expect(res.status).toHaveBeenCalledWith(404)
+    })
+    it.each([controller.history, controller.markRead])('maps cross-conversation cursor errors without leaking SQL data', async handler => {
+        mocks.rpc.mockResolvedValue({ data: null, error: { code: 'DF400', message: 'private SQL' } })
+        const res = response()
+        await handler(request({ body: { message_id: id } }), res)
+        expect(res.status).toHaveBeenCalledWith(400)
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ code: 'INVALID_CURSOR' }) }))
+        expect(JSON.stringify(vi.mocked(res.json).mock.calls)).not.toContain('private SQL')
     })
 })
