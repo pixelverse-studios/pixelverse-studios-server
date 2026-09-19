@@ -1,3 +1,4 @@
+import { recordIncomingEvent, feedbackReplyDomain } from '../services/domani-feedback-inbound'
 import type { Request, Response } from 'express'
 import { Webhook } from 'svix'
 import { ZodError } from 'zod'
@@ -16,7 +17,10 @@ export async function receiveDelivery(req: Request, res: Response) {
         payload = JSON.parse(req.body.toString('utf8'))
     } catch { return res.status(400).json({ error: { code: 'INVALID_WEBHOOK_SIGNATURE' } }) }
     try {
-        await recordDeliveryEvent(id, payload)
+        if ((payload as { type?: string })?.type === 'email.received') {
+            if (!feedbackReplyDomain()) return res.status(503).json({ error: { code: 'INBOUND_DISABLED' } })
+            await recordIncomingEvent(id, payload)
+        } else await recordDeliveryEvent(id, payload)
         return res.status(202).json({ received: true })
     } catch (error) {
         if (error instanceof ZodError) return res.status(400).json({ error: { code: 'INVALID_WEBHOOK_EVENT' } })
