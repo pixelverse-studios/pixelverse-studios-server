@@ -1,3 +1,4 @@
+import { reconcileDelivery } from '../services/domani-feedback-delivery'
 import { feedbackSendingEnabled, supportReplyHtml } from '../services/domani-feedback-dispatch'
 import { Request, Response } from 'express'
 import { ZodError } from 'zod'
@@ -99,5 +100,17 @@ export const replyState = async (req: Request, res: Response) => {
         if (retry && !feedbackSendingEnabled()) return res.status(503).json({ error: { code: 'SENDING_DISABLED', message: 'Feedback email sending is not enabled yet.' } })
         const result = await service.replyState(source, id, requestKey, retry)
         return result ? res.json(result) : missing(res)
+    } catch (error) { return fail(res, error) }
+}
+
+export const reconcileReply = async (req: Request, res: Response) => {
+    try {
+        if (!req.dashboardActor) return res.sendStatus(401)
+        const { source, id } = feedbackIdentitySchema.parse(req.params)
+        const { requestKey } = feedbackReplyKeySchema.parse(req.params)
+        const state = await service.replyState(source, id, requestKey)
+        if (!state) return missing(res)
+        await reconcileDelivery(source, id, requestKey)
+        return res.json(await service.replyState(source, id, requestKey))
     } catch (error) { return fail(res, error) }
 }
