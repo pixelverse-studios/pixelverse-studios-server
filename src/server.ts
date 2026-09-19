@@ -1,3 +1,4 @@
+import { startFeedbackInboundWorker } from './services/domani-feedback-inbound'
 import feedbackWebhookRouter from './routes/domani-feedback-webhook'
 import { startFeedbackDeliveryReplay } from './services/domani-feedback-delivery'
 import { startFeedbackReplyDispatcher } from './services/domani-feedback-dispatch'
@@ -136,4 +137,5 @@ app.listen(PORT, () => {
     startReleaseCacheInvalidationDispatcher()
     startFeedbackReplyDispatcher()
     startFeedbackDeliveryReplay()
+    startFeedbackInboundWorker()
 })

@@ -1,3 +1,4 @@
+import { feedbackReplyDomain } from './domani-feedback-inbound'
 import { domaniDb } from '../lib/domani-db'
 import { FeedbackQuery, FeedbackSource } from '../lib/domani-feedback'
 
@@ -48,6 +49,7 @@ export const changeFeedbackStatus = async (
 export const submitReply = async (source: FeedbackSource, id: string, actor: { userId: string; email: string }, body: { subject: string; text: string; request_key: string }, html: string) => {
     const { data, error } = await domaniDb.rpc('submit_domani_feedback_reply', {
         p_source: source, p_id: id, p_actor_id: actor.userId, p_actor_email: actor.email,
+        ...(feedbackReplyDomain() ? { p_reply_domain: feedbackReplyDomain() } : {}),
         p_subject: body.subject, p_text: body.text, p_request_key: body.request_key, p_html: html,
     })
     if (error) throw error

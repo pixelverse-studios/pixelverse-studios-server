@@ -20,6 +20,10 @@ export async function recordDeliveryEvent(eventId: string, payload: unknown) {
         p_tagged_message_id: parsed.success ? parsed.data : null,
     })
     if (error) throw error
+    if (data === 'applied' && typeof event.data.message_id === 'string' && /^<[^<>\s]{1,998}>$/.test(event.data.message_id)) {
+        const { error: rfcError } = await domaniDb.rpc('record_domani_feedback_rfc_id', { p_provider_id: event.data.email_id, p_rfc_id: event.data.message_id })
+        if (rfcError) throw rfcError
+    }
     if (data === 'unmatched') console.warn('Domani delivery event awaiting correlation', { eventId })
     return data
 }

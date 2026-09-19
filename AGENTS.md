@@ -227,3 +227,11 @@ Keep this document up to date whenever the API surface, environment requirements
 - `DOMANI_FEEDBACK_WEBHOOK_SECRET` is the dedicated Resend webhook signing secret. It enables durable unmatched-event replay, independently of the sending flag.
 - `POST /api/domani/feedback/:source/:id/replies/:requestKey/reconcile` requires PVS staff authorization and only reads provider evidence. The database limits provider checks per message to once per 30 seconds.
 - Apply `20260918121352_domani_feedback_delivery_events.sql` to Domani before this server release. See `docs/domani-feedback-conversation-contract.md` for ordering and recovery behavior. No migration enables sending.
+
+
+### Domani inbound feedback
+
+- DEV-1396 uses signed `email.received` events on the existing Domani webhook, with durable private receipts and a bounded Resend receiving worker. Apply `20260919142130_domani_feedback_inbound.sql` first.
+- `DOMANI_FEEDBACK_INBOUND_ENABLED` opts into receiving and opaque Reply-To aliases; `DOMANI_FEEDBACK_REPLY_DOMAIN` must be a dedicated receiving subdomain. Preserve root hello mailbox/MX and visible sender identity. Provider/DNS readiness remains a separate rollout step.
+- No inbound automatic responses or attachment downloads. Only matched plain text enters history; ambiguous/automated mail remains restricted. Unread state is per PVS staff actor, independent of resolution.
+- Test with `bash supabase/tests/domani_feedback_inbound_test.sh`; never use customer addresses or live database writes in automated QA.
