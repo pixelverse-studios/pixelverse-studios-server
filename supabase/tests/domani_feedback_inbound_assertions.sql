@@ -46,6 +46,10 @@ BEGIN
 END $$;
 RESET ROLE;
 DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id IN ('incoming-provider-2','incoming-provider-3','incoming-thread') AND conversation_id IS NULL) THEN RAISE EXCEPTION 'Known-route quarantine lost deletion association'; END IF;
+ DELETE FROM public.beta_feedback WHERE id='00000000-0000-4000-8000-000000000001';
+ IF EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id IN ('incoming-provider-1','incoming-provider-2','incoming-provider-3','incoming-thread')) THEN RAISE EXCEPTION 'Private receipt survived source deletion'; END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-4' AND conversation_id IS NULL AND state='quarantined') THEN RAISE EXCEPTION 'Unmatched quarantine was incorrectly associated'; END IF;
  IF has_table_privilege('authenticated','public.domani_feedback_inbound_receipts','SELECT') OR has_function_privilege('anon','public.finish_domani_feedback_inbound(text,uuid,jsonb,text)','EXECUTE') THEN RAISE EXCEPTION 'Private inbound exposed'; END IF;
 END $$;
 ROLLBACK;

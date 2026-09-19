@@ -103,7 +103,8 @@ BEGIN
  END IF;
  UPDATE public.domani_feedback_inbound_receipts SET state=CASE WHEN outcome_reason IS NULL THEN 'complete' ELSE 'quarantined' END,
   reason=outcome_reason,payload=CASE WHEN outcome_reason IS NULL THEN NULL ELSE p_payload END,
-  conversation_id=CASE WHEN outcome_reason IS NULL THEN outbound.conversation_id END,message_id=mid,lease_token=NULL,lease_expires_at=NULL
+  -- Unique-route association controls private retention, not admission to history.
+  conversation_id=outbound.conversation_id,message_id=mid,lease_token=NULL,lease_expires_at=NULL
  WHERE provider_id=p_provider_id;
  RETURN true;
 END $$;
