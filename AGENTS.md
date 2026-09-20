@@ -235,3 +235,9 @@ Keep this document up to date whenever the API surface, environment requirements
 - `DOMANI_FEEDBACK_INBOUND_ENABLED` opts into receiving and opaque Reply-To aliases; `DOMANI_FEEDBACK_REPLY_DOMAIN` must be a dedicated receiving subdomain. Preserve root hello mailbox/MX and visible sender identity. Provider/DNS readiness remains a separate rollout step.
 - No inbound automatic responses or attachment downloads. Only matched plain text enters history; ambiguous/automated mail remains restricted. Unread state is per PVS staff actor, independent of resolution.
 - Test with `bash supabase/tests/domani_feedback_inbound_test.sh`; never use customer addresses or live database writes in automated QA.
+
+### Domani user insights
+
+- Users list, stats and detail GET routes require `requireDomaniStaff`. Browser calls are direct authenticated requests; overview and campaign server-rendered callers forward the verified PVS session.
+- Apply Domani migration `20260920181147_domani_user_insights.sql` before deploying the Users API/UI pair. Restricted invoker views and column-level auth grants support one RPC per request; never add per-user auth lookups or expose raw auth rows.
+- Preserve unknown app activity and historical device source/time semantics. Test with `bash supabase/tests/domani_users_test.sh` using isolated synthetic data. The existing contract describes query/date/account definitions and rollback.
