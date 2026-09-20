@@ -5,6 +5,9 @@ import { FeedbackQuery, FeedbackSource } from '../lib/domani-feedback'
 export const listFeedback = async (query: FeedbackQuery, actorId: string) => {
     const { data, error } = await domaniDb.rpc('list_dashboard_domani_feedback_with_conversations', { p_query: query, p_actor_id: actorId })
     if (error) throw error
+    if (query.user_id && (data?.user_id !== query.user_id || !Array.isArray(data?.items) || data.items.some((item: { user_id?: string }) => item.user_id !== query.user_id))) {
+        throw Object.assign(new Error('User feedback scope unavailable'), { code: 'FEEDBACK_SCOPE_UNAVAILABLE' })
+    }
     return data
 }
 
