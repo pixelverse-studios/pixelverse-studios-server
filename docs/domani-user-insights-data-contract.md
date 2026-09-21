@@ -100,3 +100,9 @@ Examples: an Apple+Google user has `login_providers:["apple","google"]` while `s
 Rollout: apply `20260920181147_domani_user_insights.sql` to Domani, deploy the protected API and coordinated UI, then verify normal staff, nonstaff, Users/overview and campaign recipient paging. The migration is prepared and tested locally, not applied to live by this ticket. Keep restricted grants on rollback; revert API/UI together rather than reopening anonymous access. Missing RPCs fail visibly with 503. Mobile activity/device instrumentation and the user-detail drawer UI remain separate follow-ups.
 
 Validation: `bash supabase/tests/domani_users_test.sh` uses only isolated synthetic PostgreSQL fixtures (125 profiles), including grants, literal search, global paging/filtering, linked providers, missing auth, bans, deletion, and email-collision device isolation. API tests mock external services; user-content and credentials are not test snapshots.
+
+## User detail and feedback links — DEV-1410
+
+The Users table opens a staff-only detail drawer using `/api/domani/users/:id`; unknown values remain explicit. Only the latest device snapshot is available. The user ID copy action copies only the stable ID. Related feedback opens a separate tab with `?user_id=<uuid>` to preserve the current table state. The feedback page validates that ID and retains it across filtering, pagination, retry and refresh.
+
+The feedback API accepts optional UUID `user_id`, applied before totals/paging to both feedback and support records. It never associates by email. The SQL response echoes the scope; the server rejects missing or mismatched scope rather than accepting an old RPC that ignored the filter. Apply server migration `20260920190254_domani_feedback_user_filter.sql` after the existing feedback foundation, then deploy the API and UI. The preceding Users insights migration remains required. Neither migration is applied by this ticket.

@@ -39,6 +39,23 @@ beforeEach(() => {
 })
 
 describe('feedback input contract', () => {
+    it('validates exact user identity and refuses an unscoped old RPC response', async () => {
+        expect(feedbackQuerySchema.parse({ user_id: id }).user_id).toBe(id)
+        expect(() => feedbackQuerySchema.parse({ user_id: 'staff@example.test' })).toThrow()
+        const res = response()
+        await controller.list(request({ query: { user_id: id } }), res)
+        expect(res.status).toHaveBeenCalledWith(503)
+        mocks.rpc.mockResolvedValueOnce({ data: { user_id: id, items: [{ user_id: id }], total: 1 }, error: null })
+        const success = response()
+        await controller.list(request({ query: { user_id: id } }), success)
+        expect(success.json).toHaveBeenCalledWith(expect.objectContaining({ total: 1, user_id: id }))
+        expect(mocks.rpc).toHaveBeenLastCalledWith('list_dashboard_domani_feedback_with_conversations', expect.objectContaining({ p_query: expect.objectContaining({ user_id: id }), p_actor_id: actor.userId }))
+        mocks.rpc.mockResolvedValueOnce({ data: { user_id: id, items: [{ user_id: actor.userId }] }, error: null })
+        const mismatch = response()
+        await controller.list(request({ query: { user_id: id } }), mismatch)
+        expect(mismatch.status).toHaveBeenCalledWith(503)
+    })
+
     it('normalizes date bounds, whitespace and numeric query strings', () => {
         expect(feedbackQuerySchema.parse({ search: ' hello ', start_date: '2026-09-01', end_date: '2026-09-17', limit: '10', offset: '20' })).toEqual({ search: 'hello', start_date: '2026-09-01T00:00:00.000Z', end_date: '2026-09-18T00:00:00.000Z', end_date_exclusive: true, limit: 10, offset: 20, sort_by: 'created_at', sort_order: 'desc' })
     })

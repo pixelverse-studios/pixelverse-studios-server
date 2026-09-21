@@ -17,6 +17,7 @@ const timestamp = dateValue.transform(value => new Date(value).toISOString())
 const integer = z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
 
 export const feedbackQuerySchema = z.object({
+    user_id: z.string().uuid().transform(value => value.toLowerCase()).optional(),
     category: z.enum(feedbackCategories).optional(),
     status: z.enum([...feedbackStatuses, 'unknown']).optional(),
     platform: z.enum(['ios', 'android', 'unknown']).optional(),

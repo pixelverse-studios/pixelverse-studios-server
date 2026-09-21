@@ -42,7 +42,7 @@ describe('durable reply dispatcher', () => {
  it('leaves recovery to the lease after accepted-send persistence failure', async () => {
   mocks.rpc.mockResolvedValueOnce({ data: job, error: null }).mockResolvedValueOnce({ data: null, error: { code: 'DATABASE_UNAVAILABLE' } });
   const send = vi.fn().mockResolvedValue({ outcome: 'accepted', providerId: 'provider' });
-  await expect(dispatchFeedbackReply(send)).rejects.toEqual({ code: 'DATABASE_UNAVAILABLE' });
+  await expect(dispatchFeedbackReply(send)).rejects.toMatchObject({ operation: 'finish_domani_feedback_reply', code: 'UNCLASSIFIED_ERROR' });
   expect(send).toHaveBeenCalledTimes(1); expect(mocks.rpc).toHaveBeenCalledTimes(2);
  })
  it('never calls the provider for expired/reconciliation-only work', async () => {

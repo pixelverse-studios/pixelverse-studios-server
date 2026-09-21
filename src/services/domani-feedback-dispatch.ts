@@ -1,3 +1,4 @@
+import { DispatchFailure, createDispatchDiagnostics } from './domani-feedback-dispatch-diagnostics'
 import { domaniDb } from '../lib/domani-db'
 
 export const feedbackSendingEnabled = () => process.env.DOMANI_FEEDBACK_SENDING_ENABLED === 'true' && !!process.env.RESEND_API_KEY
@@ -29,28 +30,39 @@ export async function sendSupportReply(job: Job): Promise<Outcome> {
 
 export async function dispatchFeedbackReply(send = sendSupportReply): Promise<boolean> {
     if (!feedbackSendingEnabled()) return false
-    const { data, error } = await domaniDb.rpc('claim_domani_feedback_reply')
-    if (error) throw error
+    const claim = await domaniDb.rpc('claim_domani_feedback_reply').then(result => result, error => {
+        throw new DispatchFailure('claim_domani_feedback_reply', error)
+    })
+    if (claim.error) throw new DispatchFailure('claim_domani_feedback_reply', claim.error, claim.status)
+    const data = claim.data
     if (!data) return false
     const job = data as Job
     if (job.skipped) return true
-    const result = await send(job)
-    const { error: finishError } = await domaniDb.rpc('finish_domani_feedback_reply', {
+    const result = await send(job).catch(error => {
+        throw new DispatchFailure('send_support_reply', error)
+    })
+    const finish = await domaniDb.rpc('finish_domani_feedback_reply', {
         p_message_id: job.message_id, p_lease_token: job.lease_token, p_outcome: result.outcome,
         p_provider_id: result.providerId ?? null, p_error_code: result.errorCode ?? null,
+    }).then(result => result, error => {
+        throw new DispatchFailure('finish_domani_feedback_reply', error)
     })
     // If this write fails, the lease expires and recovery uses the same provider key.
-    if (finishError) throw finishError
+    if (finish.error) throw new DispatchFailure('finish_domani_feedback_reply', finish.error, finish.status)
     return true
 }
 export function startFeedbackReplyDispatcher(): NodeJS.Timeout | null {
     if (!feedbackSendingEnabled()) return null
     let running = false
+    const diagnostics = createDispatchDiagnostics()
     const run = async () => {
         if (running) return
         running = true
-        try { for (let n = 0; n < 10 && await dispatchFeedbackReply(); n++) { /* bounded drain */ } }
-        catch { console.error('Domani feedback dispatch requires attention') }
+        try {
+            for (let n = 0; n < 10 && await dispatchFeedbackReply(); n++) { /* bounded drain */ }
+            diagnostics.healthy()
+        }
+        catch (error) { diagnostics.failure(error) }
         finally { running = false }
     }
     void run()
