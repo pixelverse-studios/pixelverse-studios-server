@@ -11,10 +11,19 @@ INSERT INTO auth.users(id,created_at,last_sign_in_at,email_confirmed_at) SELECT 
 INSERT INTO auth.identities SELECT id,'apple' FROM auth.users;
 INSERT INTO auth.identities SELECT id,'google' FROM auth.users WHERE id='10000000-0000-4000-8000-000000000001';
 UPDATE public.profiles SET last_active_at=now()-interval '1 day' WHERE email='user1@example.test';
+UPDATE public.profiles SET last_active_at=now()-interval '40 days' WHERE email='user6@example.test';
+UPDATE public.profiles SET last_active_at=now()+interval '1 day' WHERE email='user7@example.test';
 UPDATE public.profiles SET deleted_at=now(),deletion_scheduled_for=now()+interval '30 days' WHERE email='user2@example.test';
 UPDATE auth.users SET banned_until=now()+interval '1 day' WHERE id='10000000-0000-4000-8000-000000000003';
+UPDATE auth.users SET email_confirmed_at=NULL WHERE id='10000000-0000-4000-8000-000000000005';
+UPDATE auth.users SET deleted_at=now() WHERE id='10000000-0000-4000-8000-000000000008';
 CREATE VIEW public.profiles_dashboard AS SELECT id,email FROM public.profiles;
 GRANT SELECT ON public.profiles_dashboard TO anon,authenticated;
 -- Same email is not evidence of the same user. Latest dated device is selected by ID.
 INSERT INTO public.support_requests(id,user_id,email,category,description,status,created_at,platform,device_model,app_version)
 VALUES ('90000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000004','user1@example.test','other','synthetic','pending','2026-09-19Z','android','Other phone','4');
+-- Equal timestamps prove the source/id tie-breaker is stable and snapshots are never mixed.
+INSERT INTO public.beta_feedback(id,user_id,email,category,message,status,created_at,platform,os_version,device_brand,device_model,app_version,app_build)
+VALUES ('80000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','fixture@example.test','bug_report','tied feedback device','new','2026-09-20Z','ios','18.0','Apple','Tie winner','5.0','500');
+INSERT INTO public.support_requests(id,user_id,email,category,description,status,created_at,platform,os_version,device_brand,device_model,app_version,app_build)
+VALUES ('80000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','support@example.test','technical_issue','tied support device','pending','2026-09-20Z','android','15','Other','Tie loser','6.0','600');
