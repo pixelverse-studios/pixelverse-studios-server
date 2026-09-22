@@ -1,0 +1,55 @@
+BEGIN;
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE r jsonb; mid uuid; alias text; job jsonb; payload jsonb; incoming uuid; a uuid:='10000000-0000-4000-8000-000000000001'; b uuid:='10000000-0000-4000-8000-000000000002'; source_id uuid:='00000000-0000-4000-8000-000000000001';
+BEGIN
+ PERFORM public.set_dashboard_domani_feedback_status('beta_feedback',source_id,'resolved',a,'staff@example.test');
+ r:=public.submit_domani_feedback_reply('beta_feedback',source_id,a,'staff@example.test','Subject','Body','20000000-0000-4000-8000-000000000095','<p>Body</p>','replies.domani-app.com');
+ mid:=(r->>'message_id')::uuid;
+ SELECT address INTO alias FROM public.domani_feedback_reply_routes WHERE message_id=mid;
+ IF length(split_part(alias,'@',1))<>64 OR (SELECT o.payload->>'reply_to' FROM public.domani_feedback_outbox o WHERE message_id=mid)<>alias THEN RAISE EXCEPTION 'Missing opaque routing'; END IF;
+ PERFORM public.submit_domani_feedback_reply('beta_feedback',source_id,a,'staff@example.test','Subject','Body','20000000-0000-4000-8000-000000000095','<p>Body</p>','changed.example.test');
+ IF (SELECT o.payload->>'reply_to' FROM public.domani_feedback_outbox o WHERE message_id=mid)<>alias THEN RAISE EXCEPTION 'Replay changed immutable alias'; END IF;
+ payload:=jsonb_build_object('from',(SELECT lower(recipient_email) FROM public.domani_feedback_messages WHERE id=mid),'to',jsonb_build_array(alias),'subject','Re: Subject','text','A reply','message_id','<incoming-1@example.test>','in_reply_to',NULL,'references','[]'::jsonb,'attachment_count',1,'created_at',now()-interval '1 day');
+ PERFORM public.receive_domani_feedback_inbound('event-1','incoming-provider-1');
+ PERFORM public.receive_domani_feedback_inbound('event-1','incoming-provider-1');
+ job:=public.claim_domani_feedback_inbound();
+ IF NOT public.finish_domani_feedback_inbound('incoming-provider-1',(job->>'lease_token')::uuid,payload) THEN RAISE EXCEPTION 'Ingest failed'; END IF;
+ IF public.finish_domani_feedback_inbound('incoming-provider-1',(job->>'lease_token')::uuid,payload) THEN RAISE EXCEPTION 'Stale lease accepted'; END IF;
+ SELECT message_id INTO incoming FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-1';
+ IF incoming IS NULL OR (SELECT count(*) FROM public.domani_feedback_outbox WHERE message_id=incoming)<>0 THEN RAISE EXCEPTION 'Inbound missing or auto-replied'; END IF;
+ r:=public.list_domani_feedback_messages_latest('beta_feedback',source_id,a,20);
+ IF r#>>'{items,1,unread}'<>'true' OR r#>>'{items,1,attachment_count}'<>'1' THEN RAISE EXCEPTION 'Unread projection %',r; END IF;
+ PERFORM public.mark_domani_feedback_read('beta_feedback',source_id,a,incoming);
+ r:=public.get_dashboard_domani_feedback('beta_feedback',source_id,a);
+ IF r->>'status'<>'resolved' THEN RAISE EXCEPTION 'Inbound changed resolution'; END IF;
+ IF (r#>>'{conversation,unread_count}')::int<>0 THEN RAISE EXCEPTION 'Read not cleared'; END IF;
+ r:=public.get_dashboard_domani_feedback('beta_feedback',source_id,b);
+ IF (r#>>'{conversation,unread_count}')::int<>1 OR r#>>'{conversation,last_incoming_preview}'<>'A reply' THEN RAISE EXCEPTION 'Other staff read state changed'; END IF;
+ -- Repeated RFC message id under a new provider id never duplicates a conversation.
+ PERFORM public.receive_domani_feedback_inbound('event-2','incoming-provider-2'); job:=public.claim_domani_feedback_inbound();
+ PERFORM public.finish_domani_feedback_inbound('incoming-provider-2',(job->>'lease_token')::uuid,payload);
+ IF (SELECT reason FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-2')<>'DUPLICATE_MESSAGE' THEN RAISE EXCEPTION 'RFC duplicate'; END IF;
+ PERFORM public.receive_domani_feedback_inbound('event-3','incoming-provider-3'); job:=public.claim_domani_feedback_inbound();
+ PERFORM public.finish_domani_feedback_inbound('incoming-provider-3',(job->>'lease_token')::uuid,payload||'{"from":"forged@example.test","message_id":"<forged@example.test>"}'::jsonb);
+ IF (SELECT reason FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-3')<>'PARTICIPANT_MISMATCH' THEN RAISE EXCEPTION 'Forged participant accepted'; END IF;
+ PERFORM public.receive_domani_feedback_inbound('event-4','incoming-provider-4'); job:=public.claim_domani_feedback_inbound();
+ PERFORM public.finish_domani_feedback_inbound('incoming-provider-4',(job->>'lease_token')::uuid,payload||'{"to":["hello@domani-app.com"],"message_id":"<unmatched@example.test>"}'::jsonb);
+ IF (SELECT reason FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-4')<>'UNMATCHED_OR_AMBIGUOUS_ROUTE' THEN RAISE EXCEPTION 'Guessed conversation'; END IF;
+ UPDATE public.domani_feedback_messages SET rfc_message_id='<outbound@example.test>' WHERE id=mid;
+ PERFORM public.receive_domani_feedback_inbound('event-thread','incoming-thread'); job:=public.claim_domani_feedback_inbound();
+ PERFORM public.finish_domani_feedback_inbound('incoming-thread',(job->>'lease_token')::uuid,payload||'{"in_reply_to":"<other@example.test>","message_id":"<thread@example.test>"}'::jsonb);
+ IF (SELECT reason FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-thread')<>'THREAD_MISMATCH' THEN RAISE EXCEPTION 'Conflicting thread accepted'; END IF;
+ PERFORM public.receive_domani_feedback_inbound('event-5','incoming-provider-5'); job:=public.claim_domani_feedback_inbound();
+ PERFORM public.finish_domani_feedback_inbound('incoming-provider-5',(job->>'lease_token')::uuid,NULL,'failure');
+ IF (SELECT state FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-5')<>'pending' THEN RAISE EXCEPTION 'Retrieval not recoverable'; END IF;
+END $$;
+RESET ROLE;
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id IN ('incoming-provider-2','incoming-provider-3','incoming-thread') AND conversation_id IS NULL) THEN RAISE EXCEPTION 'Known-route quarantine lost deletion association'; END IF;
+ DELETE FROM public.beta_feedback WHERE id='00000000-0000-4000-8000-000000000001';
+ IF EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id IN ('incoming-provider-1','incoming-provider-2','incoming-provider-3','incoming-thread')) THEN RAISE EXCEPTION 'Private receipt survived source deletion'; END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.domani_feedback_inbound_receipts WHERE provider_id='incoming-provider-4' AND conversation_id IS NULL AND state='quarantined') THEN RAISE EXCEPTION 'Unmatched quarantine was incorrectly associated'; END IF;
+ IF has_table_privilege('authenticated','public.domani_feedback_inbound_receipts','SELECT') OR has_function_privilege('anon','public.finish_domani_feedback_inbound(text,uuid,jsonb,text)','EXECUTE') THEN RAISE EXCEPTION 'Private inbound exposed'; END IF;
+END $$;
+ROLLBACK;

@@ -13,7 +13,8 @@ trap cleanup EXIT
 "$pg_bin/pg_ctl" -D "$fixture_dir/data" -l "$fixture_dir/postgres.log" -o "-k $fixture_dir -h ''" start >/dev/null
 "$pg_bin/psql" -h "$fixture_dir" -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f "$repo/supabase/tests/domani_feedback_fixture.sql" \
-  -f "$repo/supabase/migrations/20260917185008_domani_feedback_dashboard_foundation.sql" \
-  -f "$repo/supabase/migrations/20260920190254_domani_feedback_user_filter.sql" \
-  -f "$repo/supabase/tests/domani_feedback_assertions.sql" \
-  -f "$repo/supabase/tests/domani_feedback_user_assertions.sql"
+  -f "$repo/supabase/tests/domani_users_fixture.sql" \
+  -f "$repo/supabase/migrations/20260920181147_domani_user_insights.sql" \
+  -f "$repo/supabase/migrations/20260921160406_harden_domani_user_activity_projection.sql" \
+  -f "$repo/supabase/tests/domani_users_assertions.sql"
+echo "User insights SQL tests passed"

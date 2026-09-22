@@ -12,19 +12,22 @@ export class DomaniStaffAuthError extends Error {
     }
 }
 
-/** Authorize against server configuration, never editable user metadata. */
+export const DEFAULT_DOMANI_STAFF_EMAILS = [
+    'phil@pixelversestudios.io',
+    'sami@pixelversestudios.io',
+] as const
+
+/** Authorize verified identities against built-in staff plus configured additions. */
 export const verifyDomaniStaffAccessToken = async (
     accessToken: string
 ): Promise<DashboardActor> => {
-    const staffEmails = new Set(
-        (process.env.DOMANI_DASHBOARD_STAFF_EMAILS || '')
+    const staffEmails = new Set([
+        ...DEFAULT_DOMANI_STAFF_EMAILS,
+        ...(process.env.DOMANI_DASHBOARD_STAFF_EMAILS || '')
             .split(',')
             .map(email => email.trim().toLowerCase())
-            .filter(Boolean)
-    )
-    if (!staffEmails.size) {
-        throw new DomaniStaffAuthError(503, 'STAFF_ACCESS_UNCONFIGURED', 'Dashboard staff access is not configured')
-    }
+            .filter(Boolean),
+    ])
 
     const { data, error } = await db.auth.getUser(accessToken)
     if (error || !data.user?.id || !data.user.email) {

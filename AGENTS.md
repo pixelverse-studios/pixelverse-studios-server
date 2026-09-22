@@ -139,7 +139,8 @@ All routes use JSON bodies and respond with JSON. Reuse `validateRequest` when a
 | `DOMANI_SUPABASE_URL` | Domani Supabase project REST URL used only for Domani product data. |
 | `DOMANI_SUPABASE_SERVICE_KEY` | Server-only Domani service-role key used for release and other Domani data operations. |
 | `DOMANI_RELEASE_CURSOR_SECRET` | Server-only HMAC secret for public release pagination cursors (falls back to the service-role key). |
-| `DOMANI_DASHBOARD_STAFF_EMAILS` | Comma-separated explicit PVS staff email allowlist for Domani feedback/support reads and status changes; empty configuration fails closed. |
+| `DOMANI_FEEDBACK_SENDING_ENABLED` | Explicit opt-in (`true`) for durable support replies and their dispatcher; enable only after migrations and sender-readiness verification. Requires `RESEND_API_KEY`. |
+| `DOMANI_DASHBOARD_STAFF_EMAILS` | Optional comma-separated additional Domani dashboard staff emails. Code always includes phil@pixelversestudios.io and sami@pixelversestudios.io; every account must present a verified PVS token. |
 | `PVS_DASHBOARD_ORIGINS` | Additional comma-separated browser origins allowed to call authenticated admin release APIs; the canonical PixelVerse HTTPS apex and www origins are always allowed. Include localhost or exact preview origins as needed. |
 | `GMAIL_USER` | Gmail address used as sender. |
 | `GMAIL_CLIENT_ID` | Google OAuth client id. |
@@ -219,3 +220,24 @@ Store secrets outside version control. For Supabase service keys, restrict to ne
 6. Smoke-test using `npm run start` and manual API calls when the change needs live route validation.
 
 Keep this document up to date whenever the API surface, environment requirements, or workflows change.
+
+## Domani feedback delivery events
+
+- `POST /api/webhooks/domani/feedback/resend` verifies the raw body with Svix before storing a durable event. Mount before JSON middleware.
+- `DOMANI_FEEDBACK_WEBHOOK_SECRET` is the dedicated Resend webhook signing secret. It enables durable unmatched-event replay, independently of the sending flag.
+- `POST /api/domani/feedback/:source/:id/replies/:requestKey/reconcile` requires PVS staff authorization and only reads provider evidence. The database limits provider checks per message to once per 30 seconds.
+- Apply `20260918121352_domani_feedback_delivery_events.sql` to Domani before this server release. See `docs/domani-feedback-conversation-contract.md` for ordering and recovery behavior. No migration enables sending.
+
+
+### Domani inbound feedback
+
+- DEV-1396 uses signed `email.received` events on the existing Domani webhook, with durable private receipts and a bounded Resend receiving worker. Apply `20260919142130_domani_feedback_inbound.sql` first.
+- `DOMANI_FEEDBACK_INBOUND_ENABLED` opts into receiving and opaque Reply-To aliases; `DOMANI_FEEDBACK_REPLY_DOMAIN` must be a dedicated receiving subdomain. Preserve root hello mailbox/MX and visible sender identity. Provider/DNS readiness remains a separate rollout step.
+- No inbound automatic responses or attachment downloads. Only matched plain text enters history; ambiguous/automated mail remains restricted. Unread state is per PVS staff actor, independent of resolution.
+- Test with `bash supabase/tests/domani_feedback_inbound_test.sh`; never use customer addresses or live database writes in automated QA.
+
+### Domani user insights
+
+- Users list, stats and detail GET routes require `requireDomaniStaff`. Browser calls are direct authenticated requests; overview and campaign server-rendered callers forward the verified PVS session.
+- Apply Domani migration `20260920181147_domani_user_insights.sql` before deploying the Users API/UI pair. Restricted invoker views and column-level auth grants support one RPC per request; never add per-user auth lookups or expose raw auth rows.
+- Preserve unknown app activity and historical device source/time semantics. Test with `bash supabase/tests/domani_users_test.sh` using isolated synthetic data. The existing contract describes query/date/account definitions and rollback.

@@ -1,3 +1,7 @@
+import { startFeedbackInboundWorker } from './services/domani-feedback-inbound'
+import feedbackWebhookRouter from './routes/domani-feedback-webhook'
+import { startFeedbackDeliveryReplay } from './services/domani-feedback-delivery'
+import { startFeedbackReplyDispatcher } from './services/domani-feedback-dispatch'
 import 'dotenv/config'
 
 import express, { Application } from 'express'
@@ -77,6 +81,7 @@ app.use((req, res, next) => {
 // be enforced without increasing the body limit for unrelated endpoints.
 app.use(adminReleaseImportRouter)
 app.use(adminReleaseManagementRouter)
+app.use(feedbackWebhookRouter)
 app.use(domaniFeedbackRouter)
 app.use(cors())
 app.use(bodyParser.json())
@@ -130,4 +135,7 @@ app.use(
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`)
     startReleaseCacheInvalidationDispatcher()
+    startFeedbackReplyDispatcher()
+    startFeedbackDeliveryReplay()
+    startFeedbackInboundWorker()
 })
