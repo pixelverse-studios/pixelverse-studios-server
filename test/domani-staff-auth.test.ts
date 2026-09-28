@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Request, Response } from 'express'
 
 const { getUser } = vi.hoisted(() => ({ getUser: vi.fn() }))
-vi.mock('../src/lib/db', () => ({ db: { auth: { getUser } } }))
+vi.mock('../src/lib/pvs-auth', () => ({ pvsAuth: { getUser } }))
 import { requireDomaniStaff } from '../src/middleware/domani-staff-auth'
 
 const run = async (headers: Record<string, string> = { authorization: 'Bearer token' }) => {
@@ -50,7 +50,7 @@ describe('Domani staff authorization', () => {
     })
     it('does not trust a default email attached to an invalid token response', async () => {
         delete process.env.DOMANI_DASHBOARD_STAFF_EMAILS
-        getUser.mockResolvedValue({ data: { user: { id: 'id', email: 'phil@pixelversestudios.io' } }, error: { message: 'expired' } })
+        getUser.mockResolvedValue({ data: { user: { id: 'id', email: 'phil@pixelversestudios.io' } }, error: { message: 'expired', status: 401 } })
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(401)
         expect(next).not.toHaveBeenCalled()
@@ -62,7 +62,7 @@ describe('Domani staff authorization', () => {
         expect(next).not.toHaveBeenCalled()
     })
     it('rejects invalid or expired tokens with a structured error', async () => {
-        getUser.mockResolvedValue({ data: { user: null }, error: { message: 'expired' } })
+        getUser.mockResolvedValue({ data: { user: null }, error: { message: 'expired', status: 401 } })
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(401)
         expect(res.json).toHaveBeenCalledWith({ error: { code: 'AUTH_INVALID', message: 'Access token is invalid or expired' }, message: 'Access token is invalid or expired' })
@@ -86,6 +86,19 @@ describe('Domani staff authorization', () => {
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(503)
         expect(res.json).toHaveBeenCalledWith({ error: { code: 'AUTH_UNAVAILABLE', message: 'Unable to verify dashboard access' }, message: 'Unable to verify dashboard access' })
+        expect(next).not.toHaveBeenCalled()
+    })
+    it('returns a structured service error when token verification times out', async () => {
+        getUser.mockResolvedValue({
+            data: { user: null },
+            error: { message: 'request timed out', status: 0 },
+        })
+        const { res, next } = await run()
+        expect(res.status).toHaveBeenCalledWith(503)
+        expect(res.json).toHaveBeenCalledWith({
+            error: { code: 'AUTH_UNAVAILABLE', message: 'Unable to verify dashboard access' },
+            message: 'Unable to verify dashboard access',
+        })
         expect(next).not.toHaveBeenCalled()
     })
     it.each(['https://evil.test', 'null', 'https://dashboard.pvs.test.evil.test'])('rejects disallowed browser origin %s before verification', async origin => {

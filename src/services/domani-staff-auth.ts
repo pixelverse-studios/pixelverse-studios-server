@@ -1,4 +1,4 @@
-import { db } from '../lib/db'
+import { pvsAuth } from '../lib/pvs-auth'
 import type { DashboardActor } from '../lib/admin-releases'
 
 export class DomaniStaffAuthError extends Error {
@@ -29,8 +29,19 @@ export const verifyDomaniStaffAccessToken = async (
             .filter(Boolean),
     ])
 
-    const { data, error } = await db.auth.getUser(accessToken)
-    if (error || !data.user?.id || !data.user.email) {
+    const { data, error } = await pvsAuth.getUser(accessToken)
+    if (error) {
+        const status = (error as { status?: number }).status
+        if (status !== 401 && status !== 403) {
+            throw new DomaniStaffAuthError(
+                503,
+                'AUTH_UNAVAILABLE',
+                'Unable to verify dashboard access'
+            )
+        }
+        throw new DomaniStaffAuthError(401, 'AUTH_INVALID', 'Access token is invalid or expired')
+    }
+    if (!data.user?.id || !data.user.email) {
         throw new DomaniStaffAuthError(401, 'AUTH_INVALID', 'Access token is invalid or expired')
     }
     const email = data.user.email.trim().toLowerCase()
