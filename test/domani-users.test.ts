@@ -4,7 +4,10 @@ import { AddressInfo } from 'net'
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn() }))
 vi.mock('../src/lib/db', () => ({ db: { auth: { getUser: mocks.getUser } } }))
-vi.mock('../src/lib/pvs-auth', () => ({ pvsAuth: { getUser: mocks.getUser } }))
+vi.mock('../src/lib/pvs-auth', async importOriginal => ({
+    ...(await importOriginal<typeof import('../src/lib/pvs-auth')>()),
+    verifyPvsAccessToken: mocks.getUser
+}))
 vi.mock('../src/lib/domani-db', () => ({
     domaniDb: { rpc: mocks.rpc },
     PLATFORMS: ['ios', 'android'],
@@ -22,8 +25,11 @@ import router from '../src/routes/domani'
 import { userQuerySchema } from '../src/lib/domani-users'
 beforeEach(() => {
     vi.clearAllMocks()
+    process.env.DOMANI_DASHBOARD_STAFF_EMAILS =
+        'phil@pixelversestudios.io'
     mocks.getUser.mockResolvedValue({
-        data: { user: { id: 'staff', email: 'phil@pixelversestudios.io' } }
+        id: 'a1000000-0000-4000-8000-000000000002',
+        email: 'phil@pixelversestudios.io'
     })
     mocks.rpc.mockResolvedValue({
         data: {
@@ -116,13 +122,8 @@ describe('users HTTP boundary', () => {
                 expect((await get(path)).status).toBe(401)
             expect(mocks.rpc).not.toHaveBeenCalled()
             mocks.getUser.mockResolvedValueOnce({
-                data: {
-                    user: {
-                        id: 'other',
-                        email: 'other@example.test',
-                        user_metadata: { role: 'admin' }
-                    }
-                }
+                id: 'a1000000-0000-4000-8000-000000000003',
+                email: 'other@example.test'
             })
             expect((await get('/api/domani/users', 'other')).status).toBe(403)
             expect(mocks.rpc).not.toHaveBeenCalled()
