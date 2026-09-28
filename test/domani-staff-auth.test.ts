@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Request, Response } from 'express'
 
-const { getUser } = vi.hoisted(() => ({ getUser: vi.fn() }))
-vi.mock('../src/lib/db', () => ({ db: { auth: { getUser } } }))
+const { verifyPvsAccessToken } = vi.hoisted(() => ({ verifyPvsAccessToken: vi.fn() }))
+vi.mock('../src/lib/pvs-auth', async importOriginal => ({
+    ...(await importOriginal<typeof import('../src/lib/pvs-auth')>()),
+    verifyPvsAccessToken
+}))
+import { PvsAuthRequestError } from '../src/lib/pvs-auth'
 import { requireDomaniStaff } from '../src/middleware/domani-staff-auth'
 
 const run = async (headers: Record<string, string> = { authorization: 'Bearer token' }) => {
@@ -16,65 +20,75 @@ const run = async (headers: Record<string, string> = { authorization: 'Bearer to
 }
 
 beforeEach(() => {
-    getUser.mockReset()
+    verifyPvsAccessToken.mockReset()
     process.env.DOMANI_DASHBOARD_STAFF_EMAILS = ' Staff@pvs.test, second@pvs.test '
     delete process.env.PVS_DASHBOARD_ORIGINS
-    getUser.mockResolvedValue({ data: { user: { id: 'staff-id', email: 'STAFF@pvs.test' } }, error: null })
+    verifyPvsAccessToken.mockResolvedValue({ id: 'staff-id', email: 'STAFF@pvs.test' })
 })
 
 describe('Domani staff authorization', () => {
     it('authorizes a verified PVS identity against a case-normalized explicit allowlist', async () => {
         const { req, next } = await run()
-        expect(getUser).toHaveBeenCalledWith('token')
+        expect(verifyPvsAccessToken).toHaveBeenCalledWith('token')
         expect(req.dashboardActor).toEqual({ userId: 'staff-id', email: 'staff@pvs.test', role: 'admin' })
         expect(next).toHaveBeenCalledOnce()
     })
-    it.each([undefined, '', ' , '])('fails closed without configured staff (%s)', async value => {
+    it.each([undefined, '', ' , '])('fails closed when the staff allowlist is empty (%s)', async value => {
         if (value === undefined) delete process.env.DOMANI_DASHBOARD_STAFF_EMAILS
         else process.env.DOMANI_DASHBOARD_STAFF_EMAILS = value
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(503)
-        expect(getUser).not.toHaveBeenCalled()
+        expect(verifyPvsAccessToken).not.toHaveBeenCalled()
         expect(next).not.toHaveBeenCalled()
     })
     it.each([{}, { authorization: 'Basic token' }, { authorization: 'Bearer token extra' }])('rejects absent or malformed authentication', async headers => {
         const { res, next } = await run(headers)
         expect(res.status).toHaveBeenCalledWith(401)
-        expect(getUser).not.toHaveBeenCalled()
+        expect(verifyPvsAccessToken).not.toHaveBeenCalled()
         expect(next).not.toHaveBeenCalled()
     })
     it('rejects invalid or expired tokens with a structured error', async () => {
-        getUser.mockResolvedValue({ data: { user: null }, error: { message: 'expired' } })
+        verifyPvsAccessToken.mockRejectedValue(new PvsAuthRequestError(401))
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(401)
         expect(res.json).toHaveBeenCalledWith({ error: { code: 'AUTH_INVALID', message: 'Access token is invalid or expired' }, message: 'Access token is invalid or expired' })
         expect(next).not.toHaveBeenCalled()
     })
     it('does not authorize a nonstaff user through user-editable metadata', async () => {
-        getUser.mockResolvedValue({ data: { user: { id: 'other', email: 'other@pvs.test', user_metadata: { role: 'admin', email: 'staff@pvs.test' } } }, error: null })
+        verifyPvsAccessToken.mockResolvedValue({ id: 'other', email: 'other@pvs.test' })
         const { req, res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(403)
         expect(req.dashboardActor).toBeUndefined()
         expect(next).not.toHaveBeenCalled()
     })
-    it.each([null, { id: 'id' }, { email: 'staff@pvs.test' }])('rejects incomplete identities', async user => {
-        getUser.mockResolvedValue({ data: { user }, error: null })
+    it('rejects a token without an active verified user', async () => {
+        verifyPvsAccessToken.mockResolvedValue(null)
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(401)
         expect(next).not.toHaveBeenCalled()
     })
     it('fails closed when the identity service is unavailable', async () => {
-        getUser.mockRejectedValue(new Error('private upstream information'))
+        verifyPvsAccessToken.mockRejectedValue(new Error('private upstream information'))
         const { res, next } = await run()
         expect(res.status).toHaveBeenCalledWith(503)
         expect(res.json).toHaveBeenCalledWith({ error: { code: 'AUTH_UNAVAILABLE', message: 'Unable to verify dashboard access' }, message: 'Unable to verify dashboard access' })
+        expect(next).not.toHaveBeenCalled()
+    })
+    it('returns a structured service error when token verification times out', async () => {
+        verifyPvsAccessToken.mockRejectedValue(new PvsAuthRequestError(503))
+        const { res, next } = await run()
+        expect(res.status).toHaveBeenCalledWith(503)
+        expect(res.json).toHaveBeenCalledWith({
+            error: { code: 'AUTH_UNAVAILABLE', message: 'Unable to verify dashboard access' },
+            message: 'Unable to verify dashboard access',
+        })
         expect(next).not.toHaveBeenCalled()
     })
     it.each(['https://evil.test', 'null', 'https://dashboard.pvs.test.evil.test'])('rejects disallowed browser origin %s before verification', async origin => {
         process.env.PVS_DASHBOARD_ORIGINS = 'https://dashboard.pvs.test'
         const { res, next } = await run({ authorization: 'Bearer token', origin })
         expect(res.status).toHaveBeenCalledWith(403)
-        expect(getUser).not.toHaveBeenCalled()
+        expect(verifyPvsAccessToken).not.toHaveBeenCalled()
         expect(next).not.toHaveBeenCalled()
     })
     it('denies browser origins when no origin allowlist is configured', async () => {

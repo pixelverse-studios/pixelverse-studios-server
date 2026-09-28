@@ -1,4 +1,7 @@
-import { db } from '../lib/db'
+import {
+    PvsAuthRequestError,
+    verifyPvsAccessToken
+} from '../lib/pvs-auth'
 import type { DashboardActor } from '../lib/admin-releases'
 
 export class DomaniStaffAuthError extends Error {
@@ -12,7 +15,7 @@ export class DomaniStaffAuthError extends Error {
     }
 }
 
-/** Authorize against server configuration, never editable user metadata. */
+/** Authorize a verified active PVS session against the configured staff allowlist. */
 export const verifyDomaniStaffAccessToken = async (
     accessToken: string
 ): Promise<DashboardActor> => {
@@ -23,16 +26,39 @@ export const verifyDomaniStaffAccessToken = async (
             .filter(Boolean)
     )
     if (!staffEmails.size) {
-        throw new DomaniStaffAuthError(503, 'STAFF_ACCESS_UNCONFIGURED', 'Dashboard staff access is not configured')
+        throw new DomaniStaffAuthError(
+            503,
+            'STAFF_ACCESS_UNCONFIGURED',
+            'Dashboard staff access is not configured'
+        )
     }
 
-    const { data, error } = await db.auth.getUser(accessToken)
-    if (error || !data.user?.id || !data.user.email) {
+    let user
+    try {
+        user = await verifyPvsAccessToken(accessToken)
+    } catch (error) {
+        if (
+            !(error instanceof PvsAuthRequestError) ||
+            (error.status !== 401 && error.status !== 403)
+        ) {
+            throw new DomaniStaffAuthError(
+                503,
+                'AUTH_UNAVAILABLE',
+                'Unable to verify dashboard access'
+            )
+        }
+        throw new DomaniStaffAuthError(
+            401,
+            'AUTH_INVALID',
+            'Access token is invalid or expired'
+        )
+    }
+    if (!user) {
         throw new DomaniStaffAuthError(401, 'AUTH_INVALID', 'Access token is invalid or expired')
     }
-    const email = data.user.email.trim().toLowerCase()
+    const email = user.email.trim().toLowerCase()
     if (!staffEmails.has(email)) {
         throw new DomaniStaffAuthError(403, 'STAFF_ACCESS_REQUIRED', 'Dashboard staff access is required')
     }
-    return { userId: data.user.id, email, role: 'admin' }
+    return { userId: user.id, email, role: 'admin' }
 }

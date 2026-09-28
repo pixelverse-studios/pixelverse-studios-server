@@ -3,11 +3,9 @@ import { body, query } from 'express-validator'
 
 import { validateRequest } from './middleware'
 import domani from '../controllers/domani'
+import * as users from '../controllers/domani-users'
 import { requireDomaniStaff } from '../middleware/domani-staff-auth'
-import {
-    PLATFORMS,
-    SIGNUP_COHORTS
-} from '../lib/domani-db'
+import { PLATFORMS } from '../lib/domani-db'
 
 const router = Router()
 
@@ -67,22 +65,9 @@ router.post(
     domani.unsubscribeUser
 )
 
-// GET /api/domani/users - List user profiles
-router.get(
-    '/api/domani/users',
-    [
-        query('cohort')
-            .optional()
-            .isIn([...SIGNUP_COHORTS])
-            .withMessage(`cohort must be one of: ${SIGNUP_COHORTS.join(', ')}`),
-        query('include_deleted')
-            .optional()
-            .isIn(['true', 'false'])
-            .withMessage('include_deleted must be "true" or "false"'),
-        ...paginationValidators
-    ],
-    validateRequest,
-    domani.listUsers
-)
+// Staff-only reads, including the legacy list path. Unsubscribe remains its existing separate flow.
+router.get('/api/domani/users', requireDomaniStaff, users.list)
+router.get('/api/domani/users/stats', requireDomaniStaff, users.stats)
+router.get('/api/domani/users/:id', requireDomaniStaff, users.detail)
 
 export default router
