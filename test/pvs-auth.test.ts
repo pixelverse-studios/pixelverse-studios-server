@@ -4,10 +4,11 @@ import {
     PvsAuthRequestError,
     verifyPvsAccessToken
 } from '../src/lib/pvs-auth'
-import { createTimedFetch } from '../src/lib/timed-fetch'
+import { runWithTimeout } from '../src/lib/timed-fetch'
 
 const originalUrl = process.env.SUPABASE_URL
 const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const originalTimeout = process.env.PVS_AUTH_TIMEOUT_MS
 
 afterEach(() => {
     vi.useRealTimers()
@@ -15,6 +16,8 @@ afterEach(() => {
     else process.env.SUPABASE_URL = originalUrl
     if (originalKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
     else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey
+    if (originalTimeout === undefined) delete process.env.PVS_AUTH_TIMEOUT_MS
+    else process.env.PVS_AUTH_TIMEOUT_MS = originalTimeout
 })
 
 describe('PVS authentication transport', () => {
@@ -69,10 +72,10 @@ describe('PVS authentication transport', () => {
 
     it('aborts an upstream request at the configured deadline', async () => {
         vi.useFakeTimers()
-        const baseFetch = vi.fn<typeof fetch>(
-            (_input, init) =>
+        const request = runWithTimeout(
+            signal =>
                 new Promise((_resolve, reject) => {
-                    init?.signal?.addEventListener(
+                    signal.addEventListener(
                         'abort',
                         () => {
                             reject(
@@ -84,27 +87,47 @@ describe('PVS authentication transport', () => {
                         },
                         { once: true }
                     )
-                })
-        )
-        const request = createTimedFetch(
-            baseFetch,
+                }),
             25
-        )('https://auth.example.test/user')
+        )
         const assertion = expect(request).rejects.toMatchObject({
             name: 'AbortError'
         })
 
         await vi.advanceTimersByTimeAsync(25)
         await assertion
+    })
+
+    it('keeps the deadline active while the response body is consumed', async () => {
+        vi.useFakeTimers()
+        process.env.SUPABASE_URL = 'https://pvs.example.test'
+        process.env.SUPABASE_SERVICE_ROLE_KEY = 'server-key'
+        process.env.PVS_AUTH_TIMEOUT_MS = '500'
+        const baseFetch = vi.fn<typeof fetch>(async (_input, init) => {
+            const response = new Response(null, {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            })
+            response.json = () => new Promise(() => {})
+            expect(init?.signal).toBeInstanceOf(AbortSignal)
+            return response
+        })
+        const request = verifyPvsAccessToken('user-token', baseFetch)
+        const assertion = expect(request).rejects.toMatchObject({
+            name: 'AbortError'
+        })
+
+        await vi.advanceTimersByTimeAsync(500)
+        await assertion
         expect(baseFetch).toHaveBeenCalledOnce()
     })
 
     it('preserves a caller abort signal', async () => {
         const caller = new AbortController()
-        const baseFetch = vi.fn<typeof fetch>(
-            (_input, init) =>
+        const request = runWithTimeout(
+            signal =>
                 new Promise((_resolve, reject) => {
-                    init?.signal?.addEventListener(
+                    signal.addEventListener(
                         'abort',
                         () => {
                             reject(
@@ -116,13 +139,9 @@ describe('PVS authentication transport', () => {
                         },
                         { once: true }
                     )
-                })
-        )
-        const request = createTimedFetch(baseFetch, 10_000)(
-            'https://auth.example.test/user',
-            {
-                signal: caller.signal
-            }
+                }),
+            10_000,
+            caller.signal
         )
         const assertion = expect(request).rejects.toMatchObject({
             name: 'AbortError'

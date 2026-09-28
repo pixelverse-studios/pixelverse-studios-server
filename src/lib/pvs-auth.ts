@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { createTimedFetch } from './timed-fetch'
+import { runWithTimeout } from './timed-fetch'
 
 export const DEFAULT_PVS_AUTH_TIMEOUT_MS = 2_500
 
@@ -44,25 +44,28 @@ export const verifyPvsAccessToken = async (
         throw new PvsAuthRequestError(503)
     }
 
-    const response = await createTimedFetch(baseFetch, pvsAuthTimeoutMs())(
-        `${supabaseUrl}/rest/v1/rpc/verify_pvs_dashboard_actor`,
-        {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                apikey: supabaseServiceRoleKey,
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: '{}'
+    return runWithTimeout(async signal => {
+        const response = await baseFetch(
+            `${supabaseUrl}/rest/v1/rpc/verify_pvs_dashboard_actor`,
+            {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    apikey: supabaseServiceRoleKey,
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: '{}',
+                signal
+            }
+        )
+
+        if (response.status === 401 || response.status === 403) {
+            throw new PvsAuthRequestError(response.status)
         }
-    )
+        if (!response.ok) throw new PvsAuthRequestError(503)
 
-    if (response.status === 401 || response.status === 403) {
-        throw new PvsAuthRequestError(response.status)
-    }
-    if (!response.ok) throw new PvsAuthRequestError(503)
-
-    const user: unknown = await response.json()
-    return isVerifiedUser(user) ? user : null
+        const user: unknown = await response.json()
+        return isVerifiedUser(user) ? user : null
+    }, pvsAuthTimeoutMs())
 }
