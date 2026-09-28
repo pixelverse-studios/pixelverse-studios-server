@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 import 'dotenv/config'
+import { createTimedFetch } from './timed-fetch'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -16,31 +17,6 @@ const pvsAuthTimeoutMs = (): number => {
         : DEFAULT_PVS_AUTH_TIMEOUT_MS
 }
 
-export const createTimedFetch =
-    (baseFetch: typeof fetch, timeoutMs = pvsAuthTimeoutMs()): typeof fetch =>
-    async (input, init = {}) => {
-        const controller = new AbortController()
-        const upstreamSignal = init.signal
-        const abortFromUpstream = () => controller.abort()
-
-        if (upstreamSignal?.aborted) controller.abort()
-        else
-            upstreamSignal?.addEventListener('abort', abortFromUpstream, {
-                once: true
-            })
-
-        const timeout = setTimeout(() => controller.abort(), timeoutMs)
-        try {
-            return await baseFetch(input, {
-                ...init,
-                signal: controller.signal
-            })
-        } finally {
-            clearTimeout(timeout)
-            upstreamSignal?.removeEventListener('abort', abortFromUpstream)
-        }
-    }
-
 const pvsAuthClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
         autoRefreshToken: false,
@@ -48,7 +24,10 @@ const pvsAuthClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         persistSession: false
     },
     global: {
-        fetch: createTimedFetch((input, init) => globalThis.fetch(input, init))
+        fetch: createTimedFetch(
+            (input, init) => globalThis.fetch(input, init),
+            pvsAuthTimeoutMs()
+        )
     }
 })
 

@@ -4,6 +4,7 @@ import { AddressInfo } from 'net'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(), support: vi.fn() }))
+vi.mock('../src/lib/db', () => ({ db: { auth: { getUser: mocks.getUser } } }))
 vi.mock('../src/lib/pvs-auth', () => ({ pvsAuth: { getUser: mocks.getUser } }))
 vi.mock('../src/lib/domani-db', () => ({
     domaniDb: { rpc: mocks.rpc, from: mocks.from },

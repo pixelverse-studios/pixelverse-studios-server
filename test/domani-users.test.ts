@@ -3,6 +3,7 @@ import { request as httpRequest } from 'http'
 import { AddressInfo } from 'net'
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn() }))
+vi.mock('../src/lib/db', () => ({ db: { auth: { getUser: mocks.getUser } } }))
 vi.mock('../src/lib/pvs-auth', () => ({ pvsAuth: { getUser: mocks.getUser } }))
 vi.mock('../src/lib/domani-db', () => ({
     domaniDb: { rpc: mocks.rpc },

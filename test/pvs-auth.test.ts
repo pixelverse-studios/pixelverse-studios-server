@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createTimedFetch } from '../src/lib/pvs-auth'
+import { createTimedFetch } from '../src/lib/timed-fetch'
 
 afterEach(() => vi.useRealTimers())
 
