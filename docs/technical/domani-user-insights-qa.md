@@ -34,7 +34,7 @@ env PATH=/Users/phil/.nvm/versions/node/v24.14.1/bin:/usr/local/bin:/usr/bin:/bi
 
 ## Deployment and rollback
 
-1. Keep the previously deployed migrations in place, then apply the DEV-1418 forward activity-projection migration after it is created and validated in the Domani repository.
+1. Keep the previously deployed migrations in place, then apply Domani forward migration `20261007134913_harden_domani_user_activity_projection.sql`.
 2. Deploy the server story branch before or together with the UI story branch. Confirm the API has its Domani service credential and PVS staff allowlist/origin configuration.
 3. Check list, stats, and detail as an allowed staff user; then verify missing, expired, and nonstaff tokens return 401/403 without database details.
 4. Check Users search/filter/sort/page operations and campaign recipient paging. Confirm responses remain `no-store` and contain no tokens, password material, raw identity payloads, IPs, or sessions.

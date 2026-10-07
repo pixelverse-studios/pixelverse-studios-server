@@ -9,7 +9,7 @@ import {
 
 describe('Domani schema contract at PVS startup', () => {
     it('accepts the required version and later versions', async () => {
-        for (const version of [MIN_DOMANI_SCHEMA_VERSION, '20261005002529']) {
+        for (const version of [MIN_DOMANI_SCHEMA_VERSION, '20261008120000']) {
             await expect(
                 assertDomaniSchemaContract(async () => ({ data: version, error: null }))
             ).resolves.toBeUndefined()
@@ -18,7 +18,7 @@ describe('Domani schema contract at PVS startup', () => {
 
     it('blocks an older or malformed version with an actionable error', async () => {
         await expect(
-            assertDomaniSchemaContract(async () => ({ data: '20260920191645', error: null }))
+            assertDomaniSchemaContract(async () => ({ data: '20260920191655', error: null }))
         ).rejects.toThrow('Apply the pending Domani migrations')
         await expect(
             assertDomaniSchemaContract(async () => ({ data: null, error: null }))

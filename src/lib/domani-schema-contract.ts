@@ -1,7 +1,7 @@
 import { domaniDb } from './domani-db'
 
 // Bump this only when a PVS API release starts requiring a newer Domani schema.
-export const MIN_DOMANI_SCHEMA_VERSION = '20260920191655'
+export const MIN_DOMANI_SCHEMA_VERSION = '20261007134913'
 
 type ContractResult = {
     data: unknown
