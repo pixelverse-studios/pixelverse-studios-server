@@ -32,6 +32,8 @@ describe('PVS migration ownership check', () => {
 
     it('rejects DDL targeting the auth schema', () => {
         expect(check('20261001_update_schema.sql', 'ALTER TABLE auth.users ADD COLUMN reviewer_note text;')).toBe(false)
+        expect(check('20261001_update_schema.sql', 'ALTER TABLE ONLY auth.users ADD COLUMN reviewer_note text;')).toBe(false)
+        expect(check('20261001_update_schema.sql', 'ALTER TABLE IF EXISTS ONLY "auth"."users" ADD COLUMN reviewer_note text;')).toBe(false)
         expect(check('20261001_update_schema.sql', 'CREATE POLICY staff_read ON auth.users FOR SELECT USING (true);')).toBe(false)
         expect(check('20261001_update_schema.sql', 'CREATE POLICY "staff read" ON auth.users FOR SELECT USING (true);')).toBe(false)
     })

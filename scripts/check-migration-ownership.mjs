@@ -8,7 +8,7 @@ const migrationsDir = process.argv[2]
 const forbiddenName = /domani|release|feedback|user_insight|activity_projection/i
 const forbiddenSql = /\b(?:domani_\w*|dashboard_domani_\w*|release_\w*|releases|beta_feedback|support_requests|profiles(?:_dashboard)?|waitlist)\b/i
 const authSchemaDdl = [
-    /\b(?:CREATE(?:\s+OR\s+REPLACE)?|ALTER|DROP)\s+(?:(?:MATERIALIZED\s+)?VIEW|TABLE|FUNCTION|PROCEDURE|INDEX|TYPE)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?"?auth"?\s*\./i,
+    /\b(?:CREATE(?:\s+OR\s+REPLACE)?|ALTER|DROP)\s+(?:(?:MATERIALIZED\s+)?VIEW|TABLE|FUNCTION|PROCEDURE|INDEX|TYPE)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?:ONLY\s+)?"?auth"?\s*\./i,
     /\b(?:CREATE|ALTER|DROP)\s+SCHEMA\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?"?auth"?\b/i,
     /\b(?:CREATE|ALTER|DROP)\s+POLICY\s+(?:"[^"]+"|\w+)\s+ON\s+"?auth"?\s*\./i,
     /\bCREATE\s+TRIGGER\s+(?:"[^"]+"|\w+)[\s\S]{0,200}?\bON\s+"?auth"?\s*\./i,
