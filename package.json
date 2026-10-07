@@ -5,6 +5,7 @@
     "main": "dist/server.js",
     "scripts": {
         "test": "vitest run",
+        "check:migration-ownership": "node scripts/check-migration-ownership.mjs",
         "build": "tsc",
         "start": "node dist/server.js",
         "dev": "ts-node src/server.ts",

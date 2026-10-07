@@ -227,18 +227,24 @@ Keep this document up to date whenever the API surface, environment requirements
 - `POST /api/webhooks/domani/feedback/resend` verifies the raw body with Svix before storing a durable event. Mount before JSON middleware.
 - `DOMANI_FEEDBACK_WEBHOOK_SECRET` is the dedicated Resend webhook signing secret. It enables durable unmatched-event replay, independently of the sending flag.
 - `POST /api/domani/feedback/:source/:id/replies/:requestKey/reconcile` requires PVS staff authorization and only reads provider evidence. The database limits provider checks per message to once per 30 seconds.
-- Apply `20260918121352_domani_feedback_delivery_events.sql` to Domani before this server release. See `docs/domani-feedback-conversation-contract.md` for ordering and recovery behavior. No migration enables sending.
+- Apply canonical Domani migration `20260920150127_domani_feedback_delivery_events.sql` before this server release. Domani owns its migrations and SQL tests in `domani-app/supabase`; PVS must not add Domani SQL under this repo's `supabase/migrations`. See `docs/domani-feedback-conversation-contract.md` for ordering and recovery behavior. No migration enables sending.
 
 
 ### Domani inbound feedback
 
-- DEV-1396 uses signed `email.received` events on the existing Domani webhook, with durable private receipts and a bounded Resend receiving worker. Apply `20260919142130_domani_feedback_inbound.sql` first.
+- DEV-1396 uses signed `email.received` events on the existing Domani webhook, with durable private receipts and a bounded Resend receiving worker. Apply canonical Domani migration `20260920150141_domani_feedback_inbound.sql` first.
 - `DOMANI_FEEDBACK_INBOUND_ENABLED` opts into receiving and opaque Reply-To aliases; `DOMANI_FEEDBACK_REPLY_DOMAIN` must be a dedicated receiving subdomain. Preserve root hello mailbox/MX and visible sender identity. Provider/DNS readiness remains a separate rollout step.
 - No inbound automatic responses or attachment downloads. Only matched plain text enters history; ambiguous/automated mail remains restricted. Unread state is per PVS staff actor, independent of resolution.
-- Test with `bash supabase/tests/domani_feedback_inbound_test.sh`; never use customer addresses or live database writes in automated QA.
+- Run `bash supabase/tests/domani_feedback_inbound_test.sh` in the Domani repository; never use customer addresses or live database writes in automated QA.
 
 ### Domani user insights
 
 - Users list, stats and detail GET routes require `requireDomaniStaff`. Browser calls are direct authenticated requests; overview and campaign server-rendered callers forward the verified PVS session.
-- Apply Domani migration `20260920181147_domani_user_insights.sql` before deploying the Users API/UI pair. Restricted invoker views and column-level auth grants support one RPC per request; never add per-user auth lookups or expose raw auth rows.
-- Preserve unknown app activity and historical device source/time semantics. Test with `bash supabase/tests/domani_users_test.sh` using isolated synthetic data. The existing contract describes query/date/account definitions and rollback.
+- Apply canonical Domani migration `20260920191645_domani_user_insights.sql` before deploying the Users API/UI pair. Restricted invoker views and column-level auth grants support one RPC per request; never add per-user auth lookups or expose raw auth rows.
+- Preserve unknown app activity and historical device source/time semantics. Run `bash supabase/tests/domani_users_test.sh` in the Domani repository using isolated synthetic data. The existing contract describes query/date/account definitions and rollback.
+
+### Domani schema ownership and startup contract
+
+- Domani owns all Domani-targeting SQL migrations and SQL contract tests. PVS owns only PVS schema migrations. Run `npm run check:migration-ownership` with the API build and tests. New PVS migration text that mentions `auth` or Domani-owned SQL, including comments, requires explicit review in the ownership check. Two existing auth-reading migrations and one migration with an auth comment are pinned by SHA-256 hashes, so edits to them also require review.
+- Apply Domani migrations `20261005002529_pvs_schema_contract.sql` and `20261007134913_harden_domani_user_activity_projection.sql` before deploying this PVS API. Startup calls the service-role-only `pvs_domani_schema_contract_version()` RPC and requires version `20261007134913` or newer. Missing, malformed, or older versions stop the API before it listens or starts workers. Ensure `DOMANI_SUPABASE_URL` and `DOMANI_SUPABASE_SERVICE_KEY` point to the migrated Domani project.
+- When a PVS API change requires a newer Domani schema, add a forward Domani migration that updates the RPC's returned version, then update `MIN_DOMANI_SCHEMA_VERSION` in `src/lib/domani-schema-contract.ts`. Deploy the Domani migration before the PVS API.

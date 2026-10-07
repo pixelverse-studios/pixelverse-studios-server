@@ -33,6 +33,7 @@ import publicReleasesRouter from './routes/public-releases'
 import adminReleaseImportRouter from './routes/admin-release-import'
 import adminReleaseManagementRouter from './routes/admin-release-management'
 import { startReleaseCacheInvalidationDispatcher } from './services/release-cache-invalidation'
+import { assertDomaniSchemaContract } from './lib/domani-schema-contract'
 
 process.on('uncaughtException', err => {
     console.error('Uncaught exception:', {
@@ -131,11 +132,18 @@ app.use(
     }
 )
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`)
-    startReleaseCacheInvalidationDispatcher()
-    startFeedbackReplyDispatcher()
-    startFeedbackDeliveryReplay()
-    startFeedbackInboundWorker()
-})
+// Verify the Domani schema before exposing any API route or starting workers.
+assertDomaniSchemaContract()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server is running on http://localhost:${PORT}`)
+            startReleaseCacheInvalidationDispatcher()
+            startFeedbackReplyDispatcher()
+            startFeedbackDeliveryReplay()
+            startFeedbackInboundWorker()
+        })
+    })
+    .catch(error => {
+        console.error('PVS API startup blocked:', error)
+        process.exit(1)
+    })

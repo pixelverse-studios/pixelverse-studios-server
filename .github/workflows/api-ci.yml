@@ -31,5 +31,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check migration ownership
+        run: npm run check:migration-ownership
+
       - name: Test
         run: npm test
