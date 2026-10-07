@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -22,8 +22,24 @@ afterEach(() => {
 })
 
 describe('PVS migration ownership check', () => {
-    it('allows a PVS function to read auth data', () => {
-        expect(check('20261001_pvs_actor.sql', 'CREATE FUNCTION public.verify_pvs_actor() RETURNS uuid LANGUAGE sql AS $$ SELECT id FROM auth.users LIMIT 1 $$;')).toBe(true)
+    it('allows the two reviewed PVS auth-reading migrations unchanged', () => {
+        for (const name of [
+            '20260928175702_verify_pvs_dashboard_actor.sql',
+            '20260928180942_harden_pvs_dashboard_actor_verification.sql',
+        ]) {
+            expect(check(name, readFileSync(resolve('supabase/migrations', name), 'utf8'))).toBe(true)
+        }
+    })
+
+    it('rejects unreviewed auth reads and changes to reviewed migrations', () => {
+        const name = '20260928175702_verify_pvs_dashboard_actor.sql'
+        const original = readFileSync(resolve('supabase/migrations', name), 'utf8')
+        expect(check('20261001_pvs_actor.sql', 'SELECT id FROM auth.users LIMIT 1;')).toBe(false)
+        expect(check(name, `${original}\nUPDATE auth.users SET email = 'changed@example.com';`)).toBe(false)
+    })
+
+    it('allows an unrelated PVS auth comment', () => {
+        expect(check('20261001_pvs_media.sql', '-- PVS media auth\nCREATE TABLE public.pvs_media (id uuid);')).toBe(true)
     })
 
     it('rejects Domani profiles even under a generic filename', () => {
@@ -36,5 +52,8 @@ describe('PVS migration ownership check', () => {
         expect(check('20261001_update_schema.sql', 'ALTER TABLE IF EXISTS ONLY "auth"."users" ADD COLUMN reviewer_note text;')).toBe(false)
         expect(check('20261001_update_schema.sql', 'CREATE POLICY staff_read ON auth.users FOR SELECT USING (true);')).toBe(false)
         expect(check('20261001_update_schema.sql', 'CREATE POLICY "staff read" ON auth.users FOR SELECT USING (true);')).toBe(false)
+        expect(check('20261001_update_schema.sql', 'CREATE INDEX users_email_idx ON auth.users (email);')).toBe(false)
+        expect(check('20261001_update_schema.sql', "UPDATE auth.users SET email = 'changed@example.com';")).toBe(false)
+        expect(check('20261001_update_schema.sql', 'CREATE SCHEMA auth;')).toBe(false)
     })
 })
