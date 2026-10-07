@@ -38,8 +38,19 @@ describe('PVS migration ownership check', () => {
         expect(check(name, `${original}\nUPDATE auth.users SET email = 'changed@example.com';`)).toBe(false)
     })
 
-    it('allows an unrelated PVS auth comment', () => {
-        expect(check('20261001_pvs_media.sql', '-- PVS media auth\nCREATE TABLE public.pvs_media (id uuid);')).toBe(true)
+    it('allows the unchanged PVS migration with an auth comment', () => {
+        const name = '20260527175229_create_media_admin_auth_tables.sql'
+        expect(check(name, readFileSync(resolve('supabase/migrations', name), 'utf8'))).toBe(true)
+    })
+
+    it('does not let comment markers in SQL strings hide later statements', () => {
+        expect(check('20261001_pvs_actor.sql', "SELECT '--' AS marker; UPDATE auth.users SET email = 'changed@example.com';")).toBe(false)
+        expect(check('20261001_pvs_actor.sql', "SELECT '/*' AS marker; CREATE INDEX users_email_idx ON auth.users (email);")).toBe(false)
+        expect(check('20261001_pvs_actor.sql', "SELECT '--' AS marker; ALTER TABLE public.profiles ADD COLUMN note text;")).toBe(false)
+    })
+
+    it('requires review for any new auth mention, including comments', () => {
+        expect(check('20261001_pvs_media.sql', '-- PVS media auth\nCREATE TABLE public.pvs_media (id uuid);')).toBe(false)
     })
 
     it('rejects Domani profiles even under a generic filename', () => {
